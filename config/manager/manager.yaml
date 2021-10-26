@@ -47,8 +47,13 @@ spec:
           periodSeconds: 10
         resources:
           limits:
+<<<<<<< HEAD
             cpu: 100m
             memory: 30Mi
+=======
+            cpu: 200m
+            memory: 100Mi
+>>>>>>> 2620723 (Adds reconcilation of Authorino instances)
           requests:
             cpu: 100m
             memory: 20Mi

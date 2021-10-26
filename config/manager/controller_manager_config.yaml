@@ -8,4 +8,8 @@ webhook:
   port: 9443
 leaderElection:
   leaderElect: true
+<<<<<<< HEAD
   resourceName: f0fb677d.authorino.3scale.net
+=======
+  resourceName: aac3a15d.kuadrant.3scale.net
+>>>>>>> 2620723 (Adds reconcilation of Authorino instances)

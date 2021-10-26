@@ -1,4 +1,4 @@
-domain: authorino.3scale.net
+domain: kuadrant.3scale.net
 layout:
 - go.kubebuilder.io/v3
 plugins:
@@ -6,4 +6,14 @@ plugins:
   scorecard.sdk.operatorframework.io/v2: {}
 projectName: authorino-operator
 repo: github.com/kuadrant/authorino-operator
+resources:
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: kuadrant.3scale.net
+  group: authorino-operator
+  kind: Authorino
+  path: github.com/kuadrant/authorino-operator/api/v1beta1
+  version: v1beta1
 version: "3"

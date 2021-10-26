@@ -4,7 +4,11 @@
     entrypoint:
     - scorecard-test
     - basic-check-spec
+<<<<<<< HEAD
     image: quay.io/operator-framework/scorecard-test:v1.9.0
+=======
+    image: quay.io/operator-framework/scorecard-test:v1.13.1
+>>>>>>> 2620723 (Adds reconcilation of Authorino instances)
     labels:
       suite: basic
       test: basic-check-spec-test

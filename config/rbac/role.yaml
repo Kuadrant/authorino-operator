@@ -1,0 +1,46 @@
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  creationTimestamp: null
+  name: manager-role
+rules:
+- apiGroups:
+  - apps
+  resources:
+  - deployments
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - authorino-operator.kuadrant.3scale.net
+  resources:
+  - authorinoes
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - authorino-operator.kuadrant.3scale.net
+  resources:
+  - authorinoes/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - authorino-operator.kuadrant.3scale.net
+  resources:
+  - authorinoes/status
+  verbs:
+  - get
+  - patch
+  - update
