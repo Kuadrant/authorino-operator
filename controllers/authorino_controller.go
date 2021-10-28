@@ -19,9 +19,12 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"os"
+	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -38,8 +41,9 @@ import (
 // AuthorinoReconciler reconciles a Authorino object
 type AuthorinoReconciler struct {
 	client.Client
-	Log    logr.Logger
-	Scheme *runtime.Scheme
+	OperatorNamespace string
+	Log               logr.Logger
+	Scheme            *runtime.Scheme
 }
 
 //+kubebuilder:rbac:groups=authorino-operator.kuadrant.3scale.net,resources=authorinoes,verbs=get;list;watch;create;update;patch;delete
@@ -60,6 +64,13 @@ type AuthorinoReconciler struct {
 func (r *AuthorinoReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := r.Log.WithValues("authorinoReconciler", req.NamespacedName)
 
+	//get operator namespace
+	r.OperatorNamespace = authorinooperatorv1beta1.AuthorinoOperatorNamespace
+	ns, found := os.LookupEnv("WATCH_NAMESPACE")
+	if found {
+		r.OperatorNamespace = ns
+	}
+
 	// get authorino instance
 	authorinoInstance, err := r.authorinoInstance(req.NamespacedName)
 	if err != nil {
@@ -76,6 +87,13 @@ func (r *AuthorinoReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	err = r.authorinoServices(authorinoInstance)
 	if err != nil {
 		log.Error(err, "Failed to create authorino services")
+		return ctrl.Result{}, err
+	}
+
+	//TODO: check permission for leader election, proxy and so on
+	err = r.authorinoPermission(authorinoInstance, req.NamespacedName.Namespace)
+	if err != nil {
+		log.Error(err, "Failed to create authorino permission")
 		return ctrl.Result{}, err
 	}
 
@@ -99,11 +117,22 @@ func (r *AuthorinoReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		return ctrl.Result{}, err
 	}
 
+	// checks for upgrades
+	desiredDeployment := r.authorinoDeployment(authorinoInstance)
+	if r.authorinoDeploymentChanges(existingDeployment, desiredDeployment) {
+		err = r.Update(ctx, desiredDeployment)
+		if err != nil {
+			log.Error(err, "Failed to update Authorino deployment resource", desiredDeployment.Name, desiredDeployment.Namespace)
+			return ctrl.Result{}, err
+		}
+		return ctrl.Result{RequeueAfter: time.Minute}, nil
+	}
+
 	//TODO: handle deletiton
 
 	//TODO: update status
 
-	return ctrl.Result{}, nil
+	return ctrl.Result{RequeueAfter: time.Minute}, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -127,14 +156,16 @@ func (r *AuthorinoReconciler) authorinoInstance(namespacedName types.NamespacedN
 }
 
 func (r *AuthorinoReconciler) authorinoDeployment(authorino *authorinooperatorv1beta1.Authorino) *appsv1.Deployment {
+	prefix := authorino.GetName()
+
 	objectMeta := v1.ObjectMeta{
 		Name:      authorino.GetName(),
-		Namespace: getNamespace(authorino),
+		Namespace: authorino.GetNamespace(),
 	}
 
 	labels := labelsForAuthorino(objectMeta.GetName())
 
-	return &appsv1.Deployment{
+	dep := &appsv1.Deployment{
 		ObjectMeta: objectMeta,
 		Spec: appsv1.DeploymentSpec{
 			Replicas: authorino.Spec.Replicas,
@@ -146,6 +177,7 @@ func (r *AuthorinoReconciler) authorinoDeployment(authorino *authorinooperatorv1
 					Labels: labels,
 				},
 				Spec: corev1.PodSpec{
+					ServiceAccountName: prefix + "-authorino",
 					Containers: []corev1.Container{
 						{
 							Image:           authorino.Spec.Image,
@@ -158,6 +190,10 @@ func (r *AuthorinoReconciler) authorinoDeployment(authorino *authorinooperatorv1
 			},
 		},
 	}
+
+	ctrl.SetControllerReference(authorino, dep, r.Scheme)
+
+	return dep
 }
 
 func (r *AuthorinoReconciler) buildAuthorinoEnv(authorino *authorinooperatorv1beta1.Authorino) []corev1.EnvVar {
@@ -166,7 +202,7 @@ func (r *AuthorinoReconciler) buildAuthorinoEnv(authorino *authorinooperatorv1be
 	if !authorino.Spec.ClusterWide {
 		envVar = append(envVar, corev1.EnvVar{
 			Name:  "WATCH_NAMESPACE",
-			Value: authorino.Namespace,
+			Value: authorino.GetNamespace(),
 		})
 	}
 
@@ -231,11 +267,141 @@ func (r *AuthorinoReconciler) authorinoDeploymentChanges(existingDeployment, des
 		changed = true
 	}
 
-	if changed {
+	// checking envvars
+	existingEnvvars := existingContainer.Env
+	desiredEnvvars := desiredContainer.Env
+	for envIndex, existingEnvvar := range existingEnvvars {
+		desiredEnvvar := desiredEnvvars[envIndex]
+		if existingEnvvar.Name == desiredEnvvar.Name && existingEnvvar.Value != desiredEnvvar.Value {
+			changed = true
+		}
+	}
+	return changed
+}
 
+func (r *AuthorinoReconciler) authorinoPermission(authorino *authorinooperatorv1beta1.Authorino, operatorNamespace string) error {
+	prefix := authorino.GetName()
+	authorinoInstanceNamespace := authorino.GetNamespace()
+	authorinoClusterRoleName := "authorino-operator-authorino-manager-role"
+
+	authorinoClusterRole := &rbacv1.ClusterRole{
+		ObjectMeta: v1.ObjectMeta{
+			Name:      authorinoClusterRoleName,
+			Namespace: r.OperatorNamespace,
+		},
+	}
+	err := r.Get(context.TODO(), client.ObjectKeyFromObject(authorinoClusterRole), authorinoClusterRole)
+	if err != nil {
+		if errors.IsNotFound(err) {
+			return fmt.Errorf("Authorino cluster role not found, err: %d", err)
+		}
+		return fmt.Errorf("Failed to get authorino cluster role, err: %d", err)
 	}
 
-	return true
+	roleName := prefix + "-authorino"
+	serviceAccount := &corev1.ServiceAccount{
+		ObjectMeta: v1.ObjectMeta{
+			Name:      roleName,
+			Namespace: authorinoInstanceNamespace,
+		},
+	}
+	ctrl.SetControllerReference(authorino, serviceAccount, r.Scheme)
+	_, err = controllerutil.CreateOrUpdate(context.TODO(), r.Client, serviceAccount, func() error {
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf(
+			"Failed to create/update authorino instance %s service account, err: %d",
+			authorino.GetName(),
+			err,
+		)
+	}
+
+	if authorino.Spec.ClusterWide {
+		clusterRoleBinding := &rbacv1.ClusterRoleBinding{
+			ObjectMeta: v1.ObjectMeta{
+				Name:      roleName,
+				Namespace: authorinoInstanceNamespace,
+			},
+		}
+
+		err = r.Get(context.TODO(), client.ObjectKeyFromObject(clusterRoleBinding), clusterRoleBinding)
+		if err != nil && !errors.IsNotFound(err) {
+			return fmt.Errorf(
+				"Failed to get ClusterRoleBinding %s for authorino instance %s, err: %d",
+				clusterRoleBinding.GetName(),
+				authorino.GetName(),
+				err,
+			)
+		}
+		if errors.IsNotFound(err) {
+			clusterRoleBinding.RoleRef = rbacv1.RoleRef{
+				Name: authorinoClusterRole.GetName(),
+				Kind: "ClusterRole",
+			}
+			clusterRoleBinding.Subjects = []rbacv1.Subject{
+				{
+					Kind:      rbacv1.ServiceAccountKind,
+					Name:      serviceAccount.GetName(),
+					Namespace: authorinoInstanceNamespace,
+				},
+			}
+			ctrl.SetControllerReference(authorino, clusterRoleBinding, r.Scheme)
+			err = r.Create(context.TODO(), clusterRoleBinding)
+			if err != nil {
+				return fmt.Errorf(
+					"Failed to create ClusterRoleBinding %s for authorino instance %s, err: %d",
+					clusterRoleBinding.GetName(),
+					authorino.GetName(),
+					err,
+				)
+			}
+		}
+	} else {
+		roleBinding := &rbacv1.RoleBinding{
+			ObjectMeta: v1.ObjectMeta{
+				Name:      roleName,
+				Namespace: authorinoInstanceNamespace,
+			},
+		}
+
+		ctrl.SetControllerReference(authorino, roleBinding, r.Scheme)
+		err = r.Get(context.TODO(), client.ObjectKeyFromObject(roleBinding), roleBinding)
+		if err != nil && !errors.IsNotFound(err) {
+			return fmt.Errorf(
+				"Failed to get roleBinding %s for authorino instance %s, err: %d",
+				roleBinding.GetName(),
+				authorino.GetName(),
+				err,
+			)
+		}
+
+		if errors.IsNotFound(err) {
+			roleBinding.RoleRef = rbacv1.RoleRef{
+				Name: authorinoClusterRole.GetName(),
+				Kind: "ClusterRole",
+			}
+			roleBinding.Subjects = []rbacv1.Subject{
+				{
+					Kind:      rbacv1.ServiceAccountKind,
+					Name:      serviceAccount.GetName(),
+					Namespace: authorinoInstanceNamespace,
+				},
+			}
+			ctrl.SetControllerReference(authorino, roleBinding, r.Scheme)
+			err = r.Create(context.TODO(), roleBinding)
+			if err != nil {
+				return fmt.Errorf(
+					"Failed to create roleBinding %s for authorino instance %s, err: %d",
+					roleBinding.GetName(),
+					authorino.GetName(),
+					err,
+				)
+			}
+		}
+	}
+
+	return nil
 }
 
 func (r *AuthorinoReconciler) authorinoServices(authorino *authorinooperatorv1beta1.Authorino) error {
@@ -266,10 +432,13 @@ func (r *AuthorinoReconciler) authorinoServices(authorino *authorinooperatorv1be
 	for name, service := range services {
 		obj := &corev1.Service{
 			ObjectMeta: v1.ObjectMeta{
-				Name:      name,
-				Namespace: getNamespace(authorino),
+				Name:      authorino.GetName() + "-" + name,
+				Namespace: authorino.GetNamespace(),
 			},
 		}
+
+		ctrl.SetControllerReference(authorino, obj, r.Scheme)
+
 		_, err := controllerutil.CreateOrUpdate(context.TODO(), r.Client, obj, func() error {
 			obj.Spec.Ports = service
 			obj.Spec.Selector = labelsForAuthorino(authorino.GetName())
@@ -281,14 +450,6 @@ func (r *AuthorinoReconciler) authorinoServices(authorino *authorinooperatorv1be
 	}
 
 	return nil
-}
-
-func getNamespace(authorino *authorinooperatorv1beta1.Authorino) string {
-	namespace := authorinooperatorv1beta1.AuthorinoOperatorNamespace
-	if !authorino.Spec.ClusterWide {
-		namespace = authorino.Namespace
-	}
-	return namespace
 }
 
 func labelsForAuthorino(name string) map[string]string {
