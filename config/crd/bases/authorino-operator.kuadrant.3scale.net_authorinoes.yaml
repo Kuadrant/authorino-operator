@@ -36,17 +36,19 @@ spec:
           spec:
             description: AuthorinoSpec defines the desired state of Authorino
             properties:
-              clusterwide:
+              authConfigLabelSelectors:
+                type: string
+              clusterWide:
                 type: boolean
               image:
                 type: string
-              imagepullpolicy:
+              imagePullPolicy:
                 type: string
               listener:
                 properties:
-                  certkeypath:
+                  certKeyPath:
                     type: string
-                  certpath:
+                  certPath:
                     type: string
                   port:
                     format: int32
@@ -54,11 +56,11 @@ spec:
                   tsl:
                     type: boolean
                 type: object
-              oidcserver:
+              oidcServer:
                 properties:
-                  certkeypath:
+                  certKeyPath:
                     type: string
-                  certpath:
+                  certPath:
                     type: string
                   port:
                     format: int32
@@ -67,11 +69,13 @@ spec:
               replicas:
                 format: int32
                 type: integer
+              secretLabelSelectors:
+                type: string
             type: object
           status:
             description: AuthorinoStatus defines the observed state of Authorino
             properties:
-              authorinoinstances:
+              authorinoInstances:
                 description: Number of authorino instances in the cluster
                 format: int32
                 type: integer
@@ -111,7 +115,7 @@ spec:
                 - type
                 x-kubernetes-list-type: map
             required:
-            - authorinoinstances
+            - authorinoInstances
             type: object
         type: object
     served: true

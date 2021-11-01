@@ -90,7 +90,6 @@ func (r *AuthorinoReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		return ctrl.Result{}, err
 	}
 
-	//TODO: check permission for leader election, proxy and so on
 	err = r.authorinoPermission(authorinoInstance, req.NamespacedName.Namespace)
 	if err != nil {
 		log.Error(err, "Failed to create authorino permission")
@@ -206,6 +205,20 @@ func (r *AuthorinoReconciler) buildAuthorinoEnv(authorino *authorinooperatorv1be
 		})
 	}
 
+	if authorino.Spec.AuthConfigLabelSelectors != "" {
+		envVar = append(envVar, corev1.EnvVar{
+			Name:  authorinooperatorv1beta1.AuthConfigLabelSelector,
+			Value: fmt.Sprint(authorino.Spec.AuthConfigLabelSelectors),
+		})
+	}
+
+	if authorino.Spec.SecretLabelSelectors != "" {
+		envVar = append(envVar, corev1.EnvVar{
+			Name:  authorinooperatorv1beta1.SecretLabelSelector,
+			Value: fmt.Sprint(authorino.Spec.SecretLabelSelectors),
+		})
+	}
+
 	// external auth service via GRPC
 	if authorino.Spec.Listener.Port != nil {
 		envVar = append(envVar, corev1.EnvVar{
@@ -317,6 +330,12 @@ func (r *AuthorinoReconciler) authorinoPermission(authorino *authorinooperatorv1
 		)
 	}
 
+	// creates leader election role
+	err = r.leaderElectionPermission(authorino, serviceAccount.GetName())
+	if err != nil {
+		return err
+	}
+
 	if authorino.Spec.ClusterWide {
 		clusterRoleBinding := &rbacv1.ClusterRoleBinding{
 			ObjectMeta: v1.ObjectMeta{
@@ -402,6 +421,101 @@ func (r *AuthorinoReconciler) authorinoPermission(authorino *authorinooperatorv1
 	}
 
 	return nil
+}
+
+func (r *AuthorinoReconciler) leaderElectionPermission(authorino *authorinooperatorv1beta1.Authorino, saName string) error {
+	leaderElectionRole := &rbacv1.Role{
+		ObjectMeta: v1.ObjectMeta{
+			Name:      "authorino-leader-election-role",
+			Namespace: authorino.GetNamespace(),
+			Labels:    labelsForAuthorino(authorino.GetName()),
+		},
+	}
+
+	err := r.Get(context.TODO(), client.ObjectKeyFromObject(leaderElectionRole), leaderElectionRole)
+	if err != nil && !errors.IsNotFound(err) {
+		return fmt.Errorf(
+			"Failed to get leader election role err: %d",
+			err,
+		)
+	}
+
+	if errors.IsNotFound(err) {
+		ctrl.SetControllerReference(authorino, leaderElectionRole, r.Scheme)
+		leaderElectionRole.Rules = getLeaderElectionRules()
+		err = r.Create(context.TODO(), leaderElectionRole)
+		if err != nil {
+			return fmt.Errorf(
+				"Failed to create leader election role, err: %d",
+				err,
+			)
+		}
+	}
+
+	prefix := authorino.GetName()
+	roleBinding := &rbacv1.RoleBinding{
+		ObjectMeta: v1.ObjectMeta{
+			Name:      prefix + "-authorino-leader-election",
+			Namespace: authorino.GetNamespace(),
+		},
+	}
+	err = r.Get(context.TODO(), client.ObjectKeyFromObject(roleBinding), roleBinding)
+	if err != nil && !errors.IsNotFound(err) {
+		return fmt.Errorf(
+			"Failed to get roleBinding %s for authorino instance %s, err: %d",
+			roleBinding.GetName(),
+			authorino.GetName(),
+			err,
+		)
+	}
+
+	if errors.IsNotFound(err) {
+		roleBinding.RoleRef = rbacv1.RoleRef{
+			Name: roleBinding.GetName(),
+			Kind: "Role",
+		}
+		roleBinding.Subjects = []rbacv1.Subject{
+			{
+				Kind:      rbacv1.ServiceAccountKind,
+				Name:      saName,
+				Namespace: authorino.GetNamespace(),
+			},
+		}
+		ctrl.SetControllerReference(authorino, roleBinding, r.Scheme)
+		err = r.Create(context.TODO(), roleBinding)
+		if err != nil {
+			return fmt.Errorf(
+				"Failed to create leader election role binding, err: %d",
+				err,
+			)
+		}
+	}
+	return nil
+}
+
+func getLeaderElectionRules() []rbacv1.PolicyRule {
+	return []rbacv1.PolicyRule{
+		{
+			APIGroups: []string{"*"},
+			Resources: []string{"configmaps"},
+			Verbs:     []string{"get", "list", "watch", "create", "update", "patch", "delete"},
+		},
+		{
+			APIGroups: []string{"*"},
+			Resources: []string{"configmaps/status"},
+			Verbs:     []string{"get", "update", "patch"},
+		},
+		{
+			APIGroups: []string{"*"},
+			Resources: []string{"events"},
+			Verbs:     []string{"create", "patch"},
+		},
+		{
+			APIGroups: []string{"coordination.k8s.io"},
+			Resources: []string{"leases"},
+			Verbs:     []string{"get", "list", "create", "update"},
+		},
+	}
 }
 
 func (r *AuthorinoReconciler) authorinoServices(authorino *authorinooperatorv1beta1.Authorino) error {

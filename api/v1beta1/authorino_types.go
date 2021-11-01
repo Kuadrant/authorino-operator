@@ -33,12 +33,14 @@ const (
 	AuthorinoOperatorNamespace string        = "authorino-operator"
 
 	// Authorino EnvVars
-	ExtAuthGRPCPort    string = "EXT_AUTH_GRPC_PORT"
-	TSLCertPath        string = "TLS_CERT"
-	TSLCertKeyPath     string = "TLS_CERT_KEY"
-	OIDCHTTPPort       string = "OIDC_HTTP_PORT"
-	OIDCTSLCertPath    string = "OIDC_TLS_CERT"
-	OIDCTLSCertKeyPath string = "OIDC_TLS_CERT_KEY"
+	ExtAuthGRPCPort         string = "EXT_AUTH_GRPC_PORT"
+	TSLCertPath             string = "TLS_CERT"
+	TSLCertKeyPath          string = "TLS_CERT_KEY"
+	OIDCHTTPPort            string = "OIDC_HTTP_PORT"
+	OIDCTSLCertPath         string = "OIDC_TLS_CERT"
+	OIDCTLSCertKeyPath      string = "OIDC_TLS_CERT_KEY"
+	AuthConfigLabelSelector string = "AUTH_CONFIG_LABEL_SELECTOR"
+	SecretLabelSelector     string = "SECRET_LABEL_SELECTOR"
 )
 
 type Condition struct {
@@ -65,12 +67,14 @@ type AuthorinoSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	Image           string               `json:"image,omitempty"`
-	Replicas        *int32               `json:"replicas,omitempty"`
-	ImagePullPolicy string               `json:"imagepullpolicy,omitempty"`
-	ClusterWide     ClusterWideAuthorino `json:"clusterwide,omitempty"`
-	Listener        Listener             `json:"listener,omitempty"`
-	OIDCServer      OIDCServer           `json:"oidcserver,omitempty"`
+	Image                    string               `json:"image,omitempty"`
+	Replicas                 *int32               `json:"replicas,omitempty"`
+	ImagePullPolicy          string               `json:"imagePullPolicy,omitempty"`
+	ClusterWide              ClusterWideAuthorino `json:"clusterWide,omitempty"`
+	Listener                 Listener             `json:"listener,omitempty"`
+	OIDCServer               OIDCServer           `json:"oidcServer,omitempty"`
+	AuthConfigLabelSelectors string               `json:"authConfigLabelSelectors,omitempty"`
+	SecretLabelSelectors     string               `json:"secretLabelSelectors,omitempty"`
 }
 
 type ClusterWideAuthorino bool
@@ -78,14 +82,14 @@ type ClusterWideAuthorino bool
 type Listener struct {
 	Port        *int32 `json:"port,omitempty"`
 	Tls         bool   `json:"tsl,omitempty"`
-	CertPath    string `json:"certpath,omitempty"`
-	CertKeyPath string `json:"certkeypath,omitempty"`
+	CertPath    string `json:"certPath,omitempty"`
+	CertKeyPath string `json:"certKeyPath,omitempty"`
 }
 
 type OIDCServer struct {
 	Port        *int32 `json:"port,omitempty"`
-	CertPath    string `json:"certpath,omitempty"`
-	CertKeyPath string `json:"certkeypath,omitempty"`
+	CertPath    string `json:"certPath,omitempty"`
+	CertKeyPath string `json:"certKeyPath,omitempty"`
 }
 
 // AuthorinoStatus defines the observed state of Authorino
@@ -94,7 +98,7 @@ type AuthorinoStatus struct {
 	// Important: Run "make" to regenerate code after modifying this file
 
 	// Number of authorino instances in the cluster
-	AuthorinoInstances int32 `json:"authorinoinstances"`
+	AuthorinoInstances int32 `json:"authorinoInstances"`
 
 	// Conditions is an array of the current Authorino's CR conditions
 	// Supported condition types: ConditionReady
