@@ -71,7 +71,7 @@ func main() {
 		Port:                   9443,
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         enableLeaderElection,
-		LeaderElectionID:       "aac3a15d.kuadrant.3scale.net",
+		LeaderElectionID:       "aac3a15d.authorino.kuadrant.io",
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")

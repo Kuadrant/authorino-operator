@@ -7,6 +7,102 @@ metadata:
   name: manager-role
 rules:
 - apiGroups:
+  - '*'
+  resources:
+  - clusterrolebindings
+  verbs:
+  - create
+  - get
+  - list
+  - update
+  - watch
+- apiGroups:
+  - '*'
+  resources:
+  - clusterroles
+  verbs:
+  - create
+  - get
+  - list
+  - update
+  - watch
+- apiGroups:
+  - '*'
+  resources:
+  - configmaps
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - '*'
+  resources:
+  - configmaps/status
+  verbs:
+  - delete
+  - get
+  - patch
+  - update
+- apiGroups:
+  - '*'
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+- apiGroups:
+  - '*'
+  resources:
+  - rolebindings
+  verbs:
+  - create
+  - get
+  - list
+  - update
+  - watch
+- apiGroups:
+  - '*'
+  resources:
+  - roles
+  verbs:
+  - create
+  - get
+  - list
+  - update
+  - watch
+- apiGroups:
+  - '*'
+  resources:
+  - secrets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - '*'
+  resources:
+  - serviceaccounts
+  verbs:
+  - create
+  - get
+  - list
+  - update
+  - watch
+- apiGroups:
+  - '*'
+  resources:
+  - services
+  verbs:
+  - create
+  - get
+  - list
+  - update
+  - watch
+- apiGroups:
   - apps
   resources:
   - deployments
@@ -19,9 +115,9 @@ rules:
   - update
   - watch
 - apiGroups:
-  - authorino-operator.kuadrant.3scale.net
+  - authorino.3scale.net
   resources:
-  - authorinoes
+  - authconfigs
   verbs:
   - create
   - delete
@@ -31,15 +127,44 @@ rules:
   - update
   - watch
 - apiGroups:
-  - authorino-operator.kuadrant.3scale.net
+  - authorino.3scale.net
   resources:
-  - authorinoes/finalizers
+  - authconfigs/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - create
+  - get
+  - list
+  - update
+- apiGroups:
+  - operator.authorino.kuadrant.io
+  resources:
+  - authorinos
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - operator.authorino.kuadrant.io
+  resources:
+  - authorinos/finalizers
   verbs:
   - update
 - apiGroups:
-  - authorino-operator.kuadrant.3scale.net
+  - operator.authorino.kuadrant.io
   resources:
-  - authorinoes/status
+  - authorinos/status
   verbs:
   - get
   - patch

@@ -19,12 +19,11 @@ package controllers
 import (
 	"context"
 	"fmt"
-	"os"
 	"time"
 
-	appsv1 "k8s.io/api/apps/v1"
-	corev1 "k8s.io/api/core/v1"
-	rbacv1 "k8s.io/api/rbac/v1"
+	k8sapps "k8s.io/api/apps/v1"
+	k8score "k8s.io/api/core/v1"
+	k8srbac "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -35,22 +34,35 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	"github.com/go-logr/logr"
-	authorinooperatorv1beta1 "github.com/kuadrant/authorino-operator/api/v1beta1"
+	api "github.com/kuadrant/authorino-operator/api/v1beta1"
 )
 
 // AuthorinoReconciler reconciles a Authorino object
 type AuthorinoReconciler struct {
 	client.Client
-	OperatorNamespace string
-	Log               logr.Logger
-	Scheme            *runtime.Scheme
+	Log    logr.Logger
+	Scheme *runtime.Scheme
 }
 
-//+kubebuilder:rbac:groups=authorino-operator.kuadrant.3scale.net,resources=authorinoes,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=authorino-operator.kuadrant.3scale.net,resources=authorinoes/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=authorino-operator.kuadrant.3scale.net,resources=authorinoes/finalizers,verbs=update
+//+kubebuilder:rbac:groups=operator.authorino.kuadrant.io,resources=authorinos,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=operator.authorino.kuadrant.io,resources=authorinos/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=operator.authorino.kuadrant.io,resources=authorinos/finalizers,verbs=update
 
 // +kubebuilder:rbac:groups="apps",resources=deployments,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups="*",resources=services,verbs=get;list;watch;create;update;
+// +kubebuilder:rbac:groups="*",resources=clusterroles,verbs=get;list;watch;create;update;
+// +kubebuilder:rbac:groups="*",resources=rolebindings,verbs=get;list;watch;create;update;
+// +kubebuilder:rbac:groups="*",resources=clusterrolebindings,verbs=get;list;watch;create;update;
+// +kubebuilder:rbac:groups="*",resources=serviceaccounts,verbs=get;list;watch;create;update;
+// +kubebuilder:rbac:groups="*",resources=roles,verbs=get;list;watch;create;update;
+// +kubebuilder:rbac:groups="*",resources=configmaps,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups="*",resources=configmaps/status,verbs=get;update;delete;patch
+// +kubebuilder:rbac:groups="*",resources=events,verbs=create;patch;
+// +kubebuilder:rbac:groups="*",resources=secrets,verbs=get;list;watch
+// +kubebuilder:rbac:groups="authorino.3scale.net",resources=authconfigs,verbs=create;delete;get;list;patch;update;watch
+// +kubebuilder:rbac:groups="authorino.3scale.net",resources=authconfigs,verbs=create;delete;get;list;patch;update;watch
+// +kubebuilder:rbac:groups="authorino.3scale.net",resources=authconfigs/status,verbs=get;patch;update
+// +kubebuilder:rbac:groups="coordination.k8s.io",resources=leases,verbs=get;list;create;update;
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -62,17 +74,10 @@ type AuthorinoReconciler struct {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.9.2/pkg/reconcile
 func (r *AuthorinoReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	log := r.Log.WithValues("authorinoReconciler", req.NamespacedName)
-
-	//get operator namespace
-	r.OperatorNamespace = authorinooperatorv1beta1.AuthorinoOperatorNamespace
-	ns, found := os.LookupEnv("WATCH_NAMESPACE")
-	if found {
-		r.OperatorNamespace = ns
-	}
+	log := r.Log.WithValues("authorino", req.NamespacedName)
 
 	// get authorino instance
-	authorinoInstance, err := r.authorinoInstance(req.NamespacedName)
+	authorinoInstance, err := r.getAuthorinoInstance(req.NamespacedName)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -82,54 +87,75 @@ func (r *AuthorinoReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		return ctrl.Result{}, nil
 	}
 
-	log.Info("Found an instance of authorino", "authorinoInstanceName", authorinoInstance.Name)
+	log.V(1).Info("Found an instance of authorino", "authorinoInstanceName", authorinoInstance.Name)
 
-	err = r.authorinoServices(authorinoInstance)
+	err = r.createOrUpdateAuthorinoServices(authorinoInstance)
 	if err != nil {
+		authorinoInstance.Status.Ready = false
+		authorinoInstance.Status.LastError = err.Error()
+		if statusErr := r.handleStatusUpdate(authorinoInstance); statusErr != nil {
+			log.Error(statusErr, statusErr.Error())
+		}
 		log.Error(err, "Failed to create authorino services")
 		return ctrl.Result{}, err
 	}
 
-	err = r.authorinoPermission(authorinoInstance, req.NamespacedName.Namespace)
+	err = r.createAuthorinoPermission(authorinoInstance, req.NamespacedName.Namespace)
 	if err != nil {
+		authorinoInstance.Status.Ready = false
+		authorinoInstance.Status.LastError = err.Error()
+		if statusErr := r.handleStatusUpdate(authorinoInstance); statusErr != nil {
+			log.Error(statusErr, statusErr.Error())
+		}
 		log.Error(err, "Failed to create authorino permission")
 		return ctrl.Result{}, err
 	}
 
-	existingDeployment := &appsv1.Deployment{}
-	err = r.Get(context.TODO(),
-		types.NamespacedName{
-			Name:      authorinoInstance.GetName(),
-			Namespace: authorinoInstance.GetNamespace(),
-		}, existingDeployment)
-	if err != nil && errors.IsNotFound(err) {
-		newDeployment := r.authorinoDeployment(authorinoInstance)
+	existingDeployment, err := r.getAuthorinoDeployment(authorinoInstance)
+	if err != nil {
+		authorinoInstance.Status.Ready = false
+		authorinoInstance.Status.LastError = err.Error()
+		if statusErr := r.handleStatusUpdate(authorinoInstance); statusErr != nil {
+			log.Error(statusErr, statusErr.Error())
+		}
+		log.Error(err, "Failed to get Deployment for Authorino")
+		return ctrl.Result{}, err
+	} else if existingDeployment == nil {
+		newDeployment := r.buildAuthorinoDeployment(authorinoInstance)
 		err = r.Create(ctx, newDeployment)
 		if err != nil {
+			authorinoInstance.Status.Ready = false
+			authorinoInstance.Status.LastError = err.Error()
+			if statusErr := r.handleStatusUpdate(authorinoInstance); statusErr != nil {
+				log.Error(statusErr, statusErr.Error())
+			}
 			log.Error(err, "Failed to create Authorino deployment resource", newDeployment.Name, newDeployment.Namespace)
 			return ctrl.Result{}, err
 		}
 		// Deployment created successfully - return and requeue
 		return ctrl.Result{Requeue: true}, nil
-	} else if err != nil {
-		log.Error(err, "Failed to get Deployment for Authorino")
-		return ctrl.Result{}, err
-	}
-
-	// checks for upgrades
-	desiredDeployment := r.authorinoDeployment(authorinoInstance)
-	if r.authorinoDeploymentChanges(existingDeployment, desiredDeployment) {
-		err = r.Update(ctx, desiredDeployment)
-		if err != nil {
-			log.Error(err, "Failed to update Authorino deployment resource", desiredDeployment.Name, desiredDeployment.Namespace)
-			return ctrl.Result{}, err
+	} else {
+		desiredDeployment := r.buildAuthorinoDeployment(authorinoInstance)
+		if r.authorinoDeploymentChanges(existingDeployment, desiredDeployment) {
+			err = r.Update(ctx, desiredDeployment)
+			if err != nil {
+				authorinoInstance.Status.Ready = false
+				authorinoInstance.Status.LastError = err.Error()
+				if statusErr := r.handleStatusUpdate(authorinoInstance); statusErr != nil {
+					log.Error(statusErr, statusErr.Error())
+				}
+				log.Error(err, "Failed to update Authorino deployment resource", desiredDeployment.Name, desiredDeployment.Namespace)
+				return ctrl.Result{}, err
+			}
+			return ctrl.Result{RequeueAfter: time.Minute}, nil
 		}
-		return ctrl.Result{RequeueAfter: time.Minute}, nil
 	}
 
-	//TODO: handle deletiton
-
-	//TODO: update status
+	authorinoInstance.Status.Ready = true
+	authorinoInstance.Status.LastError = ""
+	if statusErr := r.handleStatusUpdate(authorinoInstance); statusErr != nil {
+		log.Error(statusErr, statusErr.Error())
+	}
 
 	return ctrl.Result{RequeueAfter: time.Minute}, nil
 }
@@ -137,12 +163,12 @@ func (r *AuthorinoReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 // SetupWithManager sets up the controller with the Manager.
 func (r *AuthorinoReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&authorinooperatorv1beta1.Authorino{}).
+		For(&api.Authorino{}).
 		Complete(r)
 }
 
-func (r *AuthorinoReconciler) authorinoInstance(namespacedName types.NamespacedName) (*authorinooperatorv1beta1.Authorino, error) {
-	authorinoInstance := &authorinooperatorv1beta1.Authorino{}
+func (r *AuthorinoReconciler) getAuthorinoInstance(namespacedName types.NamespacedName) (*api.Authorino, error) {
+	authorinoInstance := &api.Authorino{}
 	err := r.Get(context.TODO(), namespacedName, authorinoInstance)
 	if err != nil {
 		if errors.IsNotFound(err) {
@@ -154,7 +180,24 @@ func (r *AuthorinoReconciler) authorinoInstance(namespacedName types.NamespacedN
 	return authorinoInstance, nil
 }
 
-func (r *AuthorinoReconciler) authorinoDeployment(authorino *authorinooperatorv1beta1.Authorino) *appsv1.Deployment {
+func (r *AuthorinoReconciler) getAuthorinoDeployment(authorino *api.Authorino) (*k8sapps.Deployment, error) {
+	authorinoDeployment := &k8sapps.Deployment{}
+	err := r.Get(context.TODO(),
+		types.NamespacedName{
+			Name:      authorino.GetName(),
+			Namespace: authorino.GetNamespace(),
+		}, authorinoDeployment)
+	if err != nil {
+		if errors.IsNotFound(err) {
+			r.Log.Info("Authorino deployment not found.")
+			return nil, nil
+		}
+		return nil, err
+	}
+	return authorinoDeployment, nil
+}
+
+func (r *AuthorinoReconciler) buildAuthorinoDeployment(authorino *api.Authorino) *k8sapps.Deployment {
 	prefix := authorino.GetName()
 
 	objectMeta := v1.ObjectMeta{
@@ -164,24 +207,24 @@ func (r *AuthorinoReconciler) authorinoDeployment(authorino *authorinooperatorv1
 
 	labels := labelsForAuthorino(objectMeta.GetName())
 
-	dep := &appsv1.Deployment{
+	dep := &k8sapps.Deployment{
 		ObjectMeta: objectMeta,
-		Spec: appsv1.DeploymentSpec{
+		Spec: k8sapps.DeploymentSpec{
 			Replicas: authorino.Spec.Replicas,
 			Selector: &v1.LabelSelector{
 				MatchLabels: labels,
 			},
-			Template: corev1.PodTemplateSpec{
+			Template: k8score.PodTemplateSpec{
 				ObjectMeta: v1.ObjectMeta{
 					Labels: labels,
 				},
-				Spec: corev1.PodSpec{
+				Spec: k8score.PodSpec{
 					ServiceAccountName: prefix + "-authorino",
-					Containers: []corev1.Container{
+					Containers: []k8score.Container{
 						{
 							Image:           authorino.Spec.Image,
-							ImagePullPolicy: corev1.PullPolicy(authorino.Spec.ImagePullPolicy),
-							Name:            authorinooperatorv1beta1.AuthorinoContainerName,
+							ImagePullPolicy: k8score.PullPolicy(authorino.Spec.ImagePullPolicy),
+							Name:            api.AuthorinoContainerName,
 							Env:             r.buildAuthorinoEnv(authorino),
 						},
 					},
@@ -195,66 +238,66 @@ func (r *AuthorinoReconciler) authorinoDeployment(authorino *authorinooperatorv1
 	return dep
 }
 
-func (r *AuthorinoReconciler) buildAuthorinoEnv(authorino *authorinooperatorv1beta1.Authorino) []corev1.EnvVar {
-	envVar := []corev1.EnvVar{}
+func (r *AuthorinoReconciler) buildAuthorinoEnv(authorino *api.Authorino) []k8score.EnvVar {
+	envVar := []k8score.EnvVar{}
 
 	if !authorino.Spec.ClusterWide {
-		envVar = append(envVar, corev1.EnvVar{
-			Name:  "WATCH_NAMESPACE",
+		envVar = append(envVar, k8score.EnvVar{
+			Name:  api.WatchNamespace,
 			Value: authorino.GetNamespace(),
 		})
 	}
 
 	if authorino.Spec.AuthConfigLabelSelectors != "" {
-		envVar = append(envVar, corev1.EnvVar{
-			Name:  authorinooperatorv1beta1.AuthConfigLabelSelector,
+		envVar = append(envVar, k8score.EnvVar{
+			Name:  api.AuthConfigLabelSelector,
 			Value: fmt.Sprint(authorino.Spec.AuthConfigLabelSelectors),
 		})
 	}
 
 	if authorino.Spec.SecretLabelSelectors != "" {
-		envVar = append(envVar, corev1.EnvVar{
-			Name:  authorinooperatorv1beta1.SecretLabelSelector,
+		envVar = append(envVar, k8score.EnvVar{
+			Name:  api.SecretLabelSelector,
 			Value: fmt.Sprint(authorino.Spec.SecretLabelSelectors),
 		})
 	}
 
 	// external auth service via GRPC
 	if authorino.Spec.Listener.Port != nil {
-		envVar = append(envVar, corev1.EnvVar{
-			Name:  authorinooperatorv1beta1.ExtAuthGRPCPort,
+		envVar = append(envVar, k8score.EnvVar{
+			Name:  api.ExtAuthGRPCPort,
 			Value: fmt.Sprint(authorino.Spec.Listener.Port),
 		})
 	}
 	if authorino.Spec.Listener.CertPath != "" {
-		envVar = append(envVar, corev1.EnvVar{
-			Name:  authorinooperatorv1beta1.TSLCertPath,
+		envVar = append(envVar, k8score.EnvVar{
+			Name:  api.TLSCertPath,
 			Value: authorino.Spec.Listener.CertPath,
 		})
 	}
 	if authorino.Spec.Listener.CertKeyPath != "" {
-		envVar = append(envVar, corev1.EnvVar{
-			Name:  authorinooperatorv1beta1.TSLCertKeyPath,
+		envVar = append(envVar, k8score.EnvVar{
+			Name:  api.TLSCertKeyPath,
 			Value: authorino.Spec.Listener.CertKeyPath,
 		})
 	}
 
 	// OIDC service
 	if authorino.Spec.OIDCServer.Port != nil {
-		envVar = append(envVar, corev1.EnvVar{
-			Name:  authorinooperatorv1beta1.OIDCHTTPPort,
+		envVar = append(envVar, k8score.EnvVar{
+			Name:  api.OIDCHTTPPort,
 			Value: fmt.Sprint(authorino.Spec.OIDCServer.Port),
 		})
 	}
 	if authorino.Spec.OIDCServer.CertKeyPath != "" {
-		envVar = append(envVar, corev1.EnvVar{
-			Name:  authorinooperatorv1beta1.OIDCTSLCertPath,
+		envVar = append(envVar, k8score.EnvVar{
+			Name:  api.OIDCTLSCertPath,
 			Value: authorino.Spec.OIDCServer.CertPath,
 		})
 	}
 	if authorino.Spec.OIDCServer.CertKeyPath != "" {
-		envVar = append(envVar, corev1.EnvVar{
-			Name:  authorinooperatorv1beta1.OIDCTLSCertKeyPath,
+		envVar = append(envVar, k8score.EnvVar{
+			Name:  api.OIDCTLSCertKeyPath,
 			Value: authorino.Spec.OIDCServer.CertKeyPath,
 		})
 	}
@@ -262,8 +305,12 @@ func (r *AuthorinoReconciler) buildAuthorinoEnv(authorino *authorinooperatorv1be
 	return envVar
 }
 
-func (r *AuthorinoReconciler) authorinoDeploymentChanges(existingDeployment, desiredDeployment *appsv1.Deployment) bool {
+func (r *AuthorinoReconciler) authorinoDeploymentChanges(existingDeployment, desiredDeployment *k8sapps.Deployment) bool {
 	changed := false
+
+	if existingDeployment.Spec.Replicas != desiredDeployment.Spec.Replicas {
+		changed = true
+	}
 
 	if len(desiredDeployment.Spec.Template.Spec.Containers) != 1 {
 		// error
@@ -292,15 +339,14 @@ func (r *AuthorinoReconciler) authorinoDeploymentChanges(existingDeployment, des
 	return changed
 }
 
-func (r *AuthorinoReconciler) authorinoPermission(authorino *authorinooperatorv1beta1.Authorino, operatorNamespace string) error {
+func (r *AuthorinoReconciler) createAuthorinoPermission(authorino *api.Authorino, operatorNamespace string) error {
 	prefix := authorino.GetName()
 	authorinoInstanceNamespace := authorino.GetNamespace()
-	authorinoClusterRoleName := "authorino-operator-authorino-manager-role"
+	authorinoClusterRoleName := "authorino-manager-role"
 
-	authorinoClusterRole := &rbacv1.ClusterRole{
+	authorinoClusterRole := &k8srbac.ClusterRole{
 		ObjectMeta: v1.ObjectMeta{
-			Name:      authorinoClusterRoleName,
-			Namespace: r.OperatorNamespace,
+			Name: authorinoClusterRoleName,
 		},
 	}
 	err := r.Get(context.TODO(), client.ObjectKeyFromObject(authorinoClusterRole), authorinoClusterRole)
@@ -312,7 +358,7 @@ func (r *AuthorinoReconciler) authorinoPermission(authorino *authorinooperatorv1
 	}
 
 	roleName := prefix + "-authorino"
-	serviceAccount := &corev1.ServiceAccount{
+	serviceAccount := &k8score.ServiceAccount{
 		ObjectMeta: v1.ObjectMeta{
 			Name:      roleName,
 			Namespace: authorinoInstanceNamespace,
@@ -337,7 +383,7 @@ func (r *AuthorinoReconciler) authorinoPermission(authorino *authorinooperatorv1
 	}
 
 	if authorino.Spec.ClusterWide {
-		clusterRoleBinding := &rbacv1.ClusterRoleBinding{
+		clusterRoleBinding := &k8srbac.ClusterRoleBinding{
 			ObjectMeta: v1.ObjectMeta{
 				Name:      roleName,
 				Namespace: authorinoInstanceNamespace,
@@ -354,13 +400,13 @@ func (r *AuthorinoReconciler) authorinoPermission(authorino *authorinooperatorv1
 			)
 		}
 		if errors.IsNotFound(err) {
-			clusterRoleBinding.RoleRef = rbacv1.RoleRef{
+			clusterRoleBinding.RoleRef = k8srbac.RoleRef{
 				Name: authorinoClusterRole.GetName(),
 				Kind: "ClusterRole",
 			}
-			clusterRoleBinding.Subjects = []rbacv1.Subject{
+			clusterRoleBinding.Subjects = []k8srbac.Subject{
 				{
-					Kind:      rbacv1.ServiceAccountKind,
+					Kind:      k8srbac.ServiceAccountKind,
 					Name:      serviceAccount.GetName(),
 					Namespace: authorinoInstanceNamespace,
 				},
@@ -377,7 +423,7 @@ func (r *AuthorinoReconciler) authorinoPermission(authorino *authorinooperatorv1
 			}
 		}
 	} else {
-		roleBinding := &rbacv1.RoleBinding{
+		roleBinding := &k8srbac.RoleBinding{
 			ObjectMeta: v1.ObjectMeta{
 				Name:      roleName,
 				Namespace: authorinoInstanceNamespace,
@@ -396,13 +442,13 @@ func (r *AuthorinoReconciler) authorinoPermission(authorino *authorinooperatorv1
 		}
 
 		if errors.IsNotFound(err) {
-			roleBinding.RoleRef = rbacv1.RoleRef{
+			roleBinding.RoleRef = k8srbac.RoleRef{
 				Name: authorinoClusterRole.GetName(),
 				Kind: "ClusterRole",
 			}
-			roleBinding.Subjects = []rbacv1.Subject{
+			roleBinding.Subjects = []k8srbac.Subject{
 				{
-					Kind:      rbacv1.ServiceAccountKind,
+					Kind:      k8srbac.ServiceAccountKind,
 					Name:      serviceAccount.GetName(),
 					Namespace: authorinoInstanceNamespace,
 				},
@@ -423,8 +469,8 @@ func (r *AuthorinoReconciler) authorinoPermission(authorino *authorinooperatorv1
 	return nil
 }
 
-func (r *AuthorinoReconciler) leaderElectionPermission(authorino *authorinooperatorv1beta1.Authorino, saName string) error {
-	leaderElectionRole := &rbacv1.Role{
+func (r *AuthorinoReconciler) leaderElectionPermission(authorino *api.Authorino, saName string) error {
+	leaderElectionRole := &k8srbac.Role{
 		ObjectMeta: v1.ObjectMeta{
 			Name:      "authorino-leader-election-role",
 			Namespace: authorino.GetNamespace(),
@@ -453,7 +499,7 @@ func (r *AuthorinoReconciler) leaderElectionPermission(authorino *authorinoopera
 	}
 
 	prefix := authorino.GetName()
-	roleBinding := &rbacv1.RoleBinding{
+	roleBinding := &k8srbac.RoleBinding{
 		ObjectMeta: v1.ObjectMeta{
 			Name:      prefix + "-authorino-leader-election",
 			Namespace: authorino.GetNamespace(),
@@ -470,13 +516,13 @@ func (r *AuthorinoReconciler) leaderElectionPermission(authorino *authorinoopera
 	}
 
 	if errors.IsNotFound(err) {
-		roleBinding.RoleRef = rbacv1.RoleRef{
-			Name: roleBinding.GetName(),
+		roleBinding.RoleRef = k8srbac.RoleRef{
+			Name: leaderElectionRole.GetName(),
 			Kind: "Role",
 		}
-		roleBinding.Subjects = []rbacv1.Subject{
+		roleBinding.Subjects = []k8srbac.Subject{
 			{
-				Kind:      rbacv1.ServiceAccountKind,
+				Kind:      k8srbac.ServiceAccountKind,
 				Name:      saName,
 				Namespace: authorino.GetNamespace(),
 			},
@@ -493,8 +539,8 @@ func (r *AuthorinoReconciler) leaderElectionPermission(authorino *authorinoopera
 	return nil
 }
 
-func getLeaderElectionRules() []rbacv1.PolicyRule {
-	return []rbacv1.PolicyRule{
+func getLeaderElectionRules() []k8srbac.PolicyRule {
+	return []k8srbac.PolicyRule{
 		{
 			APIGroups: []string{"*"},
 			Resources: []string{"configmaps"},
@@ -518,24 +564,24 @@ func getLeaderElectionRules() []rbacv1.PolicyRule {
 	}
 }
 
-func (r *AuthorinoReconciler) authorinoServices(authorino *authorinooperatorv1beta1.Authorino) error {
+func (r *AuthorinoReconciler) createOrUpdateAuthorinoServices(authorino *api.Authorino) error {
 
-	services := make(map[string][]corev1.ServicePort)
-	services["authorino-authorization"] = []corev1.ServicePort{
+	services := make(map[string][]k8score.ServicePort)
+	services["authorino-authorization"] = []k8score.ServicePort{
 		{
 			Name:     "grpc",
 			Port:     50051,
-			Protocol: corev1.ProtocolTCP,
+			Protocol: k8score.ProtocolTCP,
 		},
 	}
-	services["authorino-oidc"] = []corev1.ServicePort{
+	services["authorino-oidc"] = []k8score.ServicePort{
 		{
 			Name:     "http",
 			Port:     8083,
-			Protocol: corev1.ProtocolTCP,
+			Protocol: k8score.ProtocolTCP,
 		},
 	}
-	services["authorino-controller-manager-metrics-service"] = []corev1.ServicePort{
+	services["controller-metrics"] = []k8score.ServicePort{
 		{
 			Name:       "https",
 			Port:       8443,
@@ -544,7 +590,7 @@ func (r *AuthorinoReconciler) authorinoServices(authorino *authorinooperatorv1be
 	}
 
 	for name, service := range services {
-		obj := &corev1.Service{
+		obj := &k8score.Service{
 			ObjectMeta: v1.ObjectMeta{
 				Name:      authorino.GetName() + "-" + name,
 				Namespace: authorino.GetNamespace(),
@@ -566,9 +612,24 @@ func (r *AuthorinoReconciler) authorinoServices(authorino *authorinooperatorv1be
 	return nil
 }
 
+func (r *AuthorinoReconciler) handleStatusUpdate(authorino *api.Authorino) error {
+	// get authorino instance
+	existingAuthorinoInstance, err := r.getAuthorinoInstance(types.NamespacedName{Name: authorino.GetName(), Namespace: authorino.GetNamespace()})
+	if err != nil {
+		return err
+	}
+	existingAuthorinoInstance.Status.Ready = authorino.Status.Ready
+
+	err = r.Status().Update(context.TODO(), existingAuthorinoInstance)
+	if err != nil {
+		return fmt.Errorf("Failed to update authorino's %s status , err: %w", authorino.GetName(), err)
+	}
+	return nil
+}
+
 func labelsForAuthorino(name string) map[string]string {
 	return map[string]string{
-		"control-plane":     "controller-manager",
-		"authorino_cr_name": name,
+		"control-plane":      "controller-manager",
+		"authorino-resource": name,
 	}
 }

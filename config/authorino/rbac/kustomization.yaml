@@ -3,5 +3,5 @@ kind: Kustomization
 
 resources:
 - role.yaml
-- service_editor_role.yaml
-- service_viewer_role.yaml
+- authconfig_editor_role.yaml
+- authconfig_viewer_role.yaml

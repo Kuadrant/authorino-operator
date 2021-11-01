@@ -28,16 +28,16 @@ type ConditionType string
 
 const (
 	// ConditionReady specifies that the resource is ready
-	ConditionReady             ConditionType = "Ready"
-	AuthorinoContainerName     string        = "authorino"
-	AuthorinoOperatorNamespace string        = "authorino-operator"
+	ConditionReady         ConditionType = "Ready"
+	AuthorinoContainerName string        = "authorino"
 
 	// Authorino EnvVars
+	WatchNamespace          string = "WATCH_NAMESPACE"
 	ExtAuthGRPCPort         string = "EXT_AUTH_GRPC_PORT"
-	TSLCertPath             string = "TLS_CERT"
-	TSLCertKeyPath          string = "TLS_CERT_KEY"
+	TLSCertPath             string = "TLS_CERT"
+	TLSCertKeyPath          string = "TLS_CERT_KEY"
 	OIDCHTTPPort            string = "OIDC_HTTP_PORT"
-	OIDCTSLCertPath         string = "OIDC_TLS_CERT"
+	OIDCTLSCertPath         string = "OIDC_TLS_CERT"
 	OIDCTLSCertKeyPath      string = "OIDC_TLS_CERT_KEY"
 	AuthConfigLabelSelector string = "AUTH_CONFIG_LABEL_SELECTOR"
 	SecretLabelSelector     string = "SECRET_LABEL_SELECTOR"
@@ -67,17 +67,15 @@ type AuthorinoSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	Image                    string               `json:"image,omitempty"`
-	Replicas                 *int32               `json:"replicas,omitempty"`
-	ImagePullPolicy          string               `json:"imagePullPolicy,omitempty"`
-	ClusterWide              ClusterWideAuthorino `json:"clusterWide,omitempty"`
-	Listener                 Listener             `json:"listener,omitempty"`
-	OIDCServer               OIDCServer           `json:"oidcServer,omitempty"`
-	AuthConfigLabelSelectors string               `json:"authConfigLabelSelectors,omitempty"`
-	SecretLabelSelectors     string               `json:"secretLabelSelectors,omitempty"`
+	Image                    string     `json:"image,omitempty"`
+	Replicas                 *int32     `json:"replicas,omitempty"`
+	ImagePullPolicy          string     `json:"imagePullPolicy,omitempty"`
+	ClusterWide              bool       `json:"clusterWide,omitempty"`
+	Listener                 Listener   `json:"listener,omitempty"`
+	OIDCServer               OIDCServer `json:"oidcServer,omitempty"`
+	AuthConfigLabelSelectors string     `json:"authConfigLabelSelectors,omitempty"`
+	SecretLabelSelectors     string     `json:"secretLabelSelectors,omitempty"`
 }
-
-type ClusterWideAuthorino bool
 
 type Listener struct {
 	Port        *int32 `json:"port,omitempty"`
@@ -97,8 +95,11 @@ type AuthorinoStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	// Number of authorino instances in the cluster
-	AuthorinoInstances int32 `json:"authorinoInstances"`
+	//  Defines if the authorino intance is ready
+	Ready bool `json:"ready"`
+
+	// Reports an error during the deployment of an instance
+	LastError string `json:"lastError"`
 
 	// Conditions is an array of the current Authorino's CR conditions
 	// Supported condition types: ConditionReady
@@ -112,8 +113,9 @@ type AuthorinoStatus struct {
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
+//+kubebuilder:resource:path="authorinos"
 
-// Authorino is the Schema for the authorinoes API
+// Authorino is the Schema for the authorinos API
 type Authorino struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`

@@ -4,4 +4,4 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     cert-manager.io/inject-ca-from: $(CERTIFICATE_NAMESPACE)/$(CERTIFICATE_NAME)
-  name: authorinoes.authorino-operator.kuadrant.3scale.net
+  name: authorinos.operator.authorino.kuadrant.io

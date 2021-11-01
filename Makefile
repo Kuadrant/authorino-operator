@@ -28,15 +28,15 @@ BUNDLE_METADATA_OPTS ?= $(BUNDLE_CHANNELS) $(BUNDLE_DEFAULT_CHANNEL)
 # This variable is used to construct full image tags for bundle and catalog images.
 #
 # For example, running 'make bundle-build bundle-push catalog-build catalog-push' will build and push both
-# kuadrant.3scale.net/authorino-operator-bundle:$VERSION and kuadrant.3scale.net/authorino-operator-catalog:$VERSION.
-IMAGE_TAG_BASE ?= kuadrant.3scale.net/authorino-operator
+# authorino.kuadrant.io/authorino-operator-bundle:$VERSION and authorino.kuadrant.io/authorino-operator-catalog:$VERSION.
+IMAGE_TAG_BASE ?= authorino.kuadrant.io/authorino-operator
 
 # BUNDLE_IMG defines the image:tag used for the bundle.
 # You can use it as an arg. (E.g make bundle-build BUNDLE_IMG=<some-registry>/<project-name-bundle>:<tag>)
 BUNDLE_IMG ?= $(IMAGE_TAG_BASE)-bundle:v$(VERSION)
 
 # Image URL to use all building/pushing image targets
-IMG ?= controller:latest
+IMG ?= authorino-operator:latest
 # Produce CRDs that work back to Kubernetes 1.11 (no version conversion)
 CRD_OPTIONS ?= "crd:trivialVersions=true,preserveUnknownFields=false"
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
@@ -98,7 +98,7 @@ build: generate fmt vet ## Build manager binary.
 run: manifests generate fmt vet ## Run a controller from your host.
 	go run ./main.go
 
-docker-build: test ## Build docker image with the manager.
+docker-build:  ## Build docker image with the manager.
 	docker build -t ${IMG} .
 
 docker-push: ## Push docker image with the manager.
@@ -119,8 +119,12 @@ deploy: manifests kustomize ## Deploy controller to the K8s cluster specified in
 undeploy: ## Undeploy controller from the K8s cluster specified in ~/.kube/config.
 	$(KUSTOMIZE) build config/default | kubectl delete -f -
 
-install-authorino: ## install RBAC and CRD for authorino
-	$(KUSTOMIZE) build config/authorino | kubectl apply -f -
+AUTHORINO_VERSION=v0.4.0
+install-authorino: kustomize ## install RBAC and CRD for authorino
+	$(eval TMP := $(shell mktemp -d))
+	cd $(TMP); git clone --depth 1 --branch $(AUTHORINO_VERSION) https://github.com/kuadrant/authorino.git
+	cd $(TMP)/authorino; $(KUSTOMIZE) build install | kubectl apply -f -
+	-rm -rf $(TMP)
 
 CONTROLLER_GEN = $(shell pwd)/bin/controller-gen
 controller-gen: ## Download controller-gen locally if necessary.

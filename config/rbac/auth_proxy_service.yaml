@@ -9,10 +9,7 @@ spec:
   ports:
   - name: https
     port: 8443
-<<<<<<< HEAD
-=======
     protocol: TCP
->>>>>>> 2620723 (Adds reconcilation of Authorino instances)
     targetPort: https
   selector:
     control-plane: controller-manager

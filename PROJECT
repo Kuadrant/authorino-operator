@@ -1,4 +1,4 @@
-domain: kuadrant.3scale.net
+domain: authorino.kuadrant.io
 layout:
 - go.kubebuilder.io/v3
 plugins:
@@ -11,9 +11,10 @@ resources:
     crdVersion: v1
     namespaced: true
   controller: true
-  domain: kuadrant.3scale.net
+  domain: authorino.kuadrant.io
   group: authorino-operator
   kind: Authorino
   path: github.com/kuadrant/authorino-operator/api/v1beta1
   version: v1beta1
+  plural: authorinos
 version: "3"

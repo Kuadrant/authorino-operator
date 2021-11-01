@@ -1,19 +1,19 @@
-apiVersion: authorino-operator.kuadrant.3scale.net/v1beta1
+apiVersion: operator.authorino.kuadrant.io/v1beta1
 kind: Authorino
 metadata:
-  name: authorino-sample
+  name: authorino-sample22
   namespace: authorino-operator
 spec:
   image: quay.io/3scale/authorino:latest
   replicas: 1
-  imagepullpolicy: Always
-  clusterwide: true
+  imagePullPolicy: Always
+  clusterWide: true
   listener:
     port: 
     tsl: true
-    certpath: ""
-    certkeypath: ""
-  oidcserver:
+    certPath: ""
+    certKeyPath: ""
+  oidcServer:
     port: 
-    certpath: ""
-    certkeypath: ""
+    certPath: ""
+    certKeyPath: ""

@@ -1,13 +1,13 @@
-# permissions for end users to edit authorinoes.
+# permissions for end users to edit authorinos.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   name: authorino-editor-role
 rules:
 - apiGroups:
-  - authorino-operator.kuadrant.3scale.net
+  - operator.authorino.kuadrant.io
   resources:
-  - authorinoes
+  - authorinos
   verbs:
   - create
   - delete
@@ -17,8 +17,8 @@ rules:
   - update
   - watch
 - apiGroups:
-  - authorino-operator.kuadrant.3scale.net
+  - operator.authorino.kuadrant.io
   resources:
-  - authorinoes/status
+  - authorinos/status
   verbs:
   - get
