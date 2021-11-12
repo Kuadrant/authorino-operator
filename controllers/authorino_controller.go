@@ -44,6 +44,11 @@ type AuthorinoReconciler struct {
 	Scheme *runtime.Scheme
 }
 
+const (
+	tlsCertName     string = "tls-cert"
+	oidcTlsCertName string = "oidc-cert"
+)
+
 //+kubebuilder:rbac:groups=operator.authorino.kuadrant.io,resources=authorinos,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=operator.authorino.kuadrant.io,resources=authorinos/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=operator.authorino.kuadrant.io,resources=authorinos/finalizers,verbs=update
@@ -220,22 +225,70 @@ func (r *AuthorinoReconciler) buildAuthorinoDeployment(authorino *api.Authorino)
 				},
 				Spec: k8score.PodSpec{
 					ServiceAccountName: prefix + "-authorino",
-					Containers: []k8score.Container{
-						{
-							Image:           authorino.Spec.Image,
-							ImagePullPolicy: k8score.PullPolicy(authorino.Spec.ImagePullPolicy),
-							Name:            api.AuthorinoContainerName,
-							Env:             r.buildAuthorinoEnv(authorino),
-						},
-					},
 				},
 			},
 		},
 	}
 
+	authorinoContainer := k8score.Container{
+		Image:           authorino.Spec.Image,
+		ImagePullPolicy: k8score.PullPolicy(authorino.Spec.ImagePullPolicy),
+		Name:            api.AuthorinoContainerName,
+		Env:             r.buildAuthorinoEnv(authorino),
+	}
+
+	if enabled := authorino.Spec.Listener.Tls.Enabled; enabled == nil || *enabled {
+		secretName := authorino.Spec.Listener.Tls.CertSecretName
+		authorinoContainer.VolumeMounts = append(authorinoContainer.VolumeMounts,
+			buildTlsVolumeMount(tlsCertName, api.DefaultTlsCertPath, api.DefaultTlsCertKeyPath)...,
+		)
+		dep.Spec.Template.Spec.Volumes = append(dep.Spec.Template.Spec.Volumes,
+			buildTlsVolume(tlsCertName, secretName),
+		)
+	}
+
+	if enabled := authorino.Spec.OIDCServer.Tls.Enabled; enabled == nil || *enabled {
+		secretName := authorino.Spec.OIDCServer.Tls.CertSecretName
+		authorinoContainer.VolumeMounts = append(authorinoContainer.VolumeMounts,
+			buildTlsVolumeMount(oidcTlsCertName, api.DefaultOidcTlsCertPath, api.DefaultOidcTlsCertKeyPath)...,
+		)
+		dep.Spec.Template.Spec.Volumes = append(dep.Spec.Template.Spec.Volumes,
+			buildTlsVolume(oidcTlsCertName, secretName),
+		)
+	}
+	dep.Spec.Template.Spec.Containers = append(dep.Spec.Template.Spec.Containers, authorinoContainer)
+
 	ctrl.SetControllerReference(authorino, dep, r.Scheme)
 
 	return dep
+}
+
+func buildTlsVolume(certName, secretName string) k8score.Volume {
+	return k8score.Volume{
+		Name: certName,
+		VolumeSource: k8score.VolumeSource{
+			Secret: &k8score.SecretVolumeSource{
+				SecretName: secretName,
+			},
+		},
+	}
+}
+
+func buildTlsVolumeMount(certName, certPath, certKeyPath string) []k8score.VolumeMount {
+	return []k8score.VolumeMount{
+		{
+			Name:      certName,
+			MountPath: certPath,
+			SubPath:   "tls.crt",
+			ReadOnly:  true,
+		},
+		{
+			Name:      certName,
+			MountPath: certKeyPath,
+			SubPath:   "tls.key",
+			ReadOnly:  true,
+		},
+	}
 }
 
 func (r *AuthorinoReconciler) buildAuthorinoEnv(authorino *api.Authorino) []k8score.EnvVar {
@@ -266,19 +319,19 @@ func (r *AuthorinoReconciler) buildAuthorinoEnv(authorino *api.Authorino) []k8sc
 	if authorino.Spec.Listener.Port != nil {
 		envVar = append(envVar, k8score.EnvVar{
 			Name:  api.ExtAuthGRPCPort,
-			Value: fmt.Sprint(authorino.Spec.Listener.Port),
+			Value: fmt.Sprintf("%v", *authorino.Spec.Listener.Port),
 		})
 	}
-	if authorino.Spec.Listener.CertPath != "" {
+
+	if enabled := authorino.Spec.Listener.Tls.Enabled; enabled == nil || *enabled {
 		envVar = append(envVar, k8score.EnvVar{
-			Name:  api.TLSCertPath,
-			Value: authorino.Spec.Listener.CertPath,
+			Name:  api.EnvVarTlsCert,
+			Value: api.DefaultTlsCertPath,
 		})
-	}
-	if authorino.Spec.Listener.CertKeyPath != "" {
+
 		envVar = append(envVar, k8score.EnvVar{
-			Name:  api.TLSCertKeyPath,
-			Value: authorino.Spec.Listener.CertKeyPath,
+			Name:  api.EnvVarTlsCertKey,
+			Value: api.DefaultTlsCertKeyPath,
 		})
 	}
 
@@ -286,19 +339,17 @@ func (r *AuthorinoReconciler) buildAuthorinoEnv(authorino *api.Authorino) []k8sc
 	if authorino.Spec.OIDCServer.Port != nil {
 		envVar = append(envVar, k8score.EnvVar{
 			Name:  api.OIDCHTTPPort,
-			Value: fmt.Sprint(authorino.Spec.OIDCServer.Port),
+			Value: fmt.Sprintf("%v", *authorino.Spec.OIDCServer.Port),
 		})
 	}
-	if authorino.Spec.OIDCServer.CertKeyPath != "" {
+	if enabled := authorino.Spec.OIDCServer.Tls.Enabled; enabled == nil || *enabled {
 		envVar = append(envVar, k8score.EnvVar{
-			Name:  api.OIDCTLSCertPath,
-			Value: authorino.Spec.OIDCServer.CertPath,
+			Name:  api.EnvVarOidcTlsCertPath,
+			Value: api.DefaultOidcTlsCertPath,
 		})
-	}
-	if authorino.Spec.OIDCServer.CertKeyPath != "" {
 		envVar = append(envVar, k8score.EnvVar{
-			Name:  api.OIDCTLSCertKeyPath,
-			Value: authorino.Spec.OIDCServer.CertKeyPath,
+			Name:  api.EnvVarOidcTlsCertKeyPath,
+			Value: api.DefaultOidcTlsCertKeyPath,
 		})
 	}
 
@@ -330,12 +381,29 @@ func (r *AuthorinoReconciler) authorinoDeploymentChanges(existingDeployment, des
 	// checking envvars
 	existingEnvvars := existingContainer.Env
 	desiredEnvvars := desiredContainer.Env
-	for envIndex, existingEnvvar := range existingEnvvars {
-		desiredEnvvar := desiredEnvvars[envIndex]
-		if existingEnvvar.Name == desiredEnvvar.Name && existingEnvvar.Value != desiredEnvvar.Value {
-			changed = true
+	for _, desiredEnvvar := range desiredEnvvars {
+		for _, existingEnvvar := range existingEnvvars {
+			if existingEnvvar.Name == desiredEnvvar.Name && existingEnvvar.Value != desiredEnvvar.Value {
+				changed = true
+				break
+			}
 		}
 	}
+
+	// checking volume
+	existingVolumes := existingDeployment.Spec.Template.Spec.Volumes
+	desiredVolumes := desiredDeployment.Spec.Template.Spec.Volumes
+	for _, desiredVolume := range desiredVolumes {
+		if desiredVolume.Name == tlsCertName || desiredVolume.Name == oidcTlsCertName {
+			for _, existingVolume := range existingVolumes {
+				if existingVolume.Name == tlsCertName || desiredVolume.Name == oidcTlsCertName && existingVolume.VolumeSource.Secret.SecretName != desiredVolume.VolumeSource.Secret.SecretName {
+					changed = true
+					break
+				}
+			}
+		}
+	}
+
 	return changed
 }
 

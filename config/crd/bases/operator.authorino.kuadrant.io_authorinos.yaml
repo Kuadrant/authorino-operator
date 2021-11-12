@@ -46,25 +46,33 @@ spec:
                 type: string
               listener:
                 properties:
-                  certKeyPath:
-                    type: string
-                  certPath:
-                    type: string
                   port:
                     format: int32
                     type: integer
-                  tsl:
-                    type: boolean
+                  tls:
+                    properties:
+                      certSecretName:
+                        type: string
+                      enabled:
+                        type: boolean
+                    required:
+                    - certSecretName
+                    type: object
                 type: object
               oidcServer:
                 properties:
-                  certKeyPath:
-                    type: string
-                  certPath:
-                    type: string
                   port:
                     format: int32
                     type: integer
+                  tls:
+                    properties:
+                      certSecretName:
+                        type: string
+                      enabled:
+                        type: boolean
+                    required:
+                    - certSecretName
+                    type: object
                 type: object
               replicas:
                 format: int32

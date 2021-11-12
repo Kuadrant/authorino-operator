@@ -119,7 +119,7 @@ deploy: manifests kustomize ## Deploy controller to the K8s cluster specified in
 undeploy: ## Undeploy controller from the K8s cluster specified in ~/.kube/config.
 	$(KUSTOMIZE) build config/default | kubectl delete -f -
 
-AUTHORINO_VERSION=v0.4.0
+AUTHORINO_VERSION=v0.5.0
 install-authorino: kustomize ## install RBAC and CRD for authorino
 	$(eval TMP := $(shell mktemp -d))
 	cd $(TMP); git clone --depth 1 --branch $(AUTHORINO_VERSION) https://github.com/kuadrant/authorino.git

@@ -17,7 +17,7 @@ limitations under the License.
 package v1beta1
 
 import (
-	apiv1 "k8s.io/api/core/v1"
+	k8score "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -32,22 +32,28 @@ const (
 	AuthorinoContainerName string        = "authorino"
 
 	// Authorino EnvVars
-	WatchNamespace          string = "WATCH_NAMESPACE"
-	ExtAuthGRPCPort         string = "EXT_AUTH_GRPC_PORT"
-	TLSCertPath             string = "TLS_CERT"
-	TLSCertKeyPath          string = "TLS_CERT_KEY"
-	OIDCHTTPPort            string = "OIDC_HTTP_PORT"
-	OIDCTLSCertPath         string = "OIDC_TLS_CERT"
-	OIDCTLSCertKeyPath      string = "OIDC_TLS_CERT_KEY"
-	AuthConfigLabelSelector string = "AUTH_CONFIG_LABEL_SELECTOR"
-	SecretLabelSelector     string = "SECRET_LABEL_SELECTOR"
+	WatchNamespace           string = "WATCH_NAMESPACE"
+	ExtAuthGRPCPort          string = "EXT_AUTH_GRPC_PORT"
+	EnvVarTlsCert            string = "TLS_CERT"
+	EnvVarTlsCertKey         string = "TLS_CERT_KEY"
+	OIDCHTTPPort             string = "OIDC_HTTP_PORT"
+	EnvVarOidcTlsCertPath    string = "OIDC_TLS_CERT"
+	EnvVarOidcTlsCertKeyPath string = "OIDC_TLS_CERT_KEY"
+	AuthConfigLabelSelector  string = "AUTH_CONFIG_LABEL_SELECTOR"
+	SecretLabelSelector      string = "SECRET_LABEL_SELECTOR"
+
+	// Authorino TLS file paths
+	DefaultTlsCertPath        string = "/etc/ssl/certs/tls.crt"
+	DefaultTlsCertKeyPath     string = "/etc/ssl/private/tls.key"
+	DefaultOidcTlsCertPath    string = "/etc/ssl/certs/oidc.crt"
+	DefaultOidcTlsCertKeyPath string = "/etc/ssl/private/oidc.key"
 )
 
 type Condition struct {
 	// Type of condition
 	Type ConditionType `json:"type"`
 	// Status of the condition, one of True, False, Unknown.
-	Status apiv1.ConditionStatus `json:"status"`
+	Status k8score.ConditionStatus `json:"status"`
 	// Last time the condition transit from one status to another.
 	// +optional
 	LastTransitionTime metav1.Time `json:"lastTransitionTime,omitempty"`
@@ -78,16 +84,18 @@ type AuthorinoSpec struct {
 }
 
 type Listener struct {
-	Port        *int32 `json:"port,omitempty"`
-	Tls         bool   `json:"tsl,omitempty"`
-	CertPath    string `json:"certPath,omitempty"`
-	CertKeyPath string `json:"certKeyPath,omitempty"`
+	Port *int32 `json:"port,omitempty"`
+	Tls  Tls    `json:"tls,omitempty"`
 }
 
 type OIDCServer struct {
-	Port        *int32 `json:"port,omitempty"`
-	CertPath    string `json:"certPath,omitempty"`
-	CertKeyPath string `json:"certKeyPath,omitempty"`
+	Port *int32 `json:"port,omitempty"`
+	Tls  Tls    `json:"tls,omitempty"`
+}
+
+type Tls struct {
+	Enabled        *bool  `json:"enabled,omitempty"`
+	CertSecretName string `json:"certSecretName"`
 }
 
 // AuthorinoStatus defines the observed state of Authorino

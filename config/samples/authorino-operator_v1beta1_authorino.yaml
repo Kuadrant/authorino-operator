@@ -10,10 +10,11 @@ spec:
   clusterWide: true
   listener:
     port: 
-    tsl: true
-    certPath: ""
-    certKeyPath: ""
+    # tls:
+    #   enabled: true # default
+    #   certSecretName: authorino-cert # secret must contain `tls.crt` and `tls.key` entries
   oidcServer:
-    port: 
-    certPath: ""
-    certKeyPath: ""
+    port:
+    # tls:
+    #   enabled: true # default
+    #   certSecretName: authorino-cert # secret must contain `tls.crt` and `tls.key` entries
