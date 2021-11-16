@@ -36,11 +36,15 @@ IMAGE_TAG_BASE ?= authorino.kuadrant.io/authorino-operator
 BUNDLE_IMG ?= $(IMAGE_TAG_BASE)-bundle:v$(VERSION)
 
 # Image URL to use all building/pushing image targets
-IMG ?= authorino-operator:latest
+DEFAULT_OPERATOR_IMAGE = quay.io/3scale/authorino-operator:latest
+OPERATOR_IMAGE ?= $(DEFAULT_OPERATOR_IMAGE)
+
 # Produce CRDs that work back to Kubernetes 1.11 (no version conversion)
 CRD_OPTIONS ?= "crd:trivialVersions=true,preserveUnknownFields=false"
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.21
+
+OPERATOR_MANIFESTS ?= $(PROJECT_DIR)/config/install/manifests.yaml
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))
@@ -75,8 +79,8 @@ help: ## Display this help.
 
 ##@ Development
 
-manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
-	$(CONTROLLER_GEN) $(CRD_OPTIONS) rbac:roleName=manager-role webhook paths="./..." output:crd:artifacts:config=config/crd/bases
+manifests: controller-gen kustomize ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
+	$(CONTROLLER_GEN) $(CRD_OPTIONS) rbac:roleName=manager-role webhook paths="./..." output:crd:artifacts:config=config/crd/bases && $(KUSTOMIZE) build config/install > $(OPERATOR_MANIFESTS)
 
 generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
 	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./..."
@@ -99,32 +103,31 @@ run: manifests generate fmt vet ## Run a controller from your host.
 	go run ./main.go
 
 docker-build:  ## Build docker image with the manager.
-	docker build -t ${IMG} .
+	docker build -t ${OPERATOR_IMAGE} .
 
 docker-push: ## Push docker image with the manager.
-	docker push ${IMG}
+	docker push ${OPERATOR_IMAGE}
 
 ##@ Deployment
 
 install: manifests kustomize install-authorino ## Install CRDs into the K8s cluster specified in ~/.kube/config.
-	$(KUSTOMIZE) build config/crd | kubectl apply -f -
+	kubectl apply -f $(OPERATOR_MANIFESTS)
 
 uninstall: manifests kustomize ## Uninstall CRDs from the K8s cluster specified in ~/.kube/config.
-	$(KUSTOMIZE) build config/crd | kubectl delete -f -
+	kubectl delete -f $(OPERATOR_MANIFESTS)
 
 deploy: manifests kustomize ## Deploy controller to the K8s cluster specified in ~/.kube/config.
-	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
+	cd config/manager && $(KUSTOMIZE) edit set image controller=${OPERATOR_IMAGE}
 	$(KUSTOMIZE) build config/default | kubectl apply -f -
+	# rollback kustomize edit
+	cd config/manager && $(KUSTOMIZE) edit set image controller=${DEFAULT_OPERATOR_IMAGE}
+
 
 undeploy: ## Undeploy controller from the K8s cluster specified in ~/.kube/config.
 	$(KUSTOMIZE) build config/default | kubectl delete -f -
 
-AUTHORINO_VERSION=v0.5.0
 install-authorino: kustomize ## install RBAC and CRD for authorino
-	$(eval TMP := $(shell mktemp -d))
-	cd $(TMP); git clone --depth 1 --branch $(AUTHORINO_VERSION) https://github.com/kuadrant/authorino.git
-	cd $(TMP)/authorino; $(KUSTOMIZE) build install | kubectl apply -f -
-	-rm -rf $(TMP)
+	kubectl apply -f https://raw.githubusercontent.com/Kuadrant/authorino/main/install/manifests.yaml
 
 CONTROLLER_GEN = $(shell pwd)/bin/controller-gen
 controller-gen: ## Download controller-gen locally if necessary.
@@ -155,7 +158,7 @@ endef
 .PHONY: bundle
 bundle: manifests kustomize ## Generate bundle manifests and metadata, then validate generated files.
 	operator-sdk generate kustomize manifests -q
-	cd config/manager && $(KUSTOMIZE) edit set image controller=$(IMG)
+	cd config/manager && $(KUSTOMIZE) edit set image controller=$(OPERATOR_IMAGE)
 	$(KUSTOMIZE) build config/manifests | operator-sdk generate bundle -q --overwrite --version $(VERSION) $(BUNDLE_METADATA_OPTS)
 	operator-sdk bundle validate ./bundle
 

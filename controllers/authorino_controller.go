@@ -230,6 +230,10 @@ func (r *AuthorinoReconciler) buildAuthorinoDeployment(authorino *api.Authorino)
 		},
 	}
 
+	if authorino.Spec.Image == "" {
+		authorino.Spec.Image = fmt.Sprintf("quay.io/3scale/authorino:%s", api.AuthorinoVersion)
+	}
+
 	authorinoContainer := k8score.Container{
 		Image:           authorino.Spec.Image,
 		ImagePullPolicy: k8score.PullPolicy(authorino.Spec.ImagePullPolicy),
@@ -238,7 +242,7 @@ func (r *AuthorinoReconciler) buildAuthorinoDeployment(authorino *api.Authorino)
 	}
 
 	if enabled := authorino.Spec.Listener.Tls.Enabled; enabled == nil || *enabled {
-		secretName := authorino.Spec.Listener.Tls.CertSecretName
+		secretName := authorino.Spec.Listener.Tls.CertSecret.Name
 		authorinoContainer.VolumeMounts = append(authorinoContainer.VolumeMounts,
 			buildTlsVolumeMount(tlsCertName, api.DefaultTlsCertPath, api.DefaultTlsCertKeyPath)...,
 		)
@@ -248,7 +252,7 @@ func (r *AuthorinoReconciler) buildAuthorinoDeployment(authorino *api.Authorino)
 	}
 
 	if enabled := authorino.Spec.OIDCServer.Tls.Enabled; enabled == nil || *enabled {
-		secretName := authorino.Spec.OIDCServer.Tls.CertSecretName
+		secretName := authorino.Spec.OIDCServer.Tls.CertSecret.Name
 		authorinoContainer.VolumeMounts = append(authorinoContainer.VolumeMounts,
 			buildTlsVolumeMount(oidcTlsCertName, api.DefaultOidcTlsCertPath, api.DefaultOidcTlsCertKeyPath)...,
 		)

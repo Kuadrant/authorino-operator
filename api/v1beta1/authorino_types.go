@@ -47,6 +47,8 @@ const (
 	DefaultTlsCertKeyPath     string = "/etc/ssl/private/tls.key"
 	DefaultOidcTlsCertPath    string = "/etc/ssl/certs/oidc.crt"
 	DefaultOidcTlsCertKeyPath string = "/etc/ssl/private/oidc.key"
+
+	AuthorinoVersion string = "latest"
 )
 
 type Condition struct {
@@ -94,8 +96,8 @@ type OIDCServer struct {
 }
 
 type Tls struct {
-	Enabled        *bool  `json:"enabled,omitempty"`
-	CertSecretName string `json:"certSecretName"`
+	Enabled    *bool                         `json:"enabled,omitempty"`
+	CertSecret *k8score.LocalObjectReference `json:"certSecretRef,omitempty"`
 }
 
 // AuthorinoStatus defines the observed state of Authorino

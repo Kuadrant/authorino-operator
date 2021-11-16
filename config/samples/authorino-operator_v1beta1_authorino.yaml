@@ -1,7 +1,7 @@
 apiVersion: operator.authorino.kuadrant.io/v1beta1
 kind: Authorino
 metadata:
-  name: authorino-sample22
+  name: authorino-sample
   namespace: authorino-operator
 spec:
   image: quay.io/3scale/authorino:latest
@@ -10,11 +10,13 @@ spec:
   clusterWide: true
   listener:
     port: 
-    # tls:
-    #   enabled: true # default
-    #   certSecretName: authorino-cert # secret must contain `tls.crt` and `tls.key` entries
+    tls:
+      enabled: true
+      certSecretRef:
+        name: authorino-cert # secret must contain `tls.crt` and `tls.key` entries
   oidcServer:
     port:
-    # tls:
-    #   enabled: true # default
-    #   certSecretName: authorino-cert # secret must contain `tls.crt` and `tls.key` entries
+    tls:
+      enabled: true 
+      certSecretRef: 
+        name: authorino-cert # secret must contain `tls.crt` and `tls.key` entries
