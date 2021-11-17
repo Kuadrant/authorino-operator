@@ -8,4 +8,4 @@ webhook:
   port: 9443
 leaderElection:
   leaderElect: true
-  resourceName: f0fb677d.authorino.3scale.net
+  resourceName: aac3a15d.authorino.kuadrant.io

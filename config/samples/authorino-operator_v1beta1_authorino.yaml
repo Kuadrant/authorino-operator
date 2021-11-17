@@ -1,0 +1,22 @@
+apiVersion: operator.authorino.kuadrant.io/v1beta1
+kind: Authorino
+metadata:
+  name: authorino-sample
+  namespace: authorino-operator
+spec:
+  image: quay.io/3scale/authorino:latest
+  replicas: 1
+  imagePullPolicy: Always
+  clusterWide: true
+  listener:
+    port: 
+    tls:
+      enabled: true
+      certSecretRef:
+        name: authorino-cert # secret must contain `tls.crt` and `tls.key` entries
+  oidcServer:
+    port:
+    tls:
+      enabled: true 
+      certSecretRef: 
+        name: authorino-cert # secret must contain `tls.crt` and `tls.key` entries
