@@ -1,50 +1,44 @@
 # VERSION defines the project version for the bundle.
-# Update this value when you upgrade the version of your project.
-# To re-generate a bundle for another specific version without changing the standard setup, you can:
-# - use the VERSION as arg of the bundle target (e.g make bundle VERSION=0.0.2)
-# - use environment variables to overwrite this value (e.g export VERSION=0.0.2)
-VERSION ?= 0.0.1
+OPERATOR_VERSION ?= 0.0.1
+
+# Address of the container registry
+REGISTRY = quay.io
+
+# Organization in container resgistry
+ORG ?= 3scale
+
+# IMAGE_TAG_BASE defines the docker.io namespace and part of the image name for remote images.
+IMAGE_TAG_BASE ?= $(REGISTRY)/$(ORG)/authorino-operator
+
+# Image URL to use all building/pushing image targets
+DEFAULT_OPERATOR_IMAGE = $(IMAGE_TAG_BASE):v$(OPERATOR_VERSION)
+OPERATOR_IMAGE ?= $(DEFAULT_OPERATOR_IMAGE)
+
+# BUNDLE_IMG defines the image:tag used for the bundle.
+# You can use it as an arg. (E.g make bundle-build BUNDLE_IMG=<some-registry>/<project-name-bundle>:<tag>)
+BUNDLE_IMG ?= $(IMAGE_TAG_BASE)-bundle:v$(OPERATOR_VERSION)
 
 # CHANNELS define the bundle channels used in the bundle.
 # Add a new line here if you would like to change its default config. (E.g CHANNELS = "candidate,fast,stable")
-# To re-generate a bundle for other specific channels without changing the standard setup, you can:
-# - use the CHANNELS as arg of the bundle target (e.g make bundle CHANNELS=candidate,fast,stable)
-# - use environment variables to overwrite this value (e.g export CHANNELS="candidate,fast,stable")
 ifneq ($(origin CHANNELS), undefined)
 BUNDLE_CHANNELS := --channels=$(CHANNELS)
 endif
 
 # DEFAULT_CHANNEL defines the default channel used in the bundle.
 # Add a new line here if you would like to change its default config. (E.g DEFAULT_CHANNEL = "stable")
-# To re-generate a bundle for any other default channel without changing the default setup, you can:
-# - use the DEFAULT_CHANNEL as arg of the bundle target (e.g make bundle DEFAULT_CHANNEL=stable)
-# - use environment variables to overwrite this value (e.g export DEFAULT_CHANNEL="stable")
 ifneq ($(origin DEFAULT_CHANNEL), undefined)
 BUNDLE_DEFAULT_CHANNEL := --default-channel=$(DEFAULT_CHANNEL)
 endif
 BUNDLE_METADATA_OPTS ?= $(BUNDLE_CHANNELS) $(BUNDLE_DEFAULT_CHANNEL)
 
-# IMAGE_TAG_BASE defines the docker.io namespace and part of the image name for remote images.
-# This variable is used to construct full image tags for bundle and catalog images.
-#
-# For example, running 'make bundle-build bundle-push catalog-build catalog-push' will build and push both
-# authorino.kuadrant.io/authorino-operator-bundle:$VERSION and authorino.kuadrant.io/authorino-operator-catalog:$VERSION.
-IMAGE_TAG_BASE ?= authorino.kuadrant.io/authorino-operator
-
-# BUNDLE_IMG defines the image:tag used for the bundle.
-# You can use it as an arg. (E.g make bundle-build BUNDLE_IMG=<some-registry>/<project-name-bundle>:<tag>)
-BUNDLE_IMG ?= $(IMAGE_TAG_BASE)-bundle:v$(VERSION)
-
-# Image URL to use all building/pushing image targets
-DEFAULT_OPERATOR_IMAGE = quay.io/3scale/authorino-operator:latest
-OPERATOR_IMAGE ?= $(DEFAULT_OPERATOR_IMAGE)
+# Operator manifests (RBAC & CRD)
+OPERATOR_MANIFESTS ?= $(PROJECT_DIR)/config/install/manifests.yaml
 
 # Produce CRDs that work back to Kubernetes 1.11 (no version conversion)
 CRD_OPTIONS ?= "crd:trivialVersions=true,preserveUnknownFields=false"
+
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.21
-
-OPERATOR_MANIFESTS ?= $(PROJECT_DIR)/config/install/manifests.yaml
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))
@@ -62,17 +56,6 @@ SHELL = /usr/bin/env bash -o pipefail
 all: build
 
 ##@ General
-
-# The help target prints out all targets with their descriptions organized
-# beneath their categories. The categories are represented by '##@' and the
-# target descriptions by '##'. The awk commands is responsible for reading the
-# entire set of makefiles included in this invocation, looking for lines of the
-# file as xyz: ## something, and then pretty-format the target and help. Then,
-# if there's a line with ##@ something, that gets pretty-printed as a category.
-# More info on the usage of ANSI control characters for terminal formatting:
-# https://en.wikipedia.org/wiki/ANSI_escape_code#SGR_parameters
-# More info on the awk command:
-# http://linuxcommand.org/lc3_adv_awk.php
 
 help: ## Display this help.
 	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n"} /^[a-zA-Z_0-9-]+:.*?##/ { printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
@@ -126,8 +109,9 @@ deploy: manifests kustomize ## Deploy controller to the K8s cluster specified in
 undeploy: ## Undeploy controller from the K8s cluster specified in ~/.kube/config.
 	$(KUSTOMIZE) build config/default | kubectl delete -f -
 
-install-authorino: kustomize ## install RBAC and CRD for authorino
-	kubectl apply -f https://raw.githubusercontent.com/Kuadrant/authorino/main/install/manifests.yaml
+AUTHORINO_MANIFESTS = https://raw.githubusercontent.com/Kuadrant/authorino/main/install/manifests.yaml
+install-authorino: ## install RBAC and CRD for authorino
+	kubectl apply -f $(AUTHORINO_MANIFESTS)
 
 CONTROLLER_GEN = $(shell pwd)/bin/controller-gen
 controller-gen: ## Download controller-gen locally if necessary.
@@ -155,20 +139,28 @@ rm -rf $$TMP_DIR ;\
 }
 endef
 
+TMP_BUNDLE_DIR = $(PROJECT_DIR)/tmp/bundles
 .PHONY: bundle
 bundle: manifests kustomize ## Generate bundle manifests and metadata, then validate generated files.
+	rm -rf $(TMP_BUNDLE_DIR) 
 	operator-sdk generate kustomize manifests -q
-	cd config/manager && $(KUSTOMIZE) edit set image controller=$(OPERATOR_IMAGE)
-	$(KUSTOMIZE) build config/manifests | operator-sdk generate bundle -q --overwrite --version $(VERSION) $(BUNDLE_METADATA_OPTS)
-	operator-sdk bundle validate ./bundle
+	mkdir -p $(TMP_BUNDLE_DIR) ;\
+	cd config/manager && $(KUSTOMIZE) edit set image controller=$(OPERATOR_IMAGE) ;\
+	$(KUSTOMIZE) build $(PROJECT_DIR)/config/manifests > $(TMP_BUNDLE_DIR)/authorino-operator-manifests.yaml 
+	curl $(AUTHORINO_MANIFESTS) > $(TMP_BUNDLE_DIR)/authorino-manifests.yaml
+	cd $(TMP_BUNDLE_DIR) && operator-sdk generate bundle -q --overwrite --version $(OPERATOR_VERSION) $(BUNDLE_METADATA_OPTS) --package authorino-operator --deploy-dir $(TMP_BUNDLE_DIR)
+	operator-sdk bundle validate $(TMP_BUNDLE_DIR)/bundle
+	# Roll back edit
+	cd $(PROJECT_DIR)/config/manager && $(KUSTOMIZE) edit set image controller=${DEFAULT_OPERATOR_IMAGE}
 
 .PHONY: bundle-build
-bundle-build: ## Build the bundle image.
-	docker build -f bundle.Dockerfile -t $(BUNDLE_IMG) .
+bundle-build: bundle ## Build the bundle image.
+	cd $(TMP_BUNDLE_DIR) && docker build -f bundle.Dockerfile -t $(BUNDLE_IMG) .
+	rm -rf $(TMP_BUNDLE_DIR)
 
 .PHONY: bundle-push
 bundle-push: ## Push the bundle image.
-	$(MAKE) docker-push IMG=$(BUNDLE_IMG)
+	$(MAKE) docker-push OPERATOR_IMAGE=$(BUNDLE_IMG)
 
 .PHONY: opm
 OPM = ./bin/opm
@@ -192,7 +184,7 @@ endif
 BUNDLE_IMGS ?= $(BUNDLE_IMG)
 
 # The image tag given to the resulting catalog image (e.g. make catalog-build CATALOG_IMG=example.com/operator-catalog:v0.2.0).
-CATALOG_IMG ?= $(IMAGE_TAG_BASE)-catalog:v$(VERSION)
+CATALOG_IMG ?= $(IMAGE_TAG_BASE)-catalog:v$(OPERATOR_VERSION)
 
 # Set CATALOG_BASE_IMG to an existing catalog image tag to add $BUNDLE_IMGS to that image.
 ifneq ($(origin CATALOG_BASE_IMG), undefined)
@@ -209,4 +201,4 @@ catalog-build: opm ## Build a catalog image.
 # Push the catalog image.
 .PHONY: catalog-push
 catalog-push: ## Push a catalog image.
-	$(MAKE) docker-push IMG=$(CATALOG_IMG)
+	$(MAKE) docker-push OPERATOR_IMAGE=$(CATALOG_IMG)
