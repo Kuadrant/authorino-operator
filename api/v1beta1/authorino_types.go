@@ -41,6 +41,8 @@ const (
 	EnvVarOidcTlsCertKeyPath string = "OIDC_TLS_CERT_KEY"
 	AuthConfigLabelSelector  string = "AUTH_CONFIG_LABEL_SELECTOR"
 	SecretLabelSelector      string = "SECRET_LABEL_SELECTOR"
+	EnvLogLevel              string = "LOG_LEVEL"
+	EnvLogMode               string = "LOG_MODE"
 
 	// Authorino TLS file paths
 	DefaultTlsCertPath        string = "/etc/ssl/certs/tls.crt"
@@ -78,6 +80,8 @@ type AuthorinoSpec struct {
 	Image                    string     `json:"image,omitempty"`
 	Replicas                 *int32     `json:"replicas,omitempty"`
 	ImagePullPolicy          string     `json:"imagePullPolicy,omitempty"`
+	LogLevel                 string     `json:"logLevel,omitempty"`
+	LogMode                  string     `json:"logMode,omitempty"`
 	ClusterWide              bool       `json:"clusterWide,omitempty"`
 	Listener                 Listener   `json:"listener,omitempty"`
 	OIDCServer               OIDCServer `json:"oidcServer,omitempty"`
