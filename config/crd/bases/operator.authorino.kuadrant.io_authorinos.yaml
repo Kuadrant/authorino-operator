@@ -65,6 +65,10 @@ spec:
                         type: boolean
                     type: object
                 type: object
+              logLevel:
+                type: string
+              logMode:
+                type: string
               oidcServer:
                 properties:
                   port:

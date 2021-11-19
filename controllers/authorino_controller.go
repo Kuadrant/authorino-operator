@@ -312,6 +312,20 @@ func (r *AuthorinoReconciler) buildAuthorinoEnv(authorino *api.Authorino) []k8sc
 		})
 	}
 
+	if authorino.Spec.LogLevel != "" {
+		envVar = append(envVar, k8score.EnvVar{
+			Name:  api.EnvLogLevel,
+			Value: fmt.Sprint(authorino.Spec.LogLevel),
+		})
+	}
+
+	if authorino.Spec.LogMode != "" {
+		envVar = append(envVar, k8score.EnvVar{
+			Name:  api.EnvLogMode,
+			Value: fmt.Sprint(authorino.Spec.LogMode),
+		})
+	}
+
 	if authorino.Spec.SecretLabelSelectors != "" {
 		envVar = append(envVar, k8score.EnvVar{
 			Name:  api.SecretLabelSelector,
