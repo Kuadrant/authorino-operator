@@ -25,16 +25,15 @@ import (
 	k8score "k8s.io/api/core/v1"
 	k8srbac "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/intstr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	"github.com/go-logr/logr"
 	api "github.com/kuadrant/authorino-operator/api/v1beta1"
+	"github.com/kuadrant/authorino-operator/pkg/condition"
+	authorinoResources "github.com/kuadrant/authorino-operator/pkg/resources"
 )
 
 // AuthorinoReconciler reconciles a Authorino object
@@ -69,100 +68,80 @@ const (
 // +kubebuilder:rbac:groups="authorino.3scale.net",resources=authconfigs/status,verbs=get;patch;update
 // +kubebuilder:rbac:groups="coordination.k8s.io",resources=leases,verbs=get;list;create;update;
 
-// Reconcile is part of the main kubernetes reconciliation loop which aims to
-// move the current state of the cluster closer to the desired state.
-// TODO(user): Modify the Reconcile function to compare the state specified by
-// the Authorino object against the actual cluster state, and then
-// perform operations to make the cluster state reflect the state specified by
-// the user.
-//
-// For more details, check Reconcile and its Result here:
-// - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.9.2/pkg/reconcile
+// Reconcile deploys an instance of authorino depending on the settings
+// defined in the API, any change applied to the existings CRs will trigger
+// a new reconcilation to apply the required changes
 func (r *AuthorinoReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	log := r.Log.WithValues("authorino", req.NamespacedName)
+	logger := r.Log.WithValues("authorino", req.NamespacedName)
 
-	// get authorino instance
+	// Retrieve Authorino instance
 	authorinoInstance, err := r.getAuthorinoInstance(req.NamespacedName)
 	if err != nil {
+		logger.Error(err, "Unable to get Authorino CR")
 		return ctrl.Result{}, err
 	}
 
+	// If the Authorino instance is not found, returns the reconcile request.
 	if authorinoInstance == nil {
-		log.Info("Authorino CR not found. returning the reconciler")
+		logger.Info("Authorino instance not found. returning the reconciler")
 		return ctrl.Result{}, nil
 	}
 
-	log.V(1).Info("Found an instance of authorino", "authorinoInstanceName", authorinoInstance.Name)
+	logger.V(1).Info("Found an instance of authorino", "authorinoInstanceName", authorinoInstance.Name)
 
-	err = r.createOrUpdateAuthorinoServices(authorinoInstance)
-	if err != nil {
-		authorinoInstance.Status.Ready = false
-		authorinoInstance.Status.LastError = err.Error()
-		if statusErr := r.handleStatusUpdate(authorinoInstance); statusErr != nil {
-			log.Error(statusErr, statusErr.Error())
-		}
-		log.Error(err, "Failed to create authorino services")
+	// Creates services required by authorino
+	if err := r.createAuthorinoServices(authorinoInstance); err != nil {
 		return ctrl.Result{}, err
 	}
 
-	err = r.createAuthorinoPermission(authorinoInstance, req.NamespacedName.Namespace)
-	if err != nil {
-		authorinoInstance.Status.Ready = false
-		authorinoInstance.Status.LastError = err.Error()
-		if statusErr := r.handleStatusUpdate(authorinoInstance); statusErr != nil {
-			log.Error(statusErr, statusErr.Error())
-		}
-		log.Error(err, "Failed to create authorino permission")
+	// Creates RBAC permission required by authorino
+	if err := r.createAuthorinoPermission(authorinoInstance, req.NamespacedName.Namespace); err != nil {
 		return ctrl.Result{}, err
 	}
 
-	existingDeployment, err := r.getAuthorinoDeployment(authorinoInstance)
-	if err != nil {
-		authorinoInstance.Status.Ready = false
-		authorinoInstance.Status.LastError = err.Error()
-		if statusErr := r.handleStatusUpdate(authorinoInstance); statusErr != nil {
-			log.Error(statusErr, statusErr.Error())
-		}
-		log.Error(err, "Failed to get Deployment for Authorino")
-		return ctrl.Result{}, err
+	// Gets Deployment resource for the authorino instance
+	if existingDeployment, err := r.getAuthorinoDeployment(authorinoInstance); err != nil {
+		return ctrl.Result{}, r.wrapErrorWithStatusUpdate(logger, authorinoInstance, r.setStatusFailed(api.AuthorinoUnableToGetDeployment),
+			fmt.Errorf("failed to get %s Deployment resource, err: %v", authorinoInstance.Name, err),
+		)
 	} else if existingDeployment == nil {
+		// Creates a new deployment resource to deploy the new authorino instance
 		newDeployment := r.buildAuthorinoDeployment(authorinoInstance)
-		err = r.Create(ctx, newDeployment)
-		if err != nil {
-			authorinoInstance.Status.Ready = false
-			authorinoInstance.Status.LastError = err.Error()
-			if statusErr := r.handleStatusUpdate(authorinoInstance); statusErr != nil {
-				log.Error(statusErr, statusErr.Error())
-			}
-			log.Error(err, "Failed to create Authorino deployment resource", newDeployment.Name, newDeployment.Namespace)
+		if err := r.Client.Create(context.TODO(), newDeployment); err != nil {
+			return ctrl.Result{}, r.wrapErrorWithStatusUpdate(
+				logger, authorinoInstance, r.setStatusFailed(api.AuthorinoUnableToCreateDeployment),
+				fmt.Errorf("failed to create %s Deployment resource, err: %v", newDeployment.Name, err),
+			)
+		}
+		// Updates the status conditions to provisioning
+		if err := updateStatusConditions(logger, authorinoInstance, r.Client, statusNotReady(api.AuthorinoProvisioningReason, "")); err != nil {
 			return ctrl.Result{}, err
 		}
 		// Deployment created successfully - return and requeue
 		return ctrl.Result{Requeue: true}, nil
 	} else {
+
+		// deployment already exists, then build a new resource with the desired changes
+		// and compare them, if changes are encountered apply the desired changes
 		desiredDeployment := r.buildAuthorinoDeployment(authorinoInstance)
-		if r.authorinoDeploymentChanges(existingDeployment, desiredDeployment) {
-			err = r.Update(ctx, desiredDeployment)
-			if err != nil {
-				authorinoInstance.Status.Ready = false
-				authorinoInstance.Status.LastError = err.Error()
-				if statusErr := r.handleStatusUpdate(authorinoInstance); statusErr != nil {
-					log.Error(statusErr, statusErr.Error())
-				}
-				log.Error(err, "Failed to update Authorino deployment resource", desiredDeployment.Name, desiredDeployment.Namespace)
-				return ctrl.Result{}, err
+		logger.Info("desiredDeployment", "deployment", desiredDeployment)
+		logger.Info("existingDeployment", "deployment", existingDeployment)
+		if changed := r.authorinoDeploymentChanges(existingDeployment, desiredDeployment); changed {
+			if err := r.Update(ctx, desiredDeployment); err != nil {
+				return ctrl.Result{}, r.wrapErrorWithStatusUpdate(
+					logger, authorinoInstance, r.setStatusFailed(api.AuthorinoUnableToUpdateDeployment),
+					fmt.Errorf("failed to update %s Deployment resource, err: %v", desiredDeployment.Name, err),
+				)
 			}
-			return ctrl.Result{RequeueAfter: time.Minute}, nil
+
+			err = updateStatusConditions(logger, authorinoInstance,
+				r.Client, statusNotReady(api.AuthorinoUpdatedReason, "Authorino Deployment resource updated"))
+			return ctrl.Result{RequeueAfter: time.Minute}, err
 		}
 	}
 
-	authorinoInstance.Status.Ready = true
-	authorinoInstance.Status.LastError = ""
-	if statusErr := r.handleStatusUpdate(authorinoInstance); statusErr != nil {
-		log.Error(statusErr, statusErr.Error())
-	}
-
-	return ctrl.Result{RequeueAfter: time.Minute}, nil
+	// Updates the status conditions to provisioned
+	return ctrl.Result{}, updateStatusConditions(logger, authorinoInstance, r.Client, statusReady())
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -186,113 +165,60 @@ func (r *AuthorinoReconciler) getAuthorinoInstance(namespacedName types.Namespac
 }
 
 func (r *AuthorinoReconciler) getAuthorinoDeployment(authorino *api.Authorino) (*k8sapps.Deployment, error) {
-	authorinoDeployment := &k8sapps.Deployment{}
-	err := r.Get(context.TODO(),
-		types.NamespacedName{
-			Name:      authorino.GetName(),
-			Namespace: authorino.GetNamespace(),
-		}, authorinoDeployment)
-	if err != nil {
+	deployment := &k8sapps.Deployment{}
+	namespacedName := namespacedName(authorino.Namespace, authorino.Name)
+	if err := r.Get(context.TODO(), namespacedName, deployment); err != nil {
 		if errors.IsNotFound(err) {
-			r.Log.Info("Authorino deployment not found.")
 			return nil, nil
 		}
 		return nil, err
 	}
-	return authorinoDeployment, nil
+	return deployment, nil
 }
 
 func (r *AuthorinoReconciler) buildAuthorinoDeployment(authorino *api.Authorino) *k8sapps.Deployment {
-	prefix := authorino.GetName()
-
-	objectMeta := v1.ObjectMeta{
-		Name:      authorino.GetName(),
-		Namespace: authorino.GetNamespace(),
-	}
-
-	labels := labelsForAuthorino(objectMeta.GetName())
-
-	dep := &k8sapps.Deployment{
-		ObjectMeta: objectMeta,
-		Spec: k8sapps.DeploymentSpec{
-			Replicas: authorino.Spec.Replicas,
-			Selector: &v1.LabelSelector{
-				MatchLabels: labels,
-			},
-			Template: k8score.PodTemplateSpec{
-				ObjectMeta: v1.ObjectMeta{
-					Labels: labels,
-				},
-				Spec: k8score.PodSpec{
-					ServiceAccountName: prefix + "-authorino",
-				},
-			},
-		},
-	}
+	var volMounts []k8score.VolumeMount
+	var vol []k8score.Volume
+	var containers []k8score.Container
+	var saName = authorino.Name + "-authorino"
 
 	if authorino.Spec.Image == "" {
 		authorino.Spec.Image = fmt.Sprintf("quay.io/3scale/authorino:%s", api.AuthorinoVersion)
 	}
 
-	authorinoContainer := k8score.Container{
-		Image:           authorino.Spec.Image,
-		ImagePullPolicy: k8score.PullPolicy(authorino.Spec.ImagePullPolicy),
-		Name:            api.AuthorinoContainerName,
-		Env:             r.buildAuthorinoEnv(authorino),
-	}
-
+	// if an external auth server is enabled mounts a volume to the container
+	// by using the secret with the cert
 	if enabled := authorino.Spec.Listener.Tls.Enabled; enabled == nil || *enabled {
 		secretName := authorino.Spec.Listener.Tls.CertSecret.Name
-		authorinoContainer.VolumeMounts = append(authorinoContainer.VolumeMounts,
-			buildTlsVolumeMount(tlsCertName, api.DefaultTlsCertPath, api.DefaultTlsCertKeyPath)...,
-		)
-		dep.Spec.Template.Spec.Volumes = append(dep.Spec.Template.Spec.Volumes,
-			buildTlsVolume(tlsCertName, secretName),
-		)
+		volMounts = append(volMounts, authorinoResources.GetTlsVolumeMount(tlsCertName, api.DefaultTlsCertPath,
+			api.DefaultTlsCertKeyPath)...)
+		vol = append(vol, authorinoResources.GetTlsVolume(tlsCertName, secretName))
 	}
 
+	// if an external OIDC server is enable mounts a volume to the container
+	// by using the secret with the certs
 	if enabled := authorino.Spec.OIDCServer.Tls.Enabled; enabled == nil || *enabled {
 		secretName := authorino.Spec.OIDCServer.Tls.CertSecret.Name
-		authorinoContainer.VolumeMounts = append(authorinoContainer.VolumeMounts,
-			buildTlsVolumeMount(oidcTlsCertName, api.DefaultOidcTlsCertPath, api.DefaultOidcTlsCertKeyPath)...,
-		)
-		dep.Spec.Template.Spec.Volumes = append(dep.Spec.Template.Spec.Volumes,
-			buildTlsVolume(oidcTlsCertName, secretName),
-		)
+		volMounts = append(volMounts, authorinoResources.GetTlsVolumeMount(oidcTlsCertName,
+			api.DefaultOidcTlsCertPath, api.DefaultOidcTlsCertKeyPath)...)
+		vol = append(vol, authorinoResources.GetTlsVolume(oidcTlsCertName, secretName))
 	}
-	dep.Spec.Template.Spec.Containers = append(dep.Spec.Template.Spec.Containers, authorinoContainer)
 
-	ctrl.SetControllerReference(authorino, dep, r.Scheme)
+	// generates the env variables
+	envs := r.buildAuthorinoEnv(authorino)
 
-	return dep
-}
+	// generates the Container where authorino will be running
+	// adds to the list of containers available in the deployment
+	authorinoContainer := authorinoResources.GetContainer(authorino.Spec.Image, authorino.Spec.ImagePullPolicy,
+		api.AuthorinoContainerName, envs, volMounts)
+	containers = append(containers, authorinoContainer)
 
-func buildTlsVolume(certName, secretName string) k8score.Volume {
-	return k8score.Volume{
-		Name: certName,
-		VolumeSource: k8score.VolumeSource{
-			Secret: &k8score.SecretVolumeSource{
-				SecretName: secretName,
-			},
-		},
-	}
-}
+	// generate Deployment resource to deploy an authorino instance
+	deployment := authorinoResources.GetDeployment(authorino.Name, authorino.Namespace,
+		saName, authorino.Spec.Replicas, containers, vol)
 
-func buildTlsVolumeMount(certName, certPath, certKeyPath string) []k8score.VolumeMount {
-	return []k8score.VolumeMount{
-		{
-			Name:      certName,
-			MountPath: certPath,
-			SubPath:   "tls.crt",
-			ReadOnly:  true,
-		},
-		{
-			Name:      certName,
-			MountPath: certKeyPath,
-			SubPath:   "tls.key",
-			ReadOnly:  true,
-		},
-	}
+	ctrl.SetControllerReference(authorino, deployment, r.Scheme)
+	return deployment
 }
 
 func (r *AuthorinoReconciler) buildAuthorinoEnv(authorino *api.Authorino) []k8score.EnvVar {
@@ -377,7 +303,7 @@ func (r *AuthorinoReconciler) buildAuthorinoEnv(authorino *api.Authorino) []k8sc
 func (r *AuthorinoReconciler) authorinoDeploymentChanges(existingDeployment, desiredDeployment *k8sapps.Deployment) bool {
 	changed := false
 
-	if existingDeployment.Spec.Replicas != desiredDeployment.Spec.Replicas {
+	if *existingDeployment.Spec.Replicas != *desiredDeployment.Spec.Replicas {
 		changed = true
 	}
 
@@ -426,296 +352,212 @@ func (r *AuthorinoReconciler) authorinoDeploymentChanges(existingDeployment, des
 }
 
 func (r *AuthorinoReconciler) createAuthorinoPermission(authorino *api.Authorino, operatorNamespace string) error {
-	prefix := authorino.GetName()
-	authorinoInstanceNamespace := authorino.GetNamespace()
+	var logger = r.Log
+	resourcePrefixName := authorino.Name
 	authorinoClusterRoleName := "authorino-manager-role"
 
-	authorinoClusterRole := &k8srbac.ClusterRole{
-		ObjectMeta: v1.ObjectMeta{
-			Name: authorinoClusterRoleName,
-		},
-	}
-	err := r.Get(context.TODO(), client.ObjectKeyFromObject(authorinoClusterRole), authorinoClusterRole)
-	if err != nil {
+	clNsdName := namespacedName(authorino.Namespace, authorinoClusterRoleName)
+	authorinoClusterRole := &k8srbac.ClusterRole{}
+	if err := r.Get(context.TODO(), clNsdName, authorinoClusterRole); err != nil {
 		if errors.IsNotFound(err) {
-			return fmt.Errorf("Authorino cluster role not found, err: %d", err)
+			// authorino ClusterRole has not being created
+			return r.wrapErrorWithStatusUpdate(logger, authorino, r.setStatusFailed(api.AuthorinoClusterRoleNotFound),
+				fmt.Errorf("failed to find authorino ClusterRole %v", err),
+			)
 		}
-		return fmt.Errorf("Failed to get authorino cluster role, err: %d", err)
+		return r.wrapErrorWithStatusUpdate(logger, authorino, r.setStatusFailed(api.AuthorinoUnableToGetClusterRole),
+			fmt.Errorf("failed to get authorino ClusterRole %v", err),
+		)
 	}
 
-	roleName := prefix + "-authorino"
-	serviceAccount := &k8score.ServiceAccount{
-		ObjectMeta: v1.ObjectMeta{
-			Name:      roleName,
-			Namespace: authorinoInstanceNamespace,
-		},
+	// get ServiceAccount from authorino instance namespace
+	sa := &k8score.ServiceAccount{}
+	saName := resourcePrefixName + "-authorino"
+	saNsdName := namespacedName(authorino.Namespace, saName)
+	if err := r.Get(context.TODO(), saNsdName, sa); err != nil {
+		if errors.IsNotFound(err) {
+			// ServiceAccount doesn't exit - create one
+			ctrl.SetControllerReference(authorino, sa, r.Scheme)
+			sa.Name = saName
+			sa.Namespace = authorino.Namespace
+			if err := r.Client.Create(context.TODO(), sa); err != nil {
+				return r.wrapErrorWithStatusUpdate(
+					logger, authorino, r.setStatusFailed(api.AuthorinoUnableToCreateServiceAccount),
+					fmt.Errorf("failed to create %s ServiceAccount, err: %v", saName, err),
+				)
+			}
+		}
+		return r.wrapErrorWithStatusUpdate(
+			logger, authorino, r.setStatusFailed(api.AuthorinoUnableToGetServiceAccount),
+			fmt.Errorf("failed to get %s ServiceAccount, err: %v", saName, err),
+		)
 	}
-	ctrl.SetControllerReference(authorino, serviceAccount, r.Scheme)
-	_, err = controllerutil.CreateOrUpdate(context.TODO(), r.Client, serviceAccount, func() error {
-		return nil
-	})
-	if err != nil {
-		return fmt.Errorf(
-			"Failed to create/update authorino instance %s service account, err: %d",
-			authorino.GetName(),
-			err,
+
+	// creates the ClusterRoleBinding/RoleBinding depending on type of installation
+	// if ClusterWide true - ClusterRoleBinding
+	// if ClusterWide false - RoleBinding
+	var binding client.Object = authorinoResources.GetAuthorinoClusterRoleBinding(authorinoClusterRoleName, sa.Name, sa.Namespace)
+	if !authorino.Spec.ClusterWide {
+		binding = authorinoResources.GetAuthorinoRoleBinding(authorinoClusterRoleName, sa.Name, sa.Namespace)
+		binding.SetNamespace(authorino.Namespace)
+	}
+	bindingName := resourcePrefixName + "-authorino"
+	bindingNsdName := namespacedName(authorino.Namespace, bindingName)
+	if err := r.Get(context.TODO(), bindingNsdName, binding); err != nil {
+		if errors.IsNotFound(err) {
+			ctrl.SetControllerReference(authorino, binding, r.Scheme)
+			// doesn't exist - create one
+			binding.SetName(bindingName)
+			if err := r.Client.Create(context.TODO(), binding); err != nil {
+				return r.wrapErrorWithStatusUpdate(
+					logger, authorino, r.setStatusFailed(api.AuthorinoUnableToCreateBindingForClusterRole),
+					fmt.Errorf("failed to create %s binding for authorino ClusterRole, err: %v", bindingName, err),
+				)
+			}
+		}
+		return r.wrapErrorWithStatusUpdate(
+			logger, authorino, r.setStatusFailed(api.AuthorinoUnableToGetBindingForClusterRole),
+			fmt.Errorf("failed to get %s binding for authorino ClusterRole, err: %v", bindingName, err),
 		)
 	}
 
 	// creates leader election role
-	err = r.leaderElectionPermission(authorino, serviceAccount.GetName())
-	if err != nil {
-		return err
-	}
-
-	if authorino.Spec.ClusterWide {
-		clusterRoleBinding := &k8srbac.ClusterRoleBinding{
-			ObjectMeta: v1.ObjectMeta{
-				Name:      roleName,
-				Namespace: authorinoInstanceNamespace,
-			},
-		}
-
-		err = r.Get(context.TODO(), client.ObjectKeyFromObject(clusterRoleBinding), clusterRoleBinding)
-		if err != nil && !errors.IsNotFound(err) {
-			return fmt.Errorf(
-				"Failed to get ClusterRoleBinding %s for authorino instance %s, err: %d",
-				clusterRoleBinding.GetName(),
-				authorino.GetName(),
-				err,
-			)
-		}
-		if errors.IsNotFound(err) {
-			clusterRoleBinding.RoleRef = k8srbac.RoleRef{
-				Name: authorinoClusterRole.GetName(),
-				Kind: "ClusterRole",
-			}
-			clusterRoleBinding.Subjects = []k8srbac.Subject{
-				{
-					Kind:      k8srbac.ServiceAccountKind,
-					Name:      serviceAccount.GetName(),
-					Namespace: authorinoInstanceNamespace,
-				},
-			}
-			ctrl.SetControllerReference(authorino, clusterRoleBinding, r.Scheme)
-			err = r.Create(context.TODO(), clusterRoleBinding)
-			if err != nil {
-				return fmt.Errorf(
-					"Failed to create ClusterRoleBinding %s for authorino instance %s, err: %d",
-					clusterRoleBinding.GetName(),
-					authorino.GetName(),
-					err,
-				)
-			}
-		}
-	} else {
-		roleBinding := &k8srbac.RoleBinding{
-			ObjectMeta: v1.ObjectMeta{
-				Name:      roleName,
-				Namespace: authorinoInstanceNamespace,
-			},
-		}
-
-		ctrl.SetControllerReference(authorino, roleBinding, r.Scheme)
-		err = r.Get(context.TODO(), client.ObjectKeyFromObject(roleBinding), roleBinding)
-		if err != nil && !errors.IsNotFound(err) {
-			return fmt.Errorf(
-				"Failed to get roleBinding %s for authorino instance %s, err: %d",
-				roleBinding.GetName(),
-				authorino.GetName(),
-				err,
-			)
-		}
-
-		if errors.IsNotFound(err) {
-			roleBinding.RoleRef = k8srbac.RoleRef{
-				Name: authorinoClusterRole.GetName(),
-				Kind: "ClusterRole",
-			}
-			roleBinding.Subjects = []k8srbac.Subject{
-				{
-					Kind:      k8srbac.ServiceAccountKind,
-					Name:      serviceAccount.GetName(),
-					Namespace: authorinoInstanceNamespace,
-				},
-			}
-			ctrl.SetControllerReference(authorino, roleBinding, r.Scheme)
-			err = r.Create(context.TODO(), roleBinding)
-			if err != nil {
-				return fmt.Errorf(
-					"Failed to create roleBinding %s for authorino instance %s, err: %d",
-					roleBinding.GetName(),
-					authorino.GetName(),
-					err,
-				)
-			}
-		}
-	}
-
-	return nil
+	// TODO: describe what this leader election is
+	return r.leaderElectionPermission(authorino, sa.GetName())
 }
 
 func (r *AuthorinoReconciler) leaderElectionPermission(authorino *api.Authorino, saName string) error {
-	leaderElectionRole := &k8srbac.Role{
-		ObjectMeta: v1.ObjectMeta{
-			Name:      "authorino-leader-election-role",
-			Namespace: authorino.GetNamespace(),
-			Labels:    labelsForAuthorino(authorino.GetName()),
-		},
-	}
+	var logger = r.Log
 
-	err := r.Get(context.TODO(), client.ObjectKeyFromObject(leaderElectionRole), leaderElectionRole)
-	if err != nil && !errors.IsNotFound(err) {
-		return fmt.Errorf(
-			"Failed to get leader election role err: %d",
-			err,
+	leaderElectionRoleName := "authorino-leader-election-role"
+	leaderElectionRole := &k8srbac.Role{}
+	leaderElectionNsdName := namespacedName(authorino.Namespace, leaderElectionRoleName)
+	if err := r.Get(context.TODO(), leaderElectionNsdName, leaderElectionRole); err != nil {
+		if errors.IsNotFound(err) {
+			// leader election Role doesn't exist then create
+			ctrl.SetControllerReference(authorino, leaderElectionRole, r.Scheme)
+			leaderElectionRole.Name = leaderElectionRoleName
+			leaderElectionRole.Namespace = authorino.Namespace
+			leaderElectionRole.Rules = authorinoResources.GetLeaderElectionRules()
+			if err := r.Client.Create(context.TODO(), leaderElectionRole); err != nil {
+				return r.wrapErrorWithStatusUpdate(
+					logger, authorino, r.setStatusFailed(api.AuthorinoUnableToCreateLeaderElectionRole),
+					fmt.Errorf("failed to create %s role, err: %v", leaderElectionRole, err),
+				)
+			}
+		}
+		return r.wrapErrorWithStatusUpdate(
+			logger, authorino, r.setStatusFailed(api.AuthorinoUnableToGetLeaderElectionRole),
+			fmt.Errorf("failed to get %s Role, err: %v", leaderElectionRoleName, err),
 		)
 	}
 
-	if errors.IsNotFound(err) {
-		ctrl.SetControllerReference(authorino, leaderElectionRole, r.Scheme)
-		leaderElectionRole.Rules = getLeaderElectionRules()
-		err = r.Create(context.TODO(), leaderElectionRole)
-		if err != nil {
-			return fmt.Errorf(
-				"Failed to create leader election role, err: %d",
-				err,
-			)
+	leRoleBindingName := authorino.Name + "authorino-leader-election"
+	leRoleBinding := authorinoResources.GetAuthorinoLeaderElectionRoleBinding(leaderElectionRoleName, saName, authorino.Namespace)
+	bindingNsdName := namespacedName(authorino.Namespace, leRoleBindingName)
+	if err := r.Get(context.TODO(), bindingNsdName, leRoleBinding); err != nil {
+		if errors.IsNotFound(err) {
+			ctrl.SetControllerReference(authorino, leRoleBinding, r.Scheme)
+			leRoleBinding.Name = leRoleBindingName
+			leRoleBinding.Namespace = authorino.Namespace
+			// doesn't exist - create one
+			if err := r.Client.Create(context.TODO(), leRoleBinding); err != nil {
+				return r.wrapErrorWithStatusUpdate(
+					logger, authorino, r.setStatusFailed(api.AuthorinoUnableToCreateLeaderElectionRoleBinding),
+					fmt.Errorf("failed to create %s RoleBinding, err: %v", leRoleBindingName, err),
+				)
+			}
 		}
-	}
-
-	prefix := authorino.GetName()
-	roleBinding := &k8srbac.RoleBinding{
-		ObjectMeta: v1.ObjectMeta{
-			Name:      prefix + "-authorino-leader-election",
-			Namespace: authorino.GetNamespace(),
-		},
-	}
-	err = r.Get(context.TODO(), client.ObjectKeyFromObject(roleBinding), roleBinding)
-	if err != nil && !errors.IsNotFound(err) {
-		return fmt.Errorf(
-			"Failed to get roleBinding %s for authorino instance %s, err: %d",
-			roleBinding.GetName(),
-			authorino.GetName(),
-			err,
+		return r.wrapErrorWithStatusUpdate(
+			logger, authorino, r.setStatusFailed(api.AuthorinoUnableToGetLeaderElectionRoleBinding),
+			fmt.Errorf("failed to get %s RoleBinding, err: %v", leRoleBindingName, err),
 		)
 	}
+	return nil
+}
 
-	if errors.IsNotFound(err) {
-		roleBinding.RoleRef = k8srbac.RoleRef{
-			Name: leaderElectionRole.GetName(),
-			Kind: "Role",
-		}
-		roleBinding.Subjects = []k8srbac.Subject{
-			{
-				Kind:      k8srbac.ServiceAccountKind,
-				Name:      saName,
-				Namespace: authorino.GetNamespace(),
-			},
-		}
-		ctrl.SetControllerReference(authorino, roleBinding, r.Scheme)
-		err = r.Create(context.TODO(), roleBinding)
-		if err != nil {
-			return fmt.Errorf(
-				"Failed to create leader election role binding, err: %d",
-				err,
+func (r *AuthorinoReconciler) createAuthorinoServices(authorino *api.Authorino) error {
+	logger := r.Log
+
+	var services = authorinoResources.GetAuthorinoServices(
+		authorino.Name,
+		authorino.Namespace,
+	)
+
+	for _, service := range services {
+		// get services from an authorino instance
+		nsdName := namespacedName(service.Namespace, service.Name)
+		if err := r.Client.Get(context.TODO(), nsdName, service); err != nil {
+			if errors.IsNotFound(err) {
+				// service doesn't exist then create
+				ctrl.SetControllerReference(authorino, service, r.Scheme)
+				if err := r.Client.Create(context.TODO(), service); err != nil {
+					return r.wrapErrorWithStatusUpdate(
+						logger, authorino, r.setStatusFailed(api.AuthorinoUnableToGetLeaderElectionRoleBinding),
+						fmt.Errorf("failed to create %s service, err: %v", service.Name, err),
+					)
+				}
+			}
+			return r.wrapErrorWithStatusUpdate(
+				logger, authorino, r.setStatusFailed(api.AuthorinoUnableToGetServices),
+				fmt.Errorf("failed to get %s service, err: %v", service.Name, err),
 			)
 		}
 	}
 	return nil
 }
 
-func getLeaderElectionRules() []k8srbac.PolicyRule {
-	return []k8srbac.PolicyRule{
-		{
-			APIGroups: []string{"*"},
-			Resources: []string{"configmaps"},
-			Verbs:     []string{"get", "list", "watch", "create", "update", "patch", "delete"},
-		},
-		{
-			APIGroups: []string{"*"},
-			Resources: []string{"configmaps/status"},
-			Verbs:     []string{"get", "update", "patch"},
-		},
-		{
-			APIGroups: []string{"*"},
-			Resources: []string{"events"},
-			Verbs:     []string{"create", "patch"},
-		},
-		{
-			APIGroups: []string{"coordination.k8s.io"},
-			Resources: []string{"leases"},
-			Verbs:     []string{"get", "list", "create", "update"},
-		},
+type statusUpdater func(logger logr.Logger, authorino *api.Authorino, message string) error
+
+// wrapErrorWithStatusUpdate wraps the error and update the status. If the update failed then logs the error.
+func (r *AuthorinoReconciler) wrapErrorWithStatusUpdate(logger logr.Logger, authorino *api.Authorino, updateStatus statusUpdater, err error) error {
+	if err == nil {
+		return nil
+	}
+	if err := updateStatus(logger, authorino, err.Error()); err != nil {
+		logger.Error(err, "status update failed")
+	}
+	return err
+}
+
+func (r *AuthorinoReconciler) setStatusFailed(reason string) statusUpdater {
+	return func(logger logr.Logger, authorino *api.Authorino, message string) error {
+		return updateStatusConditions(
+			logger,
+			authorino,
+			r.Client,
+			statusNotReady(reason, message),
+		)
 	}
 }
 
-func (r *AuthorinoReconciler) createOrUpdateAuthorinoServices(authorino *api.Authorino) error {
-
-	services := make(map[string][]k8score.ServicePort)
-	services["authorino-authorization"] = []k8score.ServicePort{
-		{
-			Name:     "grpc",
-			Port:     50051,
-			Protocol: k8score.ProtocolTCP,
-		},
+func updateStatusConditions(logger logr.Logger, authorino *api.Authorino, client client.Client, newConditions ...api.Condition) error {
+	var updated bool
+	authorino.Status.Conditions, updated = condition.AddOrUpdateStatusConditions(authorino.Status.Conditions, newConditions...)
+	if !updated {
+		logger.Info("Authorino status conditions not changed")
+		return nil
 	}
-	services["authorino-oidc"] = []k8score.ServicePort{
-		{
-			Name:     "http",
-			Port:     8083,
-			Protocol: k8score.ProtocolTCP,
-		},
-	}
-	services["controller-metrics"] = []k8score.ServicePort{
-		{
-			Name:       "https",
-			Port:       8443,
-			TargetPort: intstr.FromString("https"),
-		},
-	}
-
-	for name, service := range services {
-		obj := &k8score.Service{
-			ObjectMeta: v1.ObjectMeta{
-				Name:      authorino.GetName() + "-" + name,
-				Namespace: authorino.GetNamespace(),
-			},
-		}
-
-		ctrl.SetControllerReference(authorino, obj, r.Scheme)
-
-		_, err := controllerutil.CreateOrUpdate(context.TODO(), r.Client, obj, func() error {
-			obj.Spec.Ports = service
-			obj.Spec.Selector = labelsForAuthorino(authorino.GetName())
-			return nil
-		})
-		if err != nil {
-			return fmt.Errorf("Failed creating %s service, err: %w", name, err)
-		}
-	}
-
-	return nil
+	return client.Status().Update(context.TODO(), authorino)
 }
 
-func (r *AuthorinoReconciler) handleStatusUpdate(authorino *api.Authorino) error {
-	// get authorino instance
-	existingAuthorinoInstance, err := r.getAuthorinoInstance(types.NamespacedName{Name: authorino.GetName(), Namespace: authorino.GetNamespace()})
-	if err != nil {
-		return err
+func statusReady() api.Condition {
+	return api.Condition{
+		Type:   api.ConditionReady,
+		Status: k8score.ConditionTrue,
+		Reason: api.AuthorinoProvisionedReason,
 	}
-	existingAuthorinoInstance.Status.Ready = authorino.Status.Ready
-
-	err = r.Status().Update(context.TODO(), existingAuthorinoInstance)
-	if err != nil {
-		return fmt.Errorf("Failed to update authorino's %s status , err: %w", authorino.GetName(), err)
-	}
-	return nil
 }
 
-func labelsForAuthorino(name string) map[string]string {
-	return map[string]string{
-		"control-plane":      "controller-manager",
-		"authorino-resource": name,
+func statusNotReady(reason, message string) api.Condition {
+	return api.Condition{
+		Type:    api.ConditionReady,
+		Status:  k8score.ConditionFalse,
+		Reason:  reason,
+		Message: message,
 	}
+}
+
+func namespacedName(namespace, name string) types.NamespacedName {
+	return types.NamespacedName{Namespace: namespace, Name: name}
 }
