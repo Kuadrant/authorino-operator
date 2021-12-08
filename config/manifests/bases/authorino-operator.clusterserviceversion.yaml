@@ -4,11 +4,29 @@ metadata:
   annotations:
     alm-examples: '[]'
     capabilities: Basic Install
+    categories: Integration & Delivery
+    containerImage: quay.io/3scale/authorino-operator:v0.0.1
+    createdAt: 2021-12-08T10-00-00Z
+    operators.operatorframework.io/builder: operator-sdk-v1.9.0
+    operators.operatorframework.io/project_layout: unknown
+    repository: https://github.com/Kuadrant/authorino-operator
+    support: kuadrant
   name: authorino-operator.v0.0.0
   namespace: placeholder
 spec:
   apiservicedefinitions: {}
-  customresourcedefinitions: {}
+  customresourcedefinitions:
+    owned:
+    - description: API to describe the desired protection for a service
+      displayName: AuthConfig
+      kind: AuthConfig
+      name: authconfigs.authorino.3scale.net
+      version: v1beta1
+    - description: API to create instances of authorino
+      displayName: Authorino
+      kind: Authorino
+      name: authorinos.operator.authorino.kuadrant.io
+      version: v1beta1
   description: The operator to manage instances of Authorino
   displayName: Authorino Operator
   icon:
@@ -33,7 +51,16 @@ spec:
   - Kuadrant
   links:
   - name: Authorino Operator
+    url: https://github.com/Kuadrant/authorino-operator
+  - name: Authorino
+    url: https://github.com/Kuadrant/authorino
   maturity: alpha
+  maintainers:
+  - email: jmonteir@redhat.com
+    name: Jose Silva
+  - email: mcassola@redhat.com
+    name: Guilherme Cassolato
+  minKubeVersion: 1.8.0
   provider:
     name: Authorino
   version: 0.0.0
