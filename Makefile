@@ -1,6 +1,12 @@
 # VERSION defines the project version for the bundle.
 OPERATOR_VERSION ?= 0.0.1
 
+ifeq (latest,$(OPERATOR_VERSION))
+OPERATOR_TAG = latest
+else
+OPERATOR_TAG = v$(OPERATOR_VERSION)
+endif
+
 # Address of the container registry
 REGISTRY = quay.io
 
@@ -11,12 +17,12 @@ ORG ?= 3scale
 IMAGE_TAG_BASE ?= $(REGISTRY)/$(ORG)/authorino-operator
 
 # Image URL to use all building/pushing image targets
-DEFAULT_OPERATOR_IMAGE = $(IMAGE_TAG_BASE):v$(OPERATOR_VERSION)
+DEFAULT_OPERATOR_IMAGE = $(IMAGE_TAG_BASE):$(OPERATOR_TAG)
 OPERATOR_IMAGE ?= $(DEFAULT_OPERATOR_IMAGE)
 
 # BUNDLE_IMG defines the image:tag used for the bundle.
 # You can use it as an arg. (E.g make bundle-build BUNDLE_IMG=<some-registry>/<project-name-bundle>:<tag>)
-BUNDLE_IMG ?= $(IMAGE_TAG_BASE)-bundle:v$(OPERATOR_VERSION)
+BUNDLE_IMG ?= $(IMAGE_TAG_BASE)-bundle:$(OPERATOR_TAG)
 
 # CHANNELS define the bundle channels used in the bundle.
 # Add a new line here if you would like to change its default config. (E.g CHANNELS = "candidate,fast,stable")
@@ -64,6 +70,7 @@ help: ## Display this help.
 
 manifests: controller-gen kustomize ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
 	$(CONTROLLER_GEN) $(CRD_OPTIONS) rbac:roleName=manager-role webhook paths="./..." output:crd:artifacts:config=config/crd/bases && $(KUSTOMIZE) build config/install > $(OPERATOR_MANIFESTS)
+	$(MAKE) deploy-manifest OPERATOR_IMAGE=$(OPERATOR_IMAGE)
 
 generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
 	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./..."
@@ -139,6 +146,17 @@ rm -rf $$TMP_DIR ;\
 }
 endef
 
+DEPLOYMENT_DIR = $(PROJECT_DIR)/config/deploy
+.PHONY: deploy-manifest
+deploy-manifest:
+	mkdir -p $(DEPLOYMENT_DIR)
+	curl -sSf $(AUTHORINO_MANIFESTS) > $(DEPLOYMENT_DIR)/$$(basename $(AUTHORINO_MANIFESTS)) && echo '---' >> $(DEPLOYMENT_DIR)/$$(basename $(AUTHORINO_MANIFESTS))
+	cd $(PROJECT_DIR)/config/manager && $(KUSTOMIZE) edit set image controller=$(OPERATOR_IMAGE) ;\
+	cd $(PROJECT_DIR) && $(KUSTOMIZE) build config/default >> $(DEPLOYMENT_DIR)/$$(basename $(AUTHORINO_MANIFESTS))
+	# clean up
+	cd $(PROJECT_DIR)/config/manager && $(KUSTOMIZE) edit set image controller=${DEFAULT_OPERATOR_IMAGE}
+
+
 TMP_BUNDLE_DIR = $(PROJECT_DIR)/tmp/bundles
 .PHONY: bundle
 bundle: manifests kustomize ## Generate bundle manifests and metadata, then validate generated files.
@@ -184,7 +202,7 @@ endif
 BUNDLE_IMGS ?= $(BUNDLE_IMG)
 
 # The image tag given to the resulting catalog image (e.g. make catalog-build CATALOG_IMG=example.com/operator-catalog:v0.2.0).
-CATALOG_IMG ?= $(IMAGE_TAG_BASE)-catalog:v$(OPERATOR_VERSION)
+CATALOG_IMG ?= $(IMAGE_TAG_BASE)-catalog:$(OPERATOR_TAG)
 
 # Set CATALOG_BASE_IMG to an existing catalog image tag to add $BUNDLE_IMGS to that image.
 ifneq ($(origin CATALOG_BASE_IMG), undefined)
