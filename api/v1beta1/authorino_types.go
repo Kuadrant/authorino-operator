@@ -51,22 +51,48 @@ const (
 	DefaultOidcTlsCertKeyPath string = "/etc/ssl/private/oidc.key"
 
 	AuthorinoVersion string = "latest"
+
+	// Status reasons
+	AuthorinoProvisioningReason                      = "Provisioning"
+	AuthorinoProvisionedReason                       = "Provisioned"
+	AuthorinoUpdatedReason                           = "Updated"
+	AuthorinoUnableToCreateServices                  = "UnableToCreateServices"
+	AuthorinoUnableToCreateDeployment                = "UnableToCreateDeployment"
+	AuthorinoUnableToCreateLeaderElectionRole        = "UnableToCreateLeaderElectionRole"
+	AuthorinoUnableToCreatePermission                = "UnableToCreatePermission"
+	AuthorinoUnableToCreateServiceAccount            = "UnableToCreateServiceAccount"
+	AuthorinoUnableToCreateBindingForClusterRole     = "UnableToBindingForClusterRole"
+	AuthorinoUnableToCreateLeaderElectionRoleBinding = "UnableToCreateLeaderElectionRoleBinding"
+	AuthorinoClusterRoleNotFound                     = "ClusterRoleNotFound"
+	AuthorinoUnableToGetClusterRole                  = "UnableToGetClusterRole"
+	AuthorinoUnableToGetServices                     = "UnableToGetServices"
+	AuthorinoUnableToGetBindingForClusterRole        = "UnableToGetBindingForClusterRole"
+	AuthorinoUnableToGetServiceAccount               = "UnableToGetServiceAccount"
+	AuthorinoUnableToGetLeaderElectionRole           = "UnableToGetLeaderElectionRole"
+	AuthorinoUnableToGetLeaderElectionRoleBinding    = "UnableToGetLeaderElectionRoleBinding"
+	AuthorinoUnableToGetDeployment                   = "UnableToGetDeployment"
+	AuthorinoUnableToUpdateDeployment                = "UnableToUpdateDeployment"
 )
 
 type Condition struct {
 	// Type of condition
 	Type ConditionType `json:"type"`
+
 	// Status of the condition, one of True, False, Unknown.
 	Status k8score.ConditionStatus `json:"status"`
+
 	// Last time the condition transit from one status to another.
 	// +optional
 	LastTransitionTime metav1.Time `json:"lastTransitionTime,omitempty"`
+
 	// (brief) reason for the condition's last transition.
 	// +optional
 	Reason string `json:"reason,omitempty"`
+
 	// Human readable message indicating details about last transition.
 	// +optional
 	Message string `json:"message,omitempty"`
+
 	// Last time the condition was updated
 	// +optional
 	LastUpdatedTime *metav1.Time `json:"lastUpdatedTime,omitempty"`
@@ -108,12 +134,6 @@ type Tls struct {
 type AuthorinoStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
-
-	//  Defines if the authorino intance is ready
-	Ready bool `json:"ready"`
-
-	// Reports an error during the deployment of an instance
-	LastError string `json:"lastError"`
 
 	// Conditions is an array of the current Authorino's CR conditions
 	// Supported condition types: ConditionReady
