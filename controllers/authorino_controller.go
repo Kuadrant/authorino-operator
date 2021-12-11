@@ -46,6 +46,9 @@ type AuthorinoReconciler struct {
 const (
 	tlsCertName     string = "tls-cert"
 	oidcTlsCertName string = "oidc-cert"
+
+	authorinoClusterRoleName string = "authorino-manager-role"
+	leaderElectionRoleName   string = "authorino-leader-election-role"
 )
 
 //+kubebuilder:rbac:groups=operator.authorino.kuadrant.io,resources=authorinos,verbs=get;list;watch;create;update;patch;delete
@@ -354,7 +357,6 @@ func (r *AuthorinoReconciler) authorinoDeploymentChanges(existingDeployment, des
 func (r *AuthorinoReconciler) createAuthorinoPermission(authorino *api.Authorino, operatorNamespace string) error {
 	var logger = r.Log
 	resourcePrefixName := authorino.Name
-	authorinoClusterRoleName := "authorino-manager-role"
 
 	clNsdName := namespacedName(authorino.Namespace, authorinoClusterRoleName)
 	authorinoClusterRole := &k8srbac.ClusterRole{}
@@ -429,7 +431,6 @@ func (r *AuthorinoReconciler) createAuthorinoPermission(authorino *api.Authorino
 func (r *AuthorinoReconciler) leaderElectionPermission(authorino *api.Authorino, saName string) error {
 	var logger = r.Log
 
-	leaderElectionRoleName := "authorino-leader-election-role"
 	leaderElectionRole := &k8srbac.Role{}
 	leaderElectionNsdName := namespacedName(authorino.Namespace, leaderElectionRoleName)
 	if err := r.Get(context.TODO(), leaderElectionNsdName, leaderElectionRole); err != nil {

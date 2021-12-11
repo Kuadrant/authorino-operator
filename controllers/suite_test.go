@@ -17,11 +17,14 @@ limitations under the License.
 package controllers
 
 import (
+	"context"
 	"path/filepath"
 	"testing"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	k8srbac "k8s.io/api/rbac/v1"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -30,7 +33,8 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	authorinooperatorv1beta1 "github.com/kuadrant/authorino-operator/api/v1beta1"
+	api "github.com/kuadrant/authorino-operator/api/v1beta1"
+	ctrl "sigs.k8s.io/controller-runtime"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -40,6 +44,8 @@ import (
 var cfg *rest.Config
 var k8sClient client.Client
 var testEnv *envtest.Environment
+var cancel context.CancelFunc
+var ctx = context.Background()
 
 func TestAPIs(t *testing.T) {
 	RegisterFailHandler(Fail)
@@ -58,11 +64,13 @@ var _ = BeforeSuite(func() {
 		ErrorIfCRDPathMissing: true,
 	}
 
+	ctx, cancel = context.WithCancel(context.TODO())
+
 	cfg, err := testEnv.Start()
 	Expect(err).NotTo(HaveOccurred())
 	Expect(cfg).NotTo(BeNil())
 
-	err = authorinooperatorv1beta1.AddToScheme(scheme.Scheme)
+	err = api.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 
 	//+kubebuilder:scaffold:scheme
@@ -71,10 +79,40 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 	Expect(k8sClient).NotTo(BeNil())
 
+	mgr, err := ctrl.NewManager(cfg, ctrl.Options{
+		Scheme: scheme.Scheme,
+	})
+	Expect(err).ToNot(HaveOccurred())
+
+	// creates authorino ClusterRole
+	clusterRole := getAuthorinoClusterRole()
+	Expect(k8sClient.Create(context.TODO(), clusterRole)).Should(Succeed())
+
+	err = (&AuthorinoReconciler{
+		Client: k8sClient,
+		Log:    ctrl.Log.WithName("authorino-operator").WithName("controller").WithName("Authorino"),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr)
+	Expect(err).ToNot(HaveOccurred())
+
+	go func() {
+		err = mgr.Start(ctx)
+		Expect(err).ToNot(HaveOccurred())
+	}()
+
 }, 60)
 
 var _ = AfterSuite(func() {
+	cancel()
 	By("tearing down the test environment")
 	err := testEnv.Stop()
 	Expect(err).NotTo(HaveOccurred())
 })
+
+func getAuthorinoClusterRole() *k8srbac.ClusterRole {
+	return &k8srbac.ClusterRole{
+		ObjectMeta: v1.ObjectMeta{
+			Name: authorinoClusterRoleName,
+		},
+	}
+}
