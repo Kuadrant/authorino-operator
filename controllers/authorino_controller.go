@@ -63,9 +63,9 @@ const (
 // +kubebuilder:rbac:groups="*",resources=configmaps/status,verbs=get;update;delete;patch
 // +kubebuilder:rbac:groups="*",resources=events,verbs=create;patch;
 // +kubebuilder:rbac:groups="*",resources=secrets,verbs=get;list;watch
-// +kubebuilder:rbac:groups="authorino.3scale.net",resources=authconfigs,verbs=create;delete;get;list;patch;update;watch
-// +kubebuilder:rbac:groups="authorino.3scale.net",resources=authconfigs,verbs=create;delete;get;list;patch;update;watch
-// +kubebuilder:rbac:groups="authorino.3scale.net",resources=authconfigs/status,verbs=get;patch;update
+// +kubebuilder:rbac:groups="authorino.kuadrant.io",resources=authconfigs,verbs=create;delete;get;list;patch;update;watch
+// +kubebuilder:rbac:groups="authorino.kuadrant.io",resources=authconfigs,verbs=create;delete;get;list;patch;update;watch
+// +kubebuilder:rbac:groups="authorino.kuadrant.io",resources=authconfigs/status,verbs=get;patch;update
 // +kubebuilder:rbac:groups="coordination.k8s.io",resources=leases,verbs=get;list;create;update;
 
 // Reconcile deploys an instance of authorino depending on the settings

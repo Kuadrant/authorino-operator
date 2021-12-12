@@ -115,7 +115,7 @@ rules:
   - update
   - watch
 - apiGroups:
-  - authorino.3scale.net
+  - authorino.kuadrant.io
   resources:
   - authconfigs
   verbs:
@@ -127,7 +127,7 @@ rules:
   - update
   - watch
 - apiGroups:
-  - authorino.3scale.net
+  - authorino.kuadrant.io
   resources:
   - authconfigs/status
   verbs:
