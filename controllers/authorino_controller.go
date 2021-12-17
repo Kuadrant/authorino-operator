@@ -453,7 +453,7 @@ func (r *AuthorinoReconciler) leaderElectionPermission(authorino *api.Authorino,
 		)
 	}
 
-	leRoleBindingName := authorino.Name + "authorino-leader-election"
+	leRoleBindingName := authorino.Name + "-authorino-leader-election"
 	leRoleBinding := authorinoResources.GetAuthorinoLeaderElectionRoleBinding(leaderElectionRoleName, saName, authorino.Namespace)
 	bindingNsdName := namespacedName(authorino.Namespace, leRoleBindingName)
 	if err := r.Get(context.TODO(), bindingNsdName, leRoleBinding); err != nil {

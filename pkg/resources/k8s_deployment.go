@@ -10,10 +10,16 @@ func GetDeployment(name, namespace, saName string, replicas *int32, containers [
 	objMeta := getObjectMeta(namespace, name)
 	labels := labelsForAuthorino(name)
 
+	numOfReplicas := replicas
+	if numOfReplicas == nil {
+		value := int32(1)
+		numOfReplicas = &value
+	}
+
 	return &k8sapps.Deployment{
 		ObjectMeta: objMeta,
 		Spec: k8sapps.DeploymentSpec{
-			Replicas: replicas,
+			Replicas: numOfReplicas,
 			Selector: &v1.LabelSelector{
 				MatchLabels: labels,
 			},

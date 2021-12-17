@@ -5,7 +5,7 @@ import (
 )
 
 func GetAuthorinoClusterRoleBinding(clusterRoleName, saName, saNamespace string) *k8srbac.ClusterRoleBinding {
-	roleRef, roleSubject := getRoleRefAndSubject(clusterRoleName, saName, saNamespace)
+	roleRef, roleSubject := getRoleRefAndSubject(clusterRoleName, "ClusterRole", saName, saNamespace)
 	return &k8srbac.ClusterRoleBinding{
 		RoleRef:  roleRef,
 		Subjects: []k8srbac.Subject{roleSubject},
@@ -13,7 +13,7 @@ func GetAuthorinoClusterRoleBinding(clusterRoleName, saName, saNamespace string)
 }
 
 func GetAuthorinoRoleBinding(roleName, saName, saNamespace string) *k8srbac.RoleBinding {
-	roleRef, roleSubject := getRoleRefAndSubject(roleName, saName, saNamespace)
+	roleRef, roleSubject := getRoleRefAndSubject(roleName, "ClusterRole", saName, saNamespace)
 	return &k8srbac.RoleBinding{
 		RoleRef:  roleRef,
 		Subjects: []k8srbac.Subject{roleSubject},
@@ -21,14 +21,19 @@ func GetAuthorinoRoleBinding(roleName, saName, saNamespace string) *k8srbac.Role
 }
 
 func GetAuthorinoLeaderElectionRoleBinding(roleName, saName, saNamespace string) *k8srbac.RoleBinding {
-	return GetAuthorinoRoleBinding(roleName, saName, saNamespace)
+	roleRef, roleSubject := getRoleRefAndSubject(roleName, "Role", saName, saNamespace)
+	return &k8srbac.RoleBinding{
+		RoleRef:  roleRef,
+		Subjects: []k8srbac.Subject{roleSubject},
+	}
 }
 
-func getRoleRefAndSubject(clusterRoleName, saName, saNamespace string) (k8srbac.RoleRef, k8srbac.Subject) {
+func getRoleRefAndSubject(roleName, roleKind, saName, saNamespace string) (k8srbac.RoleRef, k8srbac.Subject) {
 	var roleRef = k8srbac.RoleRef{
-		Name: clusterRoleName,
-		Kind: "ClusterRole",
+		Name: roleName,
+		Kind: roleKind,
 	}
+
 	var roleSubject = k8srbac.Subject{
 		Kind:      k8srbac.ServiceAccountKind,
 		Name:      saName,
