@@ -43,7 +43,7 @@ func newMetricService(authorinoName, serviceNamespace string) *k8score.Service {
 }
 
 func newService(serviceName, serviceNamespace, authorinoName string, servicePort k8score.ServicePort) *k8score.Service {
-	objMeta := getObjectMeta(serviceNamespace, serviceName+"-"+authorinoName)
+	objMeta := getObjectMeta(serviceNamespace, authorinoName+"-"+serviceName)
 	return &k8score.Service{
 		ObjectMeta: objMeta,
 		Spec: k8score.ServiceSpec{
