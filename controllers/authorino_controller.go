@@ -19,6 +19,7 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"sort"
 	"time"
 
 	k8sapps "k8s.io/api/apps/v1"
@@ -301,10 +302,8 @@ func (r *AuthorinoReconciler) buildAuthorinoEnv(authorino *api.Authorino) []k8sc
 }
 
 func (r *AuthorinoReconciler) authorinoDeploymentChanges(existingDeployment, desiredDeployment *k8sapps.Deployment) bool {
-	changed := false
-
 	if *existingDeployment.Spec.Replicas != *desiredDeployment.Spec.Replicas {
-		changed = true
+		return true
 	}
 
 	if len(desiredDeployment.Spec.Template.Spec.Containers) != 1 {
@@ -315,11 +314,11 @@ func (r *AuthorinoReconciler) authorinoDeploymentChanges(existingDeployment, des
 	desiredContainer := desiredDeployment.Spec.Template.Spec.Containers[0]
 
 	if existingContainer.Image != desiredContainer.Image {
-		changed = true
+		return true
 	}
 
 	if existingContainer.ImagePullPolicy != desiredContainer.ImagePullPolicy {
-		changed = true
+		return true
 	}
 
 	// checking envvars
@@ -328,27 +327,56 @@ func (r *AuthorinoReconciler) authorinoDeploymentChanges(existingDeployment, des
 	for _, desiredEnvvar := range desiredEnvvars {
 		for _, existingEnvvar := range existingEnvvars {
 			if existingEnvvar.Name == desiredEnvvar.Name && existingEnvvar.Value != desiredEnvvar.Value {
-				changed = true
-				break
+				return true
 			}
 		}
 	}
 
-	// checking volume
+	// checking volumes
 	existingVolumes := existingDeployment.Spec.Template.Spec.Volumes
 	desiredVolumes := desiredDeployment.Spec.Template.Spec.Volumes
-	for _, desiredVolume := range desiredVolumes {
-		if desiredVolume.Name == tlsCertName || desiredVolume.Name == oidcTlsCertName {
-			for _, existingVolume := range existingVolumes {
-				if existingVolume.Name == tlsCertName || desiredVolume.Name == oidcTlsCertName && existingVolume.VolumeSource.Secret.SecretName != desiredVolume.VolumeSource.Secret.SecretName {
-					changed = true
-					break
-				}
-			}
+
+	if len(existingVolumes) != len(desiredVolumes) {
+		return true
+	}
+
+	sort.Slice(existingVolumes, func(i, j int) bool {
+		return existingVolumes[i].Name < existingVolumes[j].Name
+	})
+
+	sort.Slice(desiredVolumes, func(i, j int) bool {
+		return desiredVolumes[i].Name < desiredVolumes[j].Name
+	})
+
+	for i, desiredVolume := range desiredVolumes {
+		if existingVolumes[i].Name != desiredVolume.Name { // comparing only the names has limitation, but more reliable than using reflect.DeepEqual or comparing the marshalled version of the resources
+			return true
 		}
 	}
 
-	return changed
+	// checking volumeMounts
+	existingVolumeMounts := existingContainer.VolumeMounts
+	desiredVolumeMounts := desiredContainer.VolumeMounts
+
+	if len(existingVolumeMounts) != len(desiredVolumeMounts) {
+		return true
+	}
+
+	sort.Slice(existingVolumeMounts, func(i, j int) bool {
+		return existingVolumeMounts[i].Name < existingVolumeMounts[j].Name
+	})
+
+	sort.Slice(desiredVolumeMounts, func(i, j int) bool {
+		return desiredVolumeMounts[i].Name < desiredVolumeMounts[j].Name
+	})
+
+	for i, desiredVolumeMount := range desiredVolumeMounts {
+		if existingVolumeMounts[i].Name != desiredVolumeMount.Name { // comparing only the names has limitation, but more reliable than using reflect.DeepEqual or comparing the marshalled version of the resources
+			return true
+		}
+	}
+
+	return false
 }
 
 func (r *AuthorinoReconciler) createAuthorinoPermission(authorino *api.Authorino, operatorNamespace string) error {
