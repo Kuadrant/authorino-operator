@@ -180,8 +180,6 @@ func (r *AuthorinoReconciler) getAuthorinoDeployment(authorino *api.Authorino) (
 }
 
 func (r *AuthorinoReconciler) buildAuthorinoDeployment(authorino *api.Authorino) *k8sapps.Deployment {
-	var volMounts []k8score.VolumeMount
-	var vol []k8score.Volume
 	var containers []k8score.Container
 	var saName = authorino.Name + "-authorino"
 
@@ -189,22 +187,23 @@ func (r *AuthorinoReconciler) buildAuthorinoDeployment(authorino *api.Authorino)
 		authorino.Spec.Image = fmt.Sprintf("quay.io/3scale/authorino:%s", api.AuthorinoVersion)
 	}
 
+	volumeMounts := authorino.Spec.VolumeMounts
+	volumes := authorino.Spec.Volumes
+
 	// if an external auth server is enabled mounts a volume to the container
 	// by using the secret with the cert
 	if enabled := authorino.Spec.Listener.Tls.Enabled; enabled == nil || *enabled {
 		secretName := authorino.Spec.Listener.Tls.CertSecret.Name
-		volMounts = append(volMounts, authorinoResources.GetTlsVolumeMount(tlsCertName, api.DefaultTlsCertPath,
-			api.DefaultTlsCertKeyPath)...)
-		vol = append(vol, authorinoResources.GetTlsVolume(tlsCertName, secretName))
+		volumeMounts = append(volumeMounts, authorinoResources.GetTlsVolumeMount(tlsCertName, api.DefaultTlsCertPath, api.DefaultTlsCertKeyPath)...)
+		volumes = append(volumes, authorinoResources.GetTlsVolume(tlsCertName, secretName))
 	}
 
 	// if an external OIDC server is enable mounts a volume to the container
 	// by using the secret with the certs
 	if enabled := authorino.Spec.OIDCServer.Tls.Enabled; enabled == nil || *enabled {
 		secretName := authorino.Spec.OIDCServer.Tls.CertSecret.Name
-		volMounts = append(volMounts, authorinoResources.GetTlsVolumeMount(oidcTlsCertName,
-			api.DefaultOidcTlsCertPath, api.DefaultOidcTlsCertKeyPath)...)
-		vol = append(vol, authorinoResources.GetTlsVolume(oidcTlsCertName, secretName))
+		volumeMounts = append(volumeMounts, authorinoResources.GetTlsVolumeMount(oidcTlsCertName, api.DefaultOidcTlsCertPath, api.DefaultOidcTlsCertKeyPath)...)
+		volumes = append(volumes, authorinoResources.GetTlsVolume(oidcTlsCertName, secretName))
 	}
 
 	// generates the env variables
@@ -212,13 +211,11 @@ func (r *AuthorinoReconciler) buildAuthorinoDeployment(authorino *api.Authorino)
 
 	// generates the Container where authorino will be running
 	// adds to the list of containers available in the deployment
-	authorinoContainer := authorinoResources.GetContainer(authorino.Spec.Image, authorino.Spec.ImagePullPolicy,
-		api.AuthorinoContainerName, envs, volMounts)
+	authorinoContainer := authorinoResources.GetContainer(authorino.Spec.Image, authorino.Spec.ImagePullPolicy, api.AuthorinoContainerName, envs, volumeMounts)
 	containers = append(containers, authorinoContainer)
 
 	// generate Deployment resource to deploy an authorino instance
-	deployment := authorinoResources.GetDeployment(authorino.Name, authorino.Namespace,
-		saName, authorino.Spec.Replicas, containers, vol)
+	deployment := authorinoResources.GetDeployment(authorino.Name, authorino.Namespace, saName, authorino.Spec.Replicas, containers, volumes)
 
 	ctrl.SetControllerReference(authorino, deployment, r.Scheme)
 	return deployment

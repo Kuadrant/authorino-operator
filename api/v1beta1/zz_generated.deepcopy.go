@@ -92,6 +92,20 @@ func (in *AuthorinoSpec) DeepCopyInto(out *AuthorinoSpec) {
 		*out = new(int32)
 		**out = **in
 	}
+	if in.Volumes != nil {
+		in, out := &in.Volumes, &out.Volumes
+		*out = make([]v1.Volume, len(*in))
+		for i := range *in {
+			(*in)[i].DeepCopyInto(&(*out)[i])
+		}
+	}
+	if in.VolumeMounts != nil {
+		in, out := &in.VolumeMounts, &out.VolumeMounts
+		*out = make([]v1.VolumeMount, len(*in))
+		for i := range *in {
+			(*in)[i].DeepCopyInto(&(*out)[i])
+		}
+	}
 	in.Listener.DeepCopyInto(&out.Listener)
 	in.OIDCServer.DeepCopyInto(&out.OIDCServer)
 }

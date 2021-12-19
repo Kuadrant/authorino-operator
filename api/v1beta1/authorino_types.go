@@ -103,16 +103,18 @@ type AuthorinoSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	Image                    string     `json:"image,omitempty"`
-	Replicas                 *int32     `json:"replicas,omitempty"`
-	ImagePullPolicy          string     `json:"imagePullPolicy,omitempty"`
-	LogLevel                 string     `json:"logLevel,omitempty"`
-	LogMode                  string     `json:"logMode,omitempty"`
-	ClusterWide              bool       `json:"clusterWide,omitempty"`
-	Listener                 Listener   `json:"listener,omitempty"`
-	OIDCServer               OIDCServer `json:"oidcServer,omitempty"`
-	AuthConfigLabelSelectors string     `json:"authConfigLabelSelectors,omitempty"`
-	SecretLabelSelectors     string     `json:"secretLabelSelectors,omitempty"`
+	Image                    string                `json:"image,omitempty"`
+	Replicas                 *int32                `json:"replicas,omitempty"`
+	ImagePullPolicy          string                `json:"imagePullPolicy,omitempty"`
+	Volumes                  []k8score.Volume      `json:"volumes,omitempty"`
+	VolumeMounts             []k8score.VolumeMount `json:"volumeMounts,omitempty"`
+	LogLevel                 string                `json:"logLevel,omitempty"`
+	LogMode                  string                `json:"logMode,omitempty"`
+	ClusterWide              bool                  `json:"clusterWide,omitempty"`
+	Listener                 Listener              `json:"listener,omitempty"`
+	OIDCServer               OIDCServer            `json:"oidcServer,omitempty"`
+	AuthConfigLabelSelectors string                `json:"authConfigLabelSelectors,omitempty"`
+	SecretLabelSelectors     string                `json:"secretLabelSelectors,omitempty"`
 }
 
 type Listener struct {
