@@ -48,8 +48,9 @@ const (
 	tlsCertName     string = "tls-cert"
 	oidcTlsCertName string = "oidc-cert"
 
-	authorinoClusterRoleName string = "authorino-manager-role"
-	leaderElectionRoleName   string = "authorino-leader-election-role"
+	authorinoClusterRoleName        string = "authorino-manager-role"
+	authorinoK8sAuthClusterRoleName string = "authorino-manager-k8s-auth-role"
+	leaderElectionRoleName          string = "authorino-leader-election-role"
 )
 
 //+kubebuilder:rbac:groups=operator.authorino.kuadrant.io,resources=authorinos,verbs=get;list;watch;create;update;patch;delete
@@ -263,7 +264,7 @@ func (r *AuthorinoReconciler) buildAuthorinoDeployment(authorino *api.Authorino)
 	// generate Deployment resource to deploy an authorino instance
 	deployment := authorinoResources.GetDeployment(authorino.Name, authorino.Namespace, saName, authorino.Spec.Replicas, containers, volumes)
 
-	ctrl.SetControllerReference(authorino, deployment, r.Scheme)
+	_ = ctrl.SetControllerReference(authorino, deployment, r.Scheme)
 	return deployment
 }
 
@@ -449,9 +450,9 @@ func (r *AuthorinoReconciler) createAuthorinoPermission(authorino *api.Authorino
 	if err := r.Get(context.TODO(), saNsdName, sa); err != nil {
 		if errors.IsNotFound(err) {
 			// ServiceAccount doesn't exit - create one
-			ctrl.SetControllerReference(authorino, sa, r.Scheme)
 			sa.Name = saName
 			sa.Namespace = authorino.Namespace
+			_ = ctrl.SetControllerReference(authorino, sa, r.Scheme)
 			if err := r.Client.Create(context.TODO(), sa); err != nil {
 				return r.wrapErrorWithStatusUpdate(
 					logger, authorino, r.setStatusFailed(api.AuthorinoUnableToCreateServiceAccount),
@@ -466,39 +467,74 @@ func (r *AuthorinoReconciler) createAuthorinoPermission(authorino *api.Authorino
 	}
 
 	// creates the ClusterRoleBinding/RoleBinding depending on type of installation
-	// if ClusterWide true - ClusterRoleBinding
-	// if ClusterWide false - RoleBinding
-	var binding client.Object = authorinoResources.GetAuthorinoClusterRoleBinding(authorinoClusterRoleName, sa.Name, sa.Namespace)
-	if !authorino.Spec.ClusterWide {
-		binding = authorinoResources.GetAuthorinoRoleBinding(authorinoClusterRoleName, sa.Name, sa.Namespace)
-		binding.SetNamespace(authorino.Namespace)
+	if err := r.reconcileAuthorinoRoleBinding("authorino", authorinoClusterRoleName, *sa, authorino.Spec.ClusterWide, authorino); err != nil {
+		return err
 	}
-	bindingName := resourcePrefixName + "-authorino"
-	bindingNsdName := namespacedName(authorino.Namespace, bindingName)
-	if err := r.Get(context.TODO(), bindingNsdName, binding); err != nil {
-		if errors.IsNotFound(err) {
-			ctrl.SetControllerReference(authorino, binding, r.Scheme)
-			// doesn't exist - create one
-			binding.SetName(bindingName)
-			if err := r.Client.Create(context.TODO(), binding); err != nil {
-				return r.wrapErrorWithStatusUpdate(
-					logger, authorino, r.setStatusFailed(api.AuthorinoUnableToCreateBindingForClusterRole),
-					fmt.Errorf("failed to create %s binding for authorino ClusterRole, err: %v", bindingName, err),
-				)
-			}
-		}
-		return r.wrapErrorWithStatusUpdate(
-			logger, authorino, r.setStatusFailed(api.AuthorinoUnableToGetBindingForClusterRole),
-			fmt.Errorf("failed to get %s binding for authorino ClusterRole, err: %v", bindingName, err),
-		)
+	// creates the K8s Auth ClusterRoleBinding (for Authorino's Kubernetes TokenReview and SubjectAccessReview features)
+	// Disclaimer: this has nothing to do with kube-rbac-proxy, but to authn/authz features of Authorino that also require cluster scope role bindings
+	if err := r.reconcileAuthorinoRoleBinding("authorino-k8s-auth", authorinoK8sAuthClusterRoleName, *sa, true, authorino); err != nil {
+		return err
 	}
 
 	// creates leader election role
 	// TODO: describe what this leader election is
-	return r.leaderElectionPermission(authorino, sa.GetName())
+	return r.leaderElectionPermission(authorino, *sa)
 }
 
-func (r *AuthorinoReconciler) leaderElectionPermission(authorino *api.Authorino, saName string) error {
+func (r *AuthorinoReconciler) reconcileAuthorinoRoleBinding(roleBindingName, roleName string, serviceAccount k8score.ServiceAccount, clusterScope bool, authorino *api.Authorino) error {
+	var logger = r.Log
+
+	var roleBinding client.Object
+	var roleBindingDistinctName string
+	var roleBindingSearchName types.NamespacedName
+
+	if clusterScope {
+		roleBinding = authorinoResources.GetAuthorinoClusterRoleBinding(roleName, serviceAccount)
+		roleBindingDistinctName = roleBindingName
+		roleBindingSearchName = types.NamespacedName{Name: roleBindingDistinctName}
+	} else {
+		roleBinding = authorinoResources.GetAuthorinoRoleBinding(roleName, serviceAccount)
+		roleBindingDistinctName = fmt.Sprintf("%s-%s", authorino.Name, roleBindingName)
+		roleBinding.SetNamespace(authorino.Namespace)
+		roleBindingSearchName = types.NamespacedName{Name: roleBindingDistinctName, Namespace: authorino.Namespace}
+	}
+
+	if err := r.Get(context.TODO(), roleBindingSearchName, roleBinding); err != nil {
+		// failed to get (cluster)rolebinding -> check if not found or other error
+
+		if errors.IsNotFound(err) {
+			// (cluster)rolebinding does not exist -> create one
+			roleBinding.SetName(roleBindingDistinctName)
+			_ = ctrl.SetControllerReference(authorino, roleBinding, r.Scheme)
+			if err := r.Client.Create(context.TODO(), roleBinding); err != nil {
+				return r.wrapErrorWithStatusUpdate(
+					logger, authorino, r.setStatusFailed(api.AuthorinoUnableToCreateBindingForClusterRole),
+					fmt.Errorf("failed to create %s binding for authorino ClusterRole, err: %v", roleBindingDistinctName, err),
+				)
+			}
+		}
+
+		// other error -> return
+		return r.wrapErrorWithStatusUpdate(
+			logger, authorino, r.setStatusFailed(api.AuthorinoUnableToGetBindingForClusterRole),
+			fmt.Errorf("failed to get %s binding for authorino ClusterRole, err: %v", roleBindingDistinctName, err),
+		)
+	} else {
+		// (cluster)rolebinding exists -> ensure it includes the serviceaccount among the subjects
+
+		rb := authorinoResources.AppendSubjectToRoleBinding(roleBinding, serviceAccount) // TODO: Remove subject from the clusterrolebinding when the authorino instance is deleted. OwnerReference will not work for cluster-scoped resources :/
+		if err := r.Client.Update(context.TODO(), rb); err != nil {
+			return r.wrapErrorWithStatusUpdate(
+				logger, authorino, r.setStatusFailed(api.AuthorinoUnableToCreateBindingForClusterRole),
+				fmt.Errorf("failed to update %s binding for authorino ClusterRole, err: %v", roleBindingName, err),
+			)
+		}
+
+		return nil
+	}
+}
+
+func (r *AuthorinoReconciler) leaderElectionPermission(authorino *api.Authorino, serviceAccount k8score.ServiceAccount) error {
 	var logger = r.Log
 
 	leaderElectionRole := &k8srbac.Role{}
@@ -506,10 +542,10 @@ func (r *AuthorinoReconciler) leaderElectionPermission(authorino *api.Authorino,
 	if err := r.Get(context.TODO(), leaderElectionNsdName, leaderElectionRole); err != nil {
 		if errors.IsNotFound(err) {
 			// leader election Role doesn't exist then create
-			ctrl.SetControllerReference(authorino, leaderElectionRole, r.Scheme)
 			leaderElectionRole.Name = leaderElectionRoleName
 			leaderElectionRole.Namespace = authorino.Namespace
 			leaderElectionRole.Rules = authorinoResources.GetLeaderElectionRules()
+			_ = ctrl.SetControllerReference(authorino, leaderElectionRole, r.Scheme)
 			if err := r.Client.Create(context.TODO(), leaderElectionRole); err != nil {
 				return r.wrapErrorWithStatusUpdate(
 					logger, authorino, r.setStatusFailed(api.AuthorinoUnableToCreateLeaderElectionRole),
@@ -524,13 +560,13 @@ func (r *AuthorinoReconciler) leaderElectionPermission(authorino *api.Authorino,
 	}
 
 	leRoleBindingName := authorino.Name + "-authorino-leader-election"
-	leRoleBinding := authorinoResources.GetAuthorinoLeaderElectionRoleBinding(leaderElectionRoleName, saName, authorino.Namespace)
+	leRoleBinding := authorinoResources.GetAuthorinoLeaderElectionRoleBinding(leaderElectionRoleName, serviceAccount)
 	bindingNsdName := namespacedName(authorino.Namespace, leRoleBindingName)
 	if err := r.Get(context.TODO(), bindingNsdName, leRoleBinding); err != nil {
 		if errors.IsNotFound(err) {
-			ctrl.SetControllerReference(authorino, leRoleBinding, r.Scheme)
 			leRoleBinding.Name = leRoleBindingName
 			leRoleBinding.Namespace = authorino.Namespace
+			_ = ctrl.SetControllerReference(authorino, leRoleBinding, r.Scheme)
 			// doesn't exist - create one
 			if err := r.Client.Create(context.TODO(), leRoleBinding); err != nil {
 				return r.wrapErrorWithStatusUpdate(
@@ -561,7 +597,7 @@ func (r *AuthorinoReconciler) createAuthorinoServices(authorino *api.Authorino) 
 		if err := r.Client.Get(context.TODO(), nsdName, service); err != nil {
 			if errors.IsNotFound(err) {
 				// service doesn't exist then create
-				ctrl.SetControllerReference(authorino, service, r.Scheme)
+				_ = ctrl.SetControllerReference(authorino, service, r.Scheme)
 				if err := r.Client.Create(context.TODO(), service); err != nil {
 					return r.wrapErrorWithStatusUpdate(
 						logger, authorino, r.setStatusFailed(api.AuthorinoUnableToGetLeaderElectionRoleBinding),

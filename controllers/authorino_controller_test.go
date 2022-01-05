@@ -73,16 +73,30 @@ var _ = Describe("Authorino controller", func() {
 				return err == nil
 			}, timeout, interval).Should(BeTrue())
 
-			var binding client.Object = &k8srbac.ClusterRoleBinding{}
-			if !authorinoInstance.Spec.ClusterWide {
+			var binding client.Object
+			var bindingNsdName types.NamespacedName
+			if authorinoInstance.Spec.ClusterWide {
+				binding = &k8srbac.ClusterRoleBinding{}
+				bindingNsdName = types.NamespacedName{Name: "authorino"}
+			} else {
 				binding = &k8srbac.RoleBinding{}
+				bindingNsdName = namespacedName(AuthorinoNamespace, authorinoInstance.Name+"-authorino")
 			}
-			bindingNsdName := namespacedName(AuthorinoNamespace, authorinoInstance.Name+"-authorino")
 
 			Eventually(func() bool {
 				err := k8sClient.Get(context.TODO(),
 					bindingNsdName,
 					binding)
+				return err == nil
+			}, timeout, interval).Should(BeTrue())
+
+			k8sAuthBinding := &k8srbac.ClusterRoleBinding{}
+			k8sAuthBindingNsdName := types.NamespacedName{Name: "authorino-k8s-auth"}
+
+			Eventually(func() bool {
+				err := k8sClient.Get(context.TODO(),
+					k8sAuthBindingNsdName,
+					k8sAuthBinding)
 				return err == nil
 			}, timeout, interval).Should(BeTrue())
 
