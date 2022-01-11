@@ -103,18 +103,17 @@ type AuthorinoSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	Image                    string                `json:"image,omitempty"`
-	Replicas                 *int32                `json:"replicas,omitempty"`
-	ImagePullPolicy          string                `json:"imagePullPolicy,omitempty"`
-	Volumes                  []k8score.Volume      `json:"volumes,omitempty"`
-	VolumeMounts             []k8score.VolumeMount `json:"volumeMounts,omitempty"`
-	LogLevel                 string                `json:"logLevel,omitempty"`
-	LogMode                  string                `json:"logMode,omitempty"`
-	ClusterWide              bool                  `json:"clusterWide,omitempty"`
-	Listener                 Listener              `json:"listener,omitempty"`
-	OIDCServer               OIDCServer            `json:"oidcServer,omitempty"`
-	AuthConfigLabelSelectors string                `json:"authConfigLabelSelectors,omitempty"`
-	SecretLabelSelectors     string                `json:"secretLabelSelectors,omitempty"`
+	Image                    string      `json:"image,omitempty"`
+	Replicas                 *int32      `json:"replicas,omitempty"`
+	ImagePullPolicy          string      `json:"imagePullPolicy,omitempty"`
+	Volumes                  VolumesSpec `json:"volumes,omitempty"`
+	LogLevel                 string      `json:"logLevel,omitempty"`
+	LogMode                  string      `json:"logMode,omitempty"`
+	ClusterWide              bool        `json:"clusterWide,omitempty"`
+	Listener                 Listener    `json:"listener,omitempty"`
+	OIDCServer               OIDCServer  `json:"oidcServer,omitempty"`
+	AuthConfigLabelSelectors string      `json:"authConfigLabelSelectors,omitempty"`
+	SecretLabelSelectors     string      `json:"secretLabelSelectors,omitempty"`
 }
 
 type Listener struct {
@@ -130,6 +129,29 @@ type OIDCServer struct {
 type Tls struct {
 	Enabled    *bool                         `json:"enabled,omitempty"`
 	CertSecret *k8score.LocalObjectReference `json:"certSecretRef,omitempty"`
+}
+
+type VolumesSpec struct {
+	Items []VolumeSpec `json:"items,omitempty"`
+	// Permissions mode.
+	// +optional
+	DefaultMode *int32 `json:"defaultMode,omitempty"`
+}
+
+type VolumeSpec struct {
+	// Volume name
+	Name string `json:"name,omitempty"`
+	// An absolute path where to mount it
+	MountPath string `json:"mountPath"`
+	// Allow multiple configmaps to mount to the same directory
+	// +optional
+	ConfigMaps []string `json:"configMaps,omitempty"`
+	// Secret mount
+	// +optional
+	Secrets []string `json:"secrets,omitempty"`
+	// Mount details
+	// +optional
+	Items []k8score.KeyToPath `json:"items,omitempty" protobuf:"bytes,2,rep,name=items"`
 }
 
 // AuthorinoStatus defines the observed state of Authorino

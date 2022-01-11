@@ -188,8 +188,53 @@ func (r *AuthorinoReconciler) buildAuthorinoDeployment(authorino *api.Authorino)
 		authorino.Spec.Image = fmt.Sprintf("quay.io/3scale/authorino:%s", api.AuthorinoVersion)
 	}
 
-	volumeMounts := authorino.Spec.VolumeMounts
-	volumes := authorino.Spec.Volumes
+	var volumes []k8score.Volume
+	var volumeMounts []k8score.VolumeMount
+
+	for _, volume := range authorino.Spec.Volumes.Items {
+		var sources []k8score.VolumeProjection
+
+		if volume.ConfigMaps != nil {
+			for _, name := range volume.ConfigMaps {
+				sources = append(sources, k8score.VolumeProjection{
+					ConfigMap: &k8score.ConfigMapProjection{
+						LocalObjectReference: k8score.LocalObjectReference{
+							Name: name,
+						},
+						Items: volume.Items,
+					},
+				})
+			}
+		}
+
+		if volume.Secrets != nil {
+			for _, name := range volume.Secrets {
+				sources = append(sources, k8score.VolumeProjection{
+					Secret: &k8score.SecretProjection{
+						LocalObjectReference: k8score.LocalObjectReference{
+							Name: name,
+						},
+						Items: volume.Items,
+					},
+				})
+			}
+		}
+
+		volumes = append(volumes, k8score.Volume{
+			Name: volume.Name,
+			VolumeSource: k8score.VolumeSource{
+				Projected: &k8score.ProjectedVolumeSource{
+					Sources:     sources,
+					DefaultMode: authorino.Spec.Volumes.DefaultMode,
+				},
+			},
+		})
+
+		volumeMounts = append(volumeMounts, k8score.VolumeMount{
+			Name:      volume.Name,
+			MountPath: volume.MountPath,
+		})
+	}
 
 	// if an external auth server is enabled mounts a volume to the container
 	// by using the secret with the cert
