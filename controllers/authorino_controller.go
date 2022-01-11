@@ -19,6 +19,7 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"sort"
 	"time"
 
 	k8sapps "k8s.io/api/apps/v1"
@@ -180,8 +181,6 @@ func (r *AuthorinoReconciler) getAuthorinoDeployment(authorino *api.Authorino) (
 }
 
 func (r *AuthorinoReconciler) buildAuthorinoDeployment(authorino *api.Authorino) *k8sapps.Deployment {
-	var volMounts []k8score.VolumeMount
-	var vol []k8score.Volume
 	var containers []k8score.Container
 	var saName = authorino.Name + "-authorino"
 
@@ -189,22 +188,68 @@ func (r *AuthorinoReconciler) buildAuthorinoDeployment(authorino *api.Authorino)
 		authorino.Spec.Image = fmt.Sprintf("quay.io/3scale/authorino:%s", api.AuthorinoVersion)
 	}
 
+	var volumes []k8score.Volume
+	var volumeMounts []k8score.VolumeMount
+
+	for _, volume := range authorino.Spec.Volumes.Items {
+		var sources []k8score.VolumeProjection
+
+		if volume.ConfigMaps != nil {
+			for _, name := range volume.ConfigMaps {
+				sources = append(sources, k8score.VolumeProjection{
+					ConfigMap: &k8score.ConfigMapProjection{
+						LocalObjectReference: k8score.LocalObjectReference{
+							Name: name,
+						},
+						Items: volume.Items,
+					},
+				})
+			}
+		}
+
+		if volume.Secrets != nil {
+			for _, name := range volume.Secrets {
+				sources = append(sources, k8score.VolumeProjection{
+					Secret: &k8score.SecretProjection{
+						LocalObjectReference: k8score.LocalObjectReference{
+							Name: name,
+						},
+						Items: volume.Items,
+					},
+				})
+			}
+		}
+
+		volumes = append(volumes, k8score.Volume{
+			Name: volume.Name,
+			VolumeSource: k8score.VolumeSource{
+				Projected: &k8score.ProjectedVolumeSource{
+					Sources:     sources,
+					DefaultMode: authorino.Spec.Volumes.DefaultMode,
+				},
+			},
+		})
+
+		volumeMounts = append(volumeMounts, k8score.VolumeMount{
+			Name:      volume.Name,
+			MountPath: volume.MountPath,
+		})
+	}
+
 	// if an external auth server is enabled mounts a volume to the container
 	// by using the secret with the cert
 	if enabled := authorino.Spec.Listener.Tls.Enabled; enabled == nil || *enabled {
 		secretName := authorino.Spec.Listener.Tls.CertSecret.Name
-		volMounts = append(volMounts, authorinoResources.GetTlsVolumeMount(tlsCertName, api.DefaultTlsCertPath,
-			api.DefaultTlsCertKeyPath)...)
-		vol = append(vol, authorinoResources.GetTlsVolume(tlsCertName, secretName))
+		volumeMounts = append(volumeMounts, authorinoResources.GetTlsVolumeMount(tlsCertName, api.DefaultTlsCertPath, api.DefaultTlsCertKeyPath)...)
+		volumes = append(volumes, authorinoResources.GetTlsVolume(tlsCertName, secretName))
 	}
 
 	// if an external OIDC server is enable mounts a volume to the container
 	// by using the secret with the certs
 	if enabled := authorino.Spec.OIDCServer.Tls.Enabled; enabled == nil || *enabled {
 		secretName := authorino.Spec.OIDCServer.Tls.CertSecret.Name
-		volMounts = append(volMounts, authorinoResources.GetTlsVolumeMount(oidcTlsCertName,
-			api.DefaultOidcTlsCertPath, api.DefaultOidcTlsCertKeyPath)...)
-		vol = append(vol, authorinoResources.GetTlsVolume(oidcTlsCertName, secretName))
+		volumeMounts = append(volumeMounts, authorinoResources.GetTlsVolumeMount(oidcTlsCertName, api.DefaultOidcTlsCertPath, api.DefaultOidcTlsCertKeyPath)...)
+		volumes = append(volumes, authorinoResources.GetTlsVolume(oidcTlsCertName, secretName))
 	}
 
 	// generates the env variables
@@ -212,13 +257,11 @@ func (r *AuthorinoReconciler) buildAuthorinoDeployment(authorino *api.Authorino)
 
 	// generates the Container where authorino will be running
 	// adds to the list of containers available in the deployment
-	authorinoContainer := authorinoResources.GetContainer(authorino.Spec.Image, authorino.Spec.ImagePullPolicy,
-		api.AuthorinoContainerName, envs, volMounts)
+	authorinoContainer := authorinoResources.GetContainer(authorino.Spec.Image, authorino.Spec.ImagePullPolicy, api.AuthorinoContainerName, envs, volumeMounts)
 	containers = append(containers, authorinoContainer)
 
 	// generate Deployment resource to deploy an authorino instance
-	deployment := authorinoResources.GetDeployment(authorino.Name, authorino.Namespace,
-		saName, authorino.Spec.Replicas, containers, vol)
+	deployment := authorinoResources.GetDeployment(authorino.Name, authorino.Namespace, saName, authorino.Spec.Replicas, containers, volumes)
 
 	ctrl.SetControllerReference(authorino, deployment, r.Scheme)
 	return deployment
@@ -304,10 +347,8 @@ func (r *AuthorinoReconciler) buildAuthorinoEnv(authorino *api.Authorino) []k8sc
 }
 
 func (r *AuthorinoReconciler) authorinoDeploymentChanges(existingDeployment, desiredDeployment *k8sapps.Deployment) bool {
-	changed := false
-
 	if *existingDeployment.Spec.Replicas != *desiredDeployment.Spec.Replicas {
-		changed = true
+		return true
 	}
 
 	if len(desiredDeployment.Spec.Template.Spec.Containers) != 1 {
@@ -318,11 +359,11 @@ func (r *AuthorinoReconciler) authorinoDeploymentChanges(existingDeployment, des
 	desiredContainer := desiredDeployment.Spec.Template.Spec.Containers[0]
 
 	if existingContainer.Image != desiredContainer.Image {
-		changed = true
+		return true
 	}
 
 	if existingContainer.ImagePullPolicy != desiredContainer.ImagePullPolicy {
-		changed = true
+		return true
 	}
 
 	// checking envvars
@@ -331,27 +372,56 @@ func (r *AuthorinoReconciler) authorinoDeploymentChanges(existingDeployment, des
 	for _, desiredEnvvar := range desiredEnvvars {
 		for _, existingEnvvar := range existingEnvvars {
 			if existingEnvvar.Name == desiredEnvvar.Name && existingEnvvar.Value != desiredEnvvar.Value {
-				changed = true
-				break
+				return true
 			}
 		}
 	}
 
-	// checking volume
+	// checking volumes
 	existingVolumes := existingDeployment.Spec.Template.Spec.Volumes
 	desiredVolumes := desiredDeployment.Spec.Template.Spec.Volumes
-	for _, desiredVolume := range desiredVolumes {
-		if desiredVolume.Name == tlsCertName || desiredVolume.Name == oidcTlsCertName {
-			for _, existingVolume := range existingVolumes {
-				if existingVolume.Name == tlsCertName || desiredVolume.Name == oidcTlsCertName && existingVolume.VolumeSource.Secret.SecretName != desiredVolume.VolumeSource.Secret.SecretName {
-					changed = true
-					break
-				}
-			}
+
+	if len(existingVolumes) != len(desiredVolumes) {
+		return true
+	}
+
+	sort.Slice(existingVolumes, func(i, j int) bool {
+		return existingVolumes[i].Name < existingVolumes[j].Name
+	})
+
+	sort.Slice(desiredVolumes, func(i, j int) bool {
+		return desiredVolumes[i].Name < desiredVolumes[j].Name
+	})
+
+	for i, desiredVolume := range desiredVolumes {
+		if existingVolumes[i].Name != desiredVolume.Name { // comparing only the names has limitation, but more reliable than using reflect.DeepEqual or comparing the marshalled version of the resources
+			return true
 		}
 	}
 
-	return changed
+	// checking volumeMounts
+	existingVolumeMounts := existingContainer.VolumeMounts
+	desiredVolumeMounts := desiredContainer.VolumeMounts
+
+	if len(existingVolumeMounts) != len(desiredVolumeMounts) {
+		return true
+	}
+
+	sort.Slice(existingVolumeMounts, func(i, j int) bool {
+		return existingVolumeMounts[i].Name < existingVolumeMounts[j].Name
+	})
+
+	sort.Slice(desiredVolumeMounts, func(i, j int) bool {
+		return desiredVolumeMounts[i].Name < desiredVolumeMounts[j].Name
+	})
+
+	for i, desiredVolumeMount := range desiredVolumeMounts {
+		if existingVolumeMounts[i].Name != desiredVolumeMount.Name { // comparing only the names has limitation, but more reliable than using reflect.DeepEqual or comparing the marshalled version of the resources
+			return true
+		}
+	}
+
+	return false
 }
 
 func (r *AuthorinoReconciler) createAuthorinoPermission(authorino *api.Authorino, operatorNamespace string) error {
