@@ -97,6 +97,10 @@ func (r *AuthorinoReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 
 	logger.V(1).Info("Found an instance of authorino", "authorinoInstanceName", authorinoInstance.Name)
 
+	if err := r.installationPreflightCheck(authorinoInstance); err != nil {
+		return ctrl.Result{Requeue: true}, nil
+	}
+
 	// Creates services required by authorino
 	if err := r.createAuthorinoServices(authorinoInstance); err != nil {
 		return ctrl.Result{}, err
@@ -539,6 +543,11 @@ func (r *AuthorinoReconciler) bindAuthorinoServiceAccountToClusterRole(roleBindi
 					fmt.Errorf("failed to create %s binding for authorino ClusterRole, err: %v", roleBinding.GetName(), err),
 				)
 			}
+		} else {
+			return r.wrapErrorWithStatusUpdate(
+				logger, authorino, r.setStatusFailed(api.AuthorinoUnableToGetBindingForClusterRole),
+				fmt.Errorf("failed to get %s binding for authorino ClusterRole, err: %v", roleBindingName, err),
+			)
 		}
 
 		// other error -> return
@@ -610,10 +619,10 @@ func (r *AuthorinoReconciler) cleanupClusterScopedPermissions(ctx context.Contex
 	crName := crNamespacedName.Name
 	sa := authorinoResources.GetAuthorinoServiceAccount(crNamespacedName.Namespace, crName)
 
-  // we only care about cluster-scoped role bindings for the cleanup
+	// we only care about cluster-scoped role bindings for the cleanup
 	// namespaced ones are garbage collected automatically by k8s because of the owner reference
 	r.unboundAuthorinoServiceAccountFromClusterRole(ctx, authorinoManagerClusterRoleBindingName, sa)
-  r.unboundAuthorinoServiceAccountFromClusterRole(ctx, authorinoK8sAuthClusterRoleBindingName, sa)
+	r.unboundAuthorinoServiceAccountFromClusterRole(ctx, authorinoK8sAuthClusterRoleBindingName, sa)
 }
 
 // remove SA from list of subjects of the clusterrolebinding
@@ -634,6 +643,44 @@ func (r *AuthorinoReconciler) unboundAuthorinoServiceAccountFromClusterRole(ctx 
 			logger.Error(err, "failed to cleanup subject from authorino role binding", "roleBinding", roleBinding, "subject", staleSubject)
 		}
 	}
+}
+
+func (r *AuthorinoReconciler) installationPreflightCheck(authorino *api.Authorino) error {
+
+	// When tls is enabled, checks if the secret with the certs exists
+	// if not, installation of the authorino instance won't progress until the
+	// secret is created
+	tlsCerts := map[string]api.Tls{
+		"listener": authorino.Spec.Listener.Tls,
+		"oidc":     authorino.Spec.OIDCServer.Tls,
+	}
+
+	for authServerName, tlsCert := range tlsCerts {
+
+		if tlsEnabled := tlsCert.Enabled; tlsEnabled == nil && tlsCert.CertSecret == nil {
+			return r.wrapErrorWithStatusUpdate(
+				r.Log, authorino, r.setStatusFailed(api.AuthorinoTlsSecretNotProvided),
+				fmt.Errorf("%s secret with tls cert not provided", authServerName),
+			)
+		} else if *tlsEnabled {
+			secretName := tlsCert.CertSecret.Name
+			nsdName := namespacedName(authorino.Namespace, secretName)
+			if err := r.Get(context.TODO(), nsdName, &k8score.Secret{}); err != nil {
+				errorMessage := fmt.Errorf("failed to get %s secret name %s , err: %v",
+					authServerName, secretName, err)
+				if errors.IsNotFound(err) {
+					errorMessage = fmt.Errorf("%s secret name %s not found, err: %v",
+						authServerName, secretName, err)
+				}
+				return r.wrapErrorWithStatusUpdate(
+					r.Log, authorino, r.setStatusFailed(api.AuthorinoTlsSecretNotProvided),
+					errorMessage,
+				)
+			}
+		}
+
+	}
+	return nil
 }
 
 type statusUpdater func(logger logr.Logger, authorino *api.Authorino, message string) error

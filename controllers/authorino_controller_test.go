@@ -138,6 +138,7 @@ var _ = Describe("Authorino controller", func() {
 			Expect(existContainer).To(BeTrue())
 		})
 	})
+
 	Context("Updating a instance of authorino object", func() {
 
 		var authorinoInstance *api.Authorino
