@@ -6,6 +6,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+func GetAuthorinoServiceAccount(namespace, saName string) *k8score.ServiceAccount {
+  return &k8score.ServiceAccount{
+		ObjectMeta: getObjectMeta(namespace, saName),
+	}
+}
+
 func GetAuthorinoClusterRoleBinding(clusterRoleName string, serviceAccount k8score.ServiceAccount) *k8srbac.ClusterRoleBinding {
 	roleRef, roleSubject := getRoleRefAndSubject(clusterRoleName, "ClusterRole", serviceAccount)
 	return &k8srbac.ClusterRoleBinding{
@@ -47,7 +53,7 @@ func getRoleRefAndSubject(roleName, roleKind string, serviceAccount k8score.Serv
 
 // Makes sure a given serviceaccount is among the subjects of a rolebinding or clusterrolebinding
 func AppendSubjectToRoleBinding(roleBinding client.Object, serviceAccount k8score.ServiceAccount) client.Object {
-	subject := buildSubjectForRoleBinding(serviceAccount)
+	subject := GetSubjectForRoleBinding(serviceAccount)
 	if rb, ok := roleBinding.(*k8srbac.RoleBinding); ok {
 		if subjectIncluded(rb.Subjects, subject) {
 			return rb
@@ -71,7 +77,7 @@ func appendSubjectToClusterRoleBinding(roleBinding client.Object, subject k8srba
 	}
 }
 
-func buildSubjectForRoleBinding(serviceAccount k8score.ServiceAccount) k8srbac.Subject {
+func GetSubjectForRoleBinding(serviceAccount k8score.ServiceAccount) k8srbac.Subject {
 	return k8srbac.Subject{
 		Kind:      serviceAccount.Kind,
 		Name:      serviceAccount.Name,
