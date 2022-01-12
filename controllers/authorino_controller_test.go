@@ -101,7 +101,7 @@ var _ = Describe("Authorino controller", func() {
 			}, timeout, interval).Should(BeTrue())
 
 			leaderElectionRole := &k8srbac.Role{}
-			leaderElectionNsdName := namespacedName(AuthorinoNamespace, leaderElectionRoleName)
+			leaderElectionNsdName := namespacedName(AuthorinoNamespace, authorinoLeaderElectionRoleName)
 			Eventually(func() bool {
 				err := k8sClient.Get(context.TODO(),
 					leaderElectionNsdName,
