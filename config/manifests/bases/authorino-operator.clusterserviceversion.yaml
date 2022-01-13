@@ -54,12 +54,12 @@ spec:
     url: https://github.com/Kuadrant/authorino-operator
   - name: Authorino
     url: https://github.com/Kuadrant/authorino
-  maturity: alpha
   maintainers:
   - email: jmonteir@redhat.com
     name: Jose Silva
   - email: mcassola@redhat.com
     name: Guilherme Cassolato
+  maturity: alpha
   minKubeVersion: 1.8.0
   provider:
     name: Authorino
