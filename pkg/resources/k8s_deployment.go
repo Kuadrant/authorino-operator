@@ -46,7 +46,7 @@ func GetContainer(image, imagePullPolicy, containerName string, envVars []k8scor
 		ImagePullPolicy: k8score.PullPolicy(imagePullPolicy),
 		Name:            containerName,
 		Env:             envVars,
-		VolumeMounts: 	 volMounts,
+		VolumeMounts:    volMounts,
 	}
 }
 

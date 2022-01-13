@@ -209,16 +209,16 @@ func newFullAuthorinoInstance() *api.Authorino {
 			Namespace: AuthorinoNamespace,
 		},
 		Spec: api.AuthorinoSpec{
-			Image:                    image,
-			Replicas:                 &replicas,
-			ImagePullPolicy:          string(k8score.PullAlways),
-			Volumes:                  api.VolumesSpec{
+			Image:           image,
+			Replicas:        &replicas,
+			ImagePullPolicy: string(k8score.PullAlways),
+			Volumes: api.VolumesSpec{
 				Items: []api.VolumeSpec{
 					{
-						Name:      "external-metadata-server-tls-cert",
-						MountPath: "/etc/ssl/certs",
-						ConfigMaps: []string{ "external-metadata-server-tls" },
-						Items:      []k8score.KeyToPath{
+						Name:       "external-metadata-server-tls-cert",
+						MountPath:  "/etc/ssl/certs",
+						ConfigMaps: []string{"external-metadata-server-tls"},
+						Items: []k8score.KeyToPath{
 							{
 								Key:  "tls.crt",
 								Path: "tls.crt",

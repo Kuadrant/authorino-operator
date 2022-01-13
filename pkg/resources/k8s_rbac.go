@@ -8,8 +8,8 @@ import (
 )
 
 func GetAuthorinoServiceAccount(namespace, crName string) *k8score.ServiceAccount {
-  return &k8score.ServiceAccount{
-		TypeMeta: k8smeta.TypeMeta{	Kind: "ServiceAccount" },
+	return &k8score.ServiceAccount{
+		TypeMeta:   k8smeta.TypeMeta{Kind: "ServiceAccount"},
 		ObjectMeta: getObjectMeta(namespace, authorinoServiceAccountName(crName)),
 	}
 }
@@ -18,8 +18,8 @@ func GetAuthorinoClusterRoleBinding(roleBindingName, clusterRoleName string, ser
 	roleRef, roleSubject := getRoleRefAndSubject(clusterRoleName, "ClusterRole", serviceAccount)
 	return &k8srbac.ClusterRoleBinding{
 		ObjectMeta: k8smeta.ObjectMeta{Name: roleBindingName},
-		RoleRef:  roleRef,
-		Subjects: []k8srbac.Subject{roleSubject},
+		RoleRef:    roleRef,
+		Subjects:   []k8srbac.Subject{roleSubject},
 	}
 }
 
@@ -27,8 +27,8 @@ func GetAuthorinoRoleBinding(namespace, crName, roleBindingNameSuffix, roleKind,
 	roleRef, roleSubject := getRoleRefAndSubject(roleName, roleKind, serviceAccount)
 	return &k8srbac.RoleBinding{
 		ObjectMeta: getObjectMeta(namespace, authorinoRoleBindingName(crName, roleBindingNameSuffix)),
-		RoleRef:  roleRef,
-		Subjects: []k8srbac.Subject{roleSubject},
+		RoleRef:    roleRef,
+		Subjects:   []k8srbac.Subject{roleSubject},
 	}
 }
 

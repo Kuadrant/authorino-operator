@@ -610,10 +610,10 @@ func (r *AuthorinoReconciler) cleanupClusterScopedPermissions(ctx context.Contex
 	crName := crNamespacedName.Name
 	sa := authorinoResources.GetAuthorinoServiceAccount(crNamespacedName.Namespace, crName)
 
-  // we only care about cluster-scoped role bindings for the cleanup
+	// we only care about cluster-scoped role bindings for the cleanup
 	// namespaced ones are garbage collected automatically by k8s because of the owner reference
 	r.unboundAuthorinoServiceAccountFromClusterRole(ctx, authorinoManagerClusterRoleBindingName, sa)
-  r.unboundAuthorinoServiceAccountFromClusterRole(ctx, authorinoK8sAuthClusterRoleBindingName, sa)
+	r.unboundAuthorinoServiceAccountFromClusterRole(ctx, authorinoK8sAuthClusterRoleBindingName, sa)
 }
 
 // remove SA from list of subjects of the clusterrolebinding
