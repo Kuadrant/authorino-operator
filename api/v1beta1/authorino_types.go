@@ -71,6 +71,9 @@ const (
 	AuthorinoUnableToGetLeaderElectionRole           = "UnableToGetLeaderElectionRole"
 	AuthorinoUnableToGetLeaderElectionRoleBinding    = "UnableToGetLeaderElectionRoleBinding"
 	AuthorinoUnableToGetDeployment                   = "UnableToGetDeployment"
+	AuthorinoUnableToGetTlsSecret                    = "UnableToGetTlsSecret"
+	AuthorinoTlsSecretNotFound                       = "TlsSecretNotFound"
+	AuthorinoTlsSecretNotProvided                    = "TlsSecretNotProvided"
 	AuthorinoUnableToUpdateDeployment                = "UnableToUpdateDeployment"
 )
 

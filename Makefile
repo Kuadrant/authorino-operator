@@ -92,7 +92,8 @@ endif
 
 # Run the tests
 test: manifests generate fmt vet setup-envtest
-	KUBEBUILDER_ASSETS='$(strip $(shell $(SETUP_ENVTEST) use -p path 1.21.2))'  go test ./... -coverprofile cover.out
+	echo $(SETUP_ENVTEST)
+	KUBEBUILDER_ASSETS='$(strip $(shell $(SETUP_ENVTEST) --arch=amd64 use -p path 1.22.x))'  go test ./... -coverprofile cover.out
 
 ##@ Build
 
