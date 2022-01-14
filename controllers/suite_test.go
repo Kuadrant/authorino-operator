@@ -112,7 +112,7 @@ var _ = AfterSuite(func() {
 func getAuthorinoClusterRole() *k8srbac.ClusterRole {
 	return &k8srbac.ClusterRole{
 		ObjectMeta: v1.ObjectMeta{
-			Name: authorinoClusterRoleName,
+			Name: authorinoManagerClusterRoleName,
 		},
 	}
 }
