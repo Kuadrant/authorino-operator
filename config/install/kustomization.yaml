@@ -8,3 +8,4 @@ namePrefix: authorino-operator-
 bases:
 - ../crd
 - ../rbac
+- ../authorino

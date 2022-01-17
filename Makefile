@@ -69,8 +69,28 @@ help: ## Display this help.
 ##@ Development
 
 manifests: controller-gen kustomize ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
-	$(CONTROLLER_GEN) $(CRD_OPTIONS) rbac:roleName=manager-role webhook paths="./..." output:crd:artifacts:config=config/crd/bases && $(KUSTOMIZE) build config/install > $(OPERATOR_MANIFESTS)
-	$(MAKE) deploy-manifest OPERATOR_IMAGE=$(OPERATOR_IMAGE)
+	$(CONTROLLER_GEN) $(CRD_OPTIONS) rbac:roleName=manager-role webhook paths="./..." output:crd:artifacts:config=config/crd/bases
+	$(MAKE) authorino-manifests
+	$(MAKE) install-manifests
+	$(MAKE) deploy-manifests OPERATOR_IMAGE=$(OPERATOR_IMAGE)
+
+AUTHORINO_VERSION=main
+AUTHORINO_MANIFESTS = https://raw.githubusercontent.com/Kuadrant/authorino/$(AUTHORINO_VERSION)/install/manifests.yaml
+AUTHORINO_MANIFESTS_CONFIG = config/authorino/authorino_manifests.yaml
+.PHONY: authorino-manifests
+authorino-manifests: ## Update authorino manifests.
+	curl -sSf $(AUTHORINO_MANIFESTS) -o $(AUTHORINO_MANIFESTS_CONFIG)
+
+.PHONY: install-manifests
+install-manifests: kustomize ## Generate install manifests.
+	$(KUSTOMIZE) build config/install > $(OPERATOR_MANIFESTS)
+
+.PHONY: deploy-manifests
+deploy-manifests: kustomize ## Generate deployment manifests.
+	cd config/manager && $(KUSTOMIZE) edit set image controller=$(OPERATOR_IMAGE)
+	$(KUSTOMIZE) build config/default > $(PROJECT_DIR)/config/deploy/manifests.yaml
+	# clean up
+	cd config/manager && $(KUSTOMIZE) edit set image controller=$(DEFAULT_OPERATOR_IMAGE)
 
 generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
 	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./..."
@@ -111,7 +131,7 @@ docker-push: ## Push docker image with the manager.
 
 ##@ Deployment
 
-install: manifests kustomize install-authorino ## Install CRDs into the K8s cluster specified in ~/.kube/config.
+install: manifests kustomize ## Install CRDs into the K8s cluster specified in ~/.kube/config.
 	kubectl apply -f $(OPERATOR_MANIFESTS)
 
 uninstall: manifests kustomize ## Uninstall CRDs from the K8s cluster specified in ~/.kube/config.
@@ -126,10 +146,6 @@ deploy: manifests kustomize ## Deploy controller to the K8s cluster specified in
 
 undeploy: ## Undeploy controller from the K8s cluster specified in ~/.kube/config.
 	$(KUSTOMIZE) build config/default | kubectl delete -f -
-
-AUTHORINO_MANIFESTS = https://raw.githubusercontent.com/Kuadrant/authorino/main/install/manifests.yaml
-install-authorino: ## install RBAC and CRD for authorino
-	kubectl apply -f $(AUTHORINO_MANIFESTS)
 
 CONTROLLER_GEN = $(shell pwd)/bin/controller-gen
 controller-gen: ## Download controller-gen locally if necessary.
@@ -153,31 +169,16 @@ rm -rf $$TMP_DIR ;\
 }
 endef
 
-DEPLOYMENT_DIR = $(PROJECT_DIR)/config/deploy
-.PHONY: deploy-manifest
-deploy-manifest:
-	mkdir -p $(DEPLOYMENT_DIR)
-	curl -sSf $(AUTHORINO_MANIFESTS) > $(DEPLOYMENT_DIR)/$$(basename $(AUTHORINO_MANIFESTS)) && echo '---' >> $(DEPLOYMENT_DIR)/$$(basename $(AUTHORINO_MANIFESTS))
-	cd $(PROJECT_DIR)/config/manager && $(KUSTOMIZE) edit set image controller=$(OPERATOR_IMAGE) ;\
-	cd $(PROJECT_DIR) && $(KUSTOMIZE) build config/default >> $(DEPLOYMENT_DIR)/$$(basename $(AUTHORINO_MANIFESTS))
-	# clean up
-	cd $(PROJECT_DIR)/config/manager && $(KUSTOMIZE) edit set image controller=${DEFAULT_OPERATOR_IMAGE}
-
 OPERATOR_SDK = $(shell pwd)/bin/operator-sdk
 OPERATOR_SDK_VERSION = v1.15.0
 operator-sdk: ## Download operator-sdk locally if necessary.
 	./utils/install-operator-sdk.sh $(OPERATOR_SDK) $(OPERATOR_SDK_VERSION)
 
-TMP_BUNDLE_DIR = $(PROJECT_DIR)/tmp/bundles
 .PHONY: bundle
 bundle: manifests kustomize operator-sdk ## Generate bundle manifests and metadata, then validate generated files.
-	rm -rf $(TMP_BUNDLE_DIR)
 	$(OPERATOR_SDK) generate kustomize manifests -q
-	mkdir -p $(TMP_BUNDLE_DIR)
 	cd config/manager && $(KUSTOMIZE) edit set image controller=$(OPERATOR_IMAGE)
-	$(KUSTOMIZE) build $(PROJECT_DIR)/config/manifests > $(TMP_BUNDLE_DIR)/authorino-operator-manifests.yaml
-	curl $(AUTHORINO_MANIFESTS) > $(TMP_BUNDLE_DIR)/authorino-manifests.yaml
-	$(OPERATOR_SDK) generate bundle -q --overwrite --version $(OPERATOR_VERSION) $(BUNDLE_METADATA_OPTS) --package authorino-operator --input-dir $(TMP_BUNDLE_DIR)
+	$(KUSTOMIZE) build config/manifests | $(OPERATOR_SDK) generate bundle -q --overwrite --version $(OPERATOR_VERSION) $(BUNDLE_METADATA_OPTS)
 	$(OPERATOR_SDK) bundle validate ./bundle
 	# Roll back edit
 	cd config/manager && $(KUSTOMIZE) edit set image controller=${DEFAULT_OPERATOR_IMAGE}
