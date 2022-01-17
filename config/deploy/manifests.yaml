@@ -1520,7 +1520,6 @@ rules:
   - subjectaccessreviews
   verbs:
   - create
-
 ---
 apiVersion: v1
 kind: Namespace
