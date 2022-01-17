@@ -64,7 +64,7 @@ all: build
 ##@ General
 
 help: ## Display this help.
-	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n"} /^[a-zA-Z_0-9-]+:.*?##/ { printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
+	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n"} /^[a-zA-Z_0-9-]+:.*?##/ { printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
 
 ##@ Development
 
@@ -163,20 +163,24 @@ deploy-manifest:
 	# clean up
 	cd $(PROJECT_DIR)/config/manager && $(KUSTOMIZE) edit set image controller=${DEFAULT_OPERATOR_IMAGE}
 
+OPERATOR_SDK = $(shell pwd)/bin/operator-sdk
+OPERATOR_SDK_VERSION = v1.15.0
+operator-sdk: ## Download operator-sdk locally if necessary.
+	./utils/install-operator-sdk.sh $(OPERATOR_SDK) $(OPERATOR_SDK_VERSION)
 
 TMP_BUNDLE_DIR = $(PROJECT_DIR)/tmp/bundles
 .PHONY: bundle
-bundle: manifests kustomize ## Generate bundle manifests and metadata, then validate generated files.
-	rm -rf $(TMP_BUNDLE_DIR) 
-	operator-sdk generate kustomize manifests -q
-	mkdir -p $(TMP_BUNDLE_DIR) ;\
-	cd config/manager && $(KUSTOMIZE) edit set image controller=$(OPERATOR_IMAGE) ;\
-	$(KUSTOMIZE) build $(PROJECT_DIR)/config/manifests > $(TMP_BUNDLE_DIR)/authorino-operator-manifests.yaml 
+bundle: manifests kustomize operator-sdk ## Generate bundle manifests and metadata, then validate generated files.
+	rm -rf $(TMP_BUNDLE_DIR)
+	$(OPERATOR_SDK) generate kustomize manifests -q
+	mkdir -p $(TMP_BUNDLE_DIR)
+	cd config/manager && $(KUSTOMIZE) edit set image controller=$(OPERATOR_IMAGE)
+	$(KUSTOMIZE) build $(PROJECT_DIR)/config/manifests > $(TMP_BUNDLE_DIR)/authorino-operator-manifests.yaml
 	curl $(AUTHORINO_MANIFESTS) > $(TMP_BUNDLE_DIR)/authorino-manifests.yaml
-	cd $(TMP_BUNDLE_DIR) && operator-sdk generate bundle -q --overwrite --version $(OPERATOR_VERSION) $(BUNDLE_METADATA_OPTS) --package authorino-operator --deploy-dir $(TMP_BUNDLE_DIR)
-	operator-sdk bundle validate $(TMP_BUNDLE_DIR)/bundle
+	$(OPERATOR_SDK) generate bundle -q --overwrite --version $(OPERATOR_VERSION) $(BUNDLE_METADATA_OPTS) --package authorino-operator --input-dir $(TMP_BUNDLE_DIR)
+	$(OPERATOR_SDK) bundle validate ./bundle
 	# Roll back edit
-	cd $(PROJECT_DIR)/config/manager && $(KUSTOMIZE) edit set image controller=${DEFAULT_OPERATOR_IMAGE}
+	cd config/manager && $(KUSTOMIZE) edit set image controller=${DEFAULT_OPERATOR_IMAGE}
 
 .PHONY: bundle-build
 bundle-build: bundle ## Build the bundle image.
@@ -227,3 +231,21 @@ catalog-build: opm ## Build a catalog image.
 .PHONY: catalog-push
 catalog-push: ## Push a catalog image.
 	$(MAKE) docker-push OPERATOR_IMAGE=$(CATALOG_IMG)
+
+##@ Verify
+
+## Targets to verify actions that generate/modify code have been executed and output committed
+
+.PHONY: verify-manifests
+verify-manifests: manifests ## Verify manifests update.
+	git diff --exit-code ./config
+	[ -z "$$(git ls-files --other --exclude-standard --directory --no-empty-directory ./config)" ]
+
+.PHONY: verify-bundle
+verify-bundle: bundle ## Verify bundle update.
+	git diff --exit-code ./bundle
+	[ -z "$$(git ls-files --other --exclude-standard --directory --no-empty-directory ./bundle)" ]
+
+.PHONY: verify-fmt
+verify-fmt: fmt ## Verify fmt update.
+	git diff --exit-code ./api ./controllers
