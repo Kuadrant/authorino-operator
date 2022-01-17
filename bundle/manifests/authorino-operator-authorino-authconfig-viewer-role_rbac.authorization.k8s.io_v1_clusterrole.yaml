@@ -2,19 +2,16 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   creationTimestamp: null
-  name: authorino-authconfig-editor-role
+  name: authorino-operator-authorino-authconfig-viewer-role
 rules:
 - apiGroups:
   - authorino.kuadrant.io
   resources:
   - authconfigs
   verbs:
-  - create
-  - delete
   - get
   - list
-  - patch
-  - update
+  - watch
 - apiGroups:
   - authorino.kuadrant.io
   resources:

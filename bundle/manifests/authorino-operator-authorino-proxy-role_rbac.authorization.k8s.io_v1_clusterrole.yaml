@@ -2,19 +2,17 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   creationTimestamp: null
-  name: authorino-authconfig-viewer-role
+  name: authorino-operator-authorino-proxy-role
 rules:
 - apiGroups:
-  - authorino.kuadrant.io
+  - authentication.k8s.io
   resources:
-  - authconfigs
+  - tokenreviews
   verbs:
-  - get
-  - list
-  - watch
+  - create
 - apiGroups:
-  - authorino.kuadrant.io
+  - authorization.k8s.io
   resources:
-  - authconfigs/status
+  - subjectaccessreviews
   verbs:
-  - get
+  - create
