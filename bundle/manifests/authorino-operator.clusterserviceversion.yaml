@@ -45,7 +45,7 @@ metadata:
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
     repository: https://github.com/Kuadrant/authorino-operator
     support: kuadrant
-  name: authorino-operator.v0.0.1
+  name: authorino-operator.v0.0.0
   namespace: placeholder
 spec:
   apiservicedefinitions: {}
@@ -278,7 +278,7 @@ spec:
                 - --leader-elect
                 command:
                 - /manager
-                image: quay.io/3scale/authorino-operator:v0.0.1
+                image: quay.io/3scale/authorino-operator:latest
                 livenessProbe:
                   httpGet:
                     path: /healthz
@@ -367,4 +367,4 @@ spec:
   minKubeVersion: 1.8.0
   provider:
     name: Authorino
-  version: 0.0.1
+  version: 0.0.0
