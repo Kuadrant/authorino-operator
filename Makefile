@@ -1,5 +1,5 @@
 # VERSION defines the project version for the bundle.
-OPERATOR_VERSION ?= 0.0.1
+OPERATOR_VERSION ?= latest
 
 ifeq (latest,$(OPERATOR_VERSION))
 OPERATOR_TAG = latest
@@ -127,7 +127,13 @@ deploy: manifests kustomize ## Deploy controller to the K8s cluster specified in
 undeploy: ## Undeploy controller from the K8s cluster specified in ~/.kube/config.
 	$(KUSTOMIZE) build config/default | kubectl delete -f -
 
-AUTHORINO_MANIFESTS = https://raw.githubusercontent.com/Kuadrant/authorino/main/install/manifests.yaml
+AUTHORINO_VERSION ?= latest
+ifeq (latest,$(AUTHORINO_VERSION))
+AUTHORINO_BRANCH = main
+else
+AUTHORINO_BRANCH = v$(AUTHORINO_VERSION)
+endif
+AUTHORINO_MANIFESTS ?= https://raw.githubusercontent.com/Kuadrant/authorino/$(AUTHORINO_BRANCH)/install/manifests.yaml
 install-authorino: ## install RBAC and CRD for authorino
 	kubectl apply -f $(AUTHORINO_MANIFESTS)
 
@@ -169,6 +175,11 @@ OPERATOR_SDK_VERSION = v1.15.0
 operator-sdk: ## Download operator-sdk locally if necessary.
 	./utils/install-operator-sdk.sh $(OPERATOR_SDK) $(OPERATOR_SDK_VERSION)
 
+ifeq (latest,$(OPERATOR_VERSION))
+OPERATOR_BUNDLE_VERSION = 0.0.0
+else
+OPERATOR_BUNDLE_VERSION = $(OPERATOR_VERSION)
+endif
 TMP_BUNDLE_DIR = $(PROJECT_DIR)/tmp/bundles
 .PHONY: bundle
 bundle: manifests kustomize operator-sdk ## Generate bundle manifests and metadata, then validate generated files.
@@ -178,7 +189,7 @@ bundle: manifests kustomize operator-sdk ## Generate bundle manifests and metada
 	cd config/manager && $(KUSTOMIZE) edit set image controller=$(OPERATOR_IMAGE)
 	$(KUSTOMIZE) build $(PROJECT_DIR)/config/manifests > $(TMP_BUNDLE_DIR)/authorino-operator-manifests.yaml
 	curl $(AUTHORINO_MANIFESTS) > $(TMP_BUNDLE_DIR)/authorino-manifests.yaml
-	$(OPERATOR_SDK) generate bundle -q --overwrite --version $(OPERATOR_VERSION) $(BUNDLE_METADATA_OPTS) --package authorino-operator --input-dir $(TMP_BUNDLE_DIR)
+	$(OPERATOR_SDK) generate bundle -q --overwrite --version $(OPERATOR_BUNDLE_VERSION) $(BUNDLE_METADATA_OPTS) --package authorino-operator --input-dir $(TMP_BUNDLE_DIR)
 	$(OPERATOR_SDK) bundle validate ./bundle
 	# Roll back edit
 	cd config/manager && $(KUSTOMIZE) edit set image controller=${DEFAULT_OPERATOR_IMAGE}
