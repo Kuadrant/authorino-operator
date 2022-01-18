@@ -5,7 +5,7 @@
 
 set -euo pipefail
 
-ARCH=$(case $(uname -m) in x86_64) echo -n amd64 ;; aarch64) echo -n arm64 ;; *) echo -n "$(uname -m)" ;; esac)
+case $(uname -m) in x86_64|aarch64) ARCH="amd64";; *) ARCH="$(uname -m)";; esac
 OS=$(uname | awk '{print tolower($0)}')
 OPERATOR_SDK_DL_URL=https://github.com/operator-framework/operator-sdk/releases/download/${2}
 OPERATOR_SDK_DL_BINARY=${OPERATOR_SDK_DL_URL}/operator-sdk_${OS}_${ARCH}

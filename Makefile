@@ -154,12 +154,13 @@ rm -rf $$TMP_DIR ;\
 endef
 
 DEPLOYMENT_DIR = $(PROJECT_DIR)/config/deploy
+DEPLOYMENT_FILE = $(DEPLOYMENT_DIR)/$(shell basename $(AUTHORINO_MANIFESTS))
 .PHONY: deploy-manifest
 deploy-manifest:
 	mkdir -p $(DEPLOYMENT_DIR)
-	curl -sSf $(AUTHORINO_MANIFESTS) > $(DEPLOYMENT_DIR)/$$(basename $(AUTHORINO_MANIFESTS)) && echo '---' >> $(DEPLOYMENT_DIR)/$$(basename $(AUTHORINO_MANIFESTS))
+	curl -sSf $(AUTHORINO_MANIFESTS) > $(DEPLOYMENT_FILE) && sed -i '$${/^$$/d;}' $(DEPLOYMENT_FILE) && echo '---' >> $(DEPLOYMENT_FILE)
 	cd $(PROJECT_DIR)/config/manager && $(KUSTOMIZE) edit set image controller=$(OPERATOR_IMAGE) ;\
-	cd $(PROJECT_DIR) && $(KUSTOMIZE) build config/default >> $(DEPLOYMENT_DIR)/$$(basename $(AUTHORINO_MANIFESTS))
+	cd $(PROJECT_DIR) && $(KUSTOMIZE) build config/default >> $(DEPLOYMENT_FILE)
 	# clean up
 	cd $(PROJECT_DIR)/config/manager && $(KUSTOMIZE) edit set image controller=${DEFAULT_OPERATOR_IMAGE}
 
