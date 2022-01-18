@@ -20,7 +20,12 @@ if [ ! -f "$1" ]; then
   curl -sLO ${OPERATOR_SDK_DL_URL}/checksums.txt
   curl -sLO ${OPERATOR_SDK_DL_URL}/checksums.txt.asc
   gpg -u "Operator SDK (release) <cncf-operator-sdk@cncf.io>" --verify checksums.txt.asc
-  grep operator-sdk_${OS}_${ARCH} checksums.txt | sha256sum -c -
+  if [[ $OS == 'darwin' ]]; then
+    grep operator-sdk_${OS}_${ARCH} checksums.txt | shasum -a 256 -c -
+  else
+    grep operator-sdk_${OS}_${ARCH} checksums.txt | sha256sum -c -
+  fi
+  mkdir -p "$(dirname $1)"
   chmod +x operator-sdk_${OS}_${ARCH} && mv operator-sdk_${OS}_${ARCH} $1
 
   rm -rf $TMP_DIR
