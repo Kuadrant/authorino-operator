@@ -50,7 +50,7 @@ const (
 	DefaultOidcTlsCertPath    string = "/etc/ssl/certs/oidc.crt"
 	DefaultOidcTlsCertKeyPath string = "/etc/ssl/private/oidc.key"
 
-	AuthorinoVersion string = "latest"
+	AuthorinoVersion string = "v0.7.0"
 
 	// Status reasons
 	AuthorinoProvisioningReason                      = "Provisioning"
