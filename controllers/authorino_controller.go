@@ -48,12 +48,18 @@ const (
 	tlsCertName     string = "tls-cert"
 	oidcTlsCertName string = "oidc-cert"
 
-	authorinoManagerClusterRoleName        string = "authorino-manager-role"
-	authorinoK8sAuthClusterRoleName        string = "authorino-manager-k8s-auth-role"
-	authorinoLeaderElectionRoleName        string = "authorino-leader-election-role"
-	authorinoManagerClusterRoleBindingName string = "authorino"
-	authorinoK8sAuthClusterRoleBindingName string = "authorino-k8s-auth"
-	authorinoLeaderElectionRoleBindingName string = "authorino-leader-election"
+	authorinoManagerClusterRoleName          string = "authorino-manager-role"
+	authorinoK8sAuthClusterRoleName          string = "authorino-manager-k8s-auth-role"
+	authorinoLeaderElectionRoleName          string = "authorino-leader-election-role"
+	authorinoRBACProxyClusterRoleName        string = "authorino-proxy-role"
+	authorinoManagerClusterRoleBindingName   string = "authorino"
+	authorinoK8sAuthClusterRoleBindingName   string = "authorino-k8s-auth"
+	authorinoLeaderElectionRoleBindingName   string = "authorino-leader-election"
+	authorinoRBACProxyClusterRoleBindingName string = "authorino-proxy"
+
+	rbacProxyContainerImage string = "gcr.io/kubebuilder/kube-rbac-proxy:v0.5.0"
+	rbacProxyContainerName  string = "kube-rbac-proxy"
+	rbacProxyContainerPort  int32  = int32(8443)
 )
 
 //+kubebuilder:rbac:groups=operator.authorino.kuadrant.io,resources=authorinos,verbs=get;list;watch;create;update;patch;delete
@@ -264,10 +270,23 @@ func (r *AuthorinoReconciler) buildAuthorinoDeployment(authorino *api.Authorino)
 	// generates the env variables
 	envs := r.buildAuthorinoEnv(authorino)
 
+	authorinoArgs := []string{
+		"--metrics-addr=127.0.0.1:8080",
+		"--enable-leader-election"}
 	// generates the Container where authorino will be running
 	// adds to the list of containers available in the deployment
-	authorinoContainer := authorinoResources.GetContainer(authorino.Spec.Image, authorino.Spec.ImagePullPolicy, api.AuthorinoContainerName, envs, volumeMounts)
+	authorinoContainer := authorinoResources.GetContainer(authorino.Spec.Image, authorino.Spec.ImagePullPolicy, api.AuthorinoContainerName, envs, volumeMounts, authorinoArgs, []k8score.ContainerPort{})
 	containers = append(containers, authorinoContainer)
+
+	// kube-rbac-proxy container
+	rbacProxyArgs := []string{
+		fmt.Sprintf("--secure-listen-address=0.0.0.0:%v", rbacProxyContainerPort),
+		"--upstream=http://127.0.0.1:8080/",
+		"--logtostderr=true",
+		"--v=10"}
+	rbacProxyContainerPorts := []k8score.ContainerPort{{Name: "https", ContainerPort: rbacProxyContainerPort}}
+	rbacProxyContainer := authorinoResources.GetContainer(rbacProxyContainerImage, "", rbacProxyContainerName, []k8score.EnvVar{}, []k8score.VolumeMount{}, rbacProxyArgs, rbacProxyContainerPorts)
+	containers = append(containers, rbacProxyContainer)
 
 	// generate Deployment resource to deploy an authorino instance
 	deployment := authorinoResources.GetDeployment(authorino.Name, authorino.Namespace, saName, authorino.Spec.Replicas, containers, volumes)
@@ -476,6 +495,11 @@ func (r *AuthorinoReconciler) createAuthorinoPermission(authorino *api.Authorino
 
 		// creates the K8s Auth ClusterRoleBinding (for Authorino's Kubernetes TokenReview and SubjectAccessReview features)
 		// Disclaimer: this has nothing to do with kube-rbac-proxy, but to authn/authz features of Authorino that also require cluster scope role bindings
+		if err := r.bindAuthorinoServiceAccountToClusterRole(authorinoK8sAuthClusterRoleBindingName, true, authorinoK8sAuthClusterRoleName, *sa, authorino); err != nil {
+			return err
+		}
+
+		// crea
 		if err := r.bindAuthorinoServiceAccountToClusterRole(authorinoK8sAuthClusterRoleBindingName, true, authorinoK8sAuthClusterRoleName, *sa, authorino); err != nil {
 			return err
 		}

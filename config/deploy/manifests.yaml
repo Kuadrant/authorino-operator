@@ -2064,7 +2064,7 @@ spec:
         - --leader-elect
         command:
         - /manager
-        image: quay.io/3scale/authorino-operator:latest
+        image: authorino-operator:local
         livenessProbe:
           httpGet:
             path: /healthz
