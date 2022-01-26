@@ -378,11 +378,23 @@ func (r *AuthorinoReconciler) authorinoDeploymentChanges(existingDeployment, des
 	// checking envvars
 	existingEnvvars := existingContainer.Env
 	desiredEnvvars := desiredContainer.Env
-	for _, desiredEnvvar := range desiredEnvvars {
-		for _, existingEnvvar := range existingEnvvars {
-			if existingEnvvar.Name == desiredEnvvar.Name && existingEnvvar.Value != desiredEnvvar.Value {
-				return true
-			}
+
+	if len(existingEnvvars) != len(desiredEnvvars) {
+		return true
+	}
+
+	sort.Slice(existingEnvvars, func(i, j int) bool {
+		return existingEnvvars[i].Name < existingEnvvars[j].Name
+	})
+
+	sort.Slice(desiredEnvvars, func(i, j int) bool {
+		return desiredEnvvars[i].Name < desiredEnvvars[j].Name
+	})
+
+	for i, desiredEnvvar := range desiredEnvvars {
+		// checking if env vars have changed or the value
+		if desiredEnvvar.Name != existingEnvvars[i].Name || desiredEnvvar.Value != existingEnvvars[i].Value {
+			return true
 		}
 	}
 
