@@ -1,11 +1,5 @@
 # VERSION defines the project version for the bundle.
-OPERATOR_VERSION ?= latest
-
-ifeq (latest,$(OPERATOR_VERSION))
-OPERATOR_TAG = latest
-else
-OPERATOR_TAG = v$(OPERATOR_VERSION)
-endif
+VERSION ?= 0.0.0
 
 # Address of the container registry
 REGISTRY = quay.io
@@ -16,13 +10,19 @@ ORG ?= 3scale
 # IMAGE_TAG_BASE defines the docker.io namespace and part of the image name for remote images.
 IMAGE_TAG_BASE ?= $(REGISTRY)/$(ORG)/authorino-operator
 
+ifeq (0.0.0,$(VERSION))
+IMAGE_TAG ?= latest
+else
+IMAGE_TAG ?= v$(VERSION)
+endif
+
 # Image URL to use all building/pushing image targets
-DEFAULT_OPERATOR_IMAGE = $(IMAGE_TAG_BASE):$(OPERATOR_TAG)
+DEFAULT_OPERATOR_IMAGE = $(IMAGE_TAG_BASE):$(IMAGE_TAG)
 OPERATOR_IMAGE ?= $(DEFAULT_OPERATOR_IMAGE)
 
 # BUNDLE_IMG defines the image:tag used for the bundle.
 # You can use it as an arg. (E.g make bundle-build BUNDLE_IMG=<some-registry>/<project-name-bundle>:<tag>)
-BUNDLE_IMG ?= $(IMAGE_TAG_BASE)-bundle:$(OPERATOR_TAG)
+BUNDLE_IMG ?= $(IMAGE_TAG_BASE)-bundle:$(IMAGE_TAG)
 
 # CHANNELS define the bundle channels used in the bundle.
 # Add a new line here if you would like to change its default config. (E.g CHANNELS = "candidate,fast,stable")
@@ -59,6 +59,13 @@ endif
 SHELL = /usr/bin/env bash -o pipefail
 .SHELLFLAGS = -ec
 
+AUTHORINO_VERSION ?= latest
+ifeq (latest,$(AUTHORINO_VERSION))
+AUTHORINO_BRANCH = main
+else
+AUTHORINO_BRANCH = v$(AUTHORINO_VERSION)
+endif
+
 all: build
 
 ##@ General
@@ -68,9 +75,16 @@ help: ## Display this help.
 
 ##@ Development
 
-manifests: controller-gen kustomize ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
+manifests: controller-gen kustomize authorino-manifests ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
 	$(CONTROLLER_GEN) $(CRD_OPTIONS) rbac:roleName=manager-role webhook paths="./..." output:crd:artifacts:config=config/crd/bases && $(KUSTOMIZE) build config/install > $(OPERATOR_MANIFESTS)
 	$(MAKE) deploy-manifest OPERATOR_IMAGE=$(OPERATOR_IMAGE)
+
+.PHONY: authorino-manifests
+authorino-manifests: export AUTHORINO_GITREF := $(AUTHORINO_BRANCH)
+authorino-manifests: ## Update authorino manifests.
+	envsubst \
+        < config/authorino/kustomization.template.yaml \
+        > config/authorino/kustomization.yaml
 
 generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and DeepCopyObject method implementations.
 	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./..."
@@ -123,19 +137,11 @@ deploy: manifests kustomize ## Deploy controller to the K8s cluster specified in
 	# rollback kustomize edit
 	cd config/manager && $(KUSTOMIZE) edit set image controller=${DEFAULT_OPERATOR_IMAGE}
 
-
 undeploy: ## Undeploy controller from the K8s cluster specified in ~/.kube/config.
 	$(KUSTOMIZE) build config/default | kubectl delete -f -
 
-AUTHORINO_VERSION ?= latest
-ifeq (latest,$(AUTHORINO_VERSION))
-AUTHORINO_BRANCH = main
-else
-AUTHORINO_BRANCH = v$(AUTHORINO_VERSION)
-endif
-AUTHORINO_MANIFESTS ?= https://raw.githubusercontent.com/Kuadrant/authorino/$(AUTHORINO_BRANCH)/install/manifests.yaml
 install-authorino: ## install RBAC and CRD for authorino
-	kubectl apply -f $(AUTHORINO_MANIFESTS)
+	$(KUSTOMIZE) build config/authorino | kubectl apply -f -
 
 CONTROLLER_GEN = $(shell pwd)/bin/controller-gen
 controller-gen: ## Download controller-gen locally if necessary.
@@ -160,13 +166,12 @@ rm -rf $$TMP_DIR ;\
 endef
 
 DEPLOYMENT_DIR = $(PROJECT_DIR)/config/deploy
-DEPLOYMENT_FILE = $(DEPLOYMENT_DIR)/$(shell basename $(AUTHORINO_MANIFESTS))
+DEPLOYMENT_FILE = $(DEPLOYMENT_DIR)/manifests.yaml
 .PHONY: deploy-manifest
 deploy-manifest:
 	mkdir -p $(DEPLOYMENT_DIR)
-	curl -sSf $(AUTHORINO_MANIFESTS) > $(DEPLOYMENT_FILE) && sed -i '$${/^$$/d;}' $(DEPLOYMENT_FILE) && echo '---' >> $(DEPLOYMENT_FILE)
 	cd $(PROJECT_DIR)/config/manager && $(KUSTOMIZE) edit set image controller=$(OPERATOR_IMAGE) ;\
-	cd $(PROJECT_DIR) && $(KUSTOMIZE) build config/default >> $(DEPLOYMENT_FILE)
+	cd $(PROJECT_DIR) && $(KUSTOMIZE) build config/deploy > $(DEPLOYMENT_FILE)
 	# clean up
 	cd $(PROJECT_DIR)/config/manager && $(KUSTOMIZE) edit set image controller=${DEFAULT_OPERATOR_IMAGE}
 
@@ -175,29 +180,18 @@ OPERATOR_SDK_VERSION = v1.15.0
 operator-sdk: ## Download operator-sdk locally if necessary.
 	./utils/install-operator-sdk.sh $(OPERATOR_SDK) $(OPERATOR_SDK_VERSION)
 
-ifeq (latest,$(OPERATOR_VERSION))
-OPERATOR_BUNDLE_VERSION = 0.0.0
-else
-OPERATOR_BUNDLE_VERSION = $(OPERATOR_VERSION)
-endif
-TMP_BUNDLE_DIR = $(PROJECT_DIR)/tmp/bundles
 .PHONY: bundle
 bundle: manifests kustomize operator-sdk ## Generate bundle manifests and metadata, then validate generated files.
-	rm -rf $(TMP_BUNDLE_DIR)
 	$(OPERATOR_SDK) generate kustomize manifests -q
-	mkdir -p $(TMP_BUNDLE_DIR)
 	cd config/manager && $(KUSTOMIZE) edit set image controller=$(OPERATOR_IMAGE)
-	$(KUSTOMIZE) build $(PROJECT_DIR)/config/manifests > $(TMP_BUNDLE_DIR)/authorino-operator-manifests.yaml
-	curl $(AUTHORINO_MANIFESTS) > $(TMP_BUNDLE_DIR)/authorino-manifests.yaml
-	$(OPERATOR_SDK) generate bundle -q --overwrite --version $(OPERATOR_BUNDLE_VERSION) $(BUNDLE_METADATA_OPTS) --package authorino-operator --input-dir $(TMP_BUNDLE_DIR)
+	$(KUSTOMIZE) build config/manifests | $(OPERATOR_SDK) generate bundle -q --overwrite --version $(VERSION) $(BUNDLE_METADATA_OPTS) --package authorino-operator
 	$(OPERATOR_SDK) bundle validate ./bundle
 	# Roll back edit
 	cd config/manager && $(KUSTOMIZE) edit set image controller=${DEFAULT_OPERATOR_IMAGE}
 
 .PHONY: bundle-build
-bundle-build: bundle ## Build the bundle image.
-	cd $(TMP_BUNDLE_DIR) && docker build -f bundle.Dockerfile -t $(BUNDLE_IMG) .
-	rm -rf $(TMP_BUNDLE_DIR)
+bundle-build: ## Build the bundle image.
+	docker build -f bundle.Dockerfile -t $(BUNDLE_IMG) .
 
 .PHONY: bundle-push
 bundle-push: ## Push the bundle image.
@@ -225,7 +219,7 @@ endif
 BUNDLE_IMGS ?= $(BUNDLE_IMG)
 
 # The image tag given to the resulting catalog image (e.g. make catalog-build CATALOG_IMG=example.com/operator-catalog:v0.2.0).
-CATALOG_IMG ?= $(IMAGE_TAG_BASE)-catalog:$(OPERATOR_TAG)
+CATALOG_IMG ?= $(IMAGE_TAG_BASE)-catalog:$(IMAGE_TAG)
 
 # Set CATALOG_BASE_IMG to an existing catalog image tag to add $BUNDLE_IMGS to that image.
 ifneq ($(origin CATALOG_BASE_IMG), undefined)
@@ -238,6 +232,10 @@ endif
 .PHONY: catalog-build
 catalog-build: opm ## Build a catalog image.
 	$(OPM) index add --container-tool docker --mode semver --tag $(CATALOG_IMG) --bundles $(BUNDLE_IMGS) $(FROM_INDEX_OPT)
+
+.PHONY: catalog-generate
+catalog-generate: opm ## Generate a catalog/index Dockerfile.
+	$(OPM) index add --generate --container-tool docker --mode semver --tag $(CATALOG_IMG) --bundles $(BUNDLE_IMGS) $(FROM_INDEX_OPT)
 
 # Push the catalog image.
 .PHONY: catalog-push
