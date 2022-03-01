@@ -2,7 +2,6 @@ package resources
 
 import (
 	k8score "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
 // GetAuthorinoServices returns all the service required by an instance of authorino
@@ -36,9 +35,9 @@ func newAuthService(authorinoName, serviceNamespace string) *k8score.Service {
 func newMetricService(authorinoName, serviceNamespace string) *k8score.Service {
 	serviceName := "controller-metrics"
 	return newService(serviceName, serviceNamespace, authorinoName, k8score.ServicePort{
-		Name:       "https",
-		Port:       8443,
-		TargetPort: intstr.FromString("https"),
+		Name:     "http",
+		Port:     8080,
+		Protocol: k8score.ProtocolTCP,
 	})
 }
 
