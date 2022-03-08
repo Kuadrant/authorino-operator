@@ -227,12 +227,20 @@ spec:
                       required:
                       - user
                       type: object
+                    metrics:
+                      default: false
+                      description: Whether this authorization config should generate individual observability metrics
+                      type: boolean
                     name:
                       description: Name of the authorization policy. It can be used to refer to the resolved authorization object in other configs.
                       type: string
                     opa:
                       description: Open Policy Agent (OPA) authorization policy.
                       properties:
+                        allValues:
+                          default: false
+                          description: Returns the value of all Rego rules in the virtual document. Values can be read in subsequent evaluators/phases of the Auth Pipeline. Otherwise, only the default `allow` rule will be exposed. Returning all Rego rules can affect performance of OPA policies during reconciliation (policy precompile) and at runtime.
+                          type: boolean
                         externalRegistry:
                           description: External registry of OPA policies.
                           properties:
@@ -501,6 +509,10 @@ spec:
                             type: string
                           type: array
                       type: object
+                    metrics:
+                      default: false
+                      description: Whether this identity config should generate individual observability metrics
+                      type: boolean
                     name:
                       description: The name of this identity source/authentication mode. It usually identifies a source of identities or group of users/clients of the protected service. It can be used to refer to the resolved identity object in other configs.
                       type: string
@@ -698,6 +710,10 @@ spec:
                       required:
                       - endpoint
                       type: object
+                    metrics:
+                      default: false
+                      description: Whether this metadata config should generate individual observability metrics
+                      type: boolean
                     name:
                       description: The name of the metadata source. It can be used to refer to the resolved metadata object in other configs.
                       type: string
@@ -826,6 +842,10 @@ spec:
                       required:
                       - properties
                       type: object
+                    metrics:
+                      default: false
+                      description: Whether this response config should generate individual observability metrics
+                      type: boolean
                     name:
                       description: Name of the custom response. It can be used to refer to the resolved response object in other configs.
                       type: string
