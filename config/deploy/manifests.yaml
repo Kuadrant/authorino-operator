@@ -278,6 +278,9 @@ spec:
                               - key
                               - name
                               type: object
+                            ttl:
+                              description: Duration (in seconds) of the external data in the cache before pulled again from the source.
+                              type: integer
                           type: object
                         inlineRego:
                           description: Authorization policy as a Rego language document. The Rego document must include the "allow" condition, set by Authorino to "false" by default (i.e. requests are unauthorized unless changed). The Rego document must NOT include the "package" declaration in line 1.
