@@ -668,13 +668,15 @@ func (r *AuthorinoReconciler) installationPreflightCheck(authorino *api.Authorin
 	}
 
 	for authServerName, tlsCert := range tlsCerts {
+		tlsEnabled := tlsCert.Enabled == nil || *tlsCert.Enabled
+		if tlsEnabled {
+			if tlsCert.CertSecret == nil {
+				return r.wrapErrorWithStatusUpdate(
+					r.Log, authorino, r.setStatusFailed(api.AuthorinoTlsSecretNotProvided),
+					fmt.Errorf("%s secret with tls cert not provided", authServerName),
+				)
+			}
 
-		if tlsEnabled := tlsCert.Enabled; tlsEnabled == nil && tlsCert.CertSecret == nil {
-			return r.wrapErrorWithStatusUpdate(
-				r.Log, authorino, r.setStatusFailed(api.AuthorinoTlsSecretNotProvided),
-				fmt.Errorf("%s secret with tls cert not provided", authServerName),
-			)
-		} else if *tlsEnabled {
 			secretName := tlsCert.CertSecret.Name
 			nsdName := namespacedName(authorino.Namespace, secretName)
 			if err := r.Get(context.TODO(), nsdName, &k8score.Secret{}); err != nil {
@@ -690,7 +692,6 @@ func (r *AuthorinoReconciler) installationPreflightCheck(authorino *api.Authorin
 				)
 			}
 		}
-
 	}
 	return nil
 }
