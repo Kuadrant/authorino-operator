@@ -34,6 +34,8 @@ spec:
                 type: string
               clusterWide:
                 type: boolean
+              evaluatorCacheSize:
+                type: integer
               image:
                 type: string
               imagePullPolicy:

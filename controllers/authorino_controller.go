@@ -314,6 +314,13 @@ func (r *AuthorinoReconciler) buildAuthorinoEnv(authorino *api.Authorino) []k8sc
 		})
 	}
 
+	if authorino.Spec.EvaluatorCacheSize != nil {
+		envVar = append(envVar, k8score.EnvVar{
+			Name:  api.EvaluatorCacheSize,
+			Value: fmt.Sprintf("%v", *authorino.Spec.EvaluatorCacheSize),
+		})
+	}
+
 	// external auth service via GRPC
 	if authorino.Spec.Listener.Port != nil {
 		envVar = append(envVar, k8score.EnvVar{

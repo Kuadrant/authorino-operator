@@ -43,6 +43,7 @@ const (
 	SecretLabelSelector      string = "SECRET_LABEL_SELECTOR"
 	EnvLogLevel              string = "LOG_LEVEL"
 	EnvLogMode               string = "LOG_MODE"
+	EvaluatorCacheSize       string = "EVALUATOR_CACHE_SIZE"
 
 	// Authorino TLS file paths
 	DefaultTlsCertPath        string = "/etc/ssl/certs/tls.crt"
@@ -117,6 +118,7 @@ type AuthorinoSpec struct {
 	OIDCServer               OIDCServer  `json:"oidcServer,omitempty"`
 	AuthConfigLabelSelectors string      `json:"authConfigLabelSelectors,omitempty"`
 	SecretLabelSelectors     string      `json:"secretLabelSelectors,omitempty"`
+	EvaluatorCacheSize       *int        `json:"evaluatorCacheSize,omitempty"`
 }
 
 type Listener struct {

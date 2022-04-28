@@ -202,6 +202,7 @@ func newFullAuthorinoInstance() *api.Authorino {
 	replicas := int32(AuthorinoReplicas)
 	tslEnable := true
 	port := int32(1000)
+	cacheSize := 10
 	secretName := "bkabk"
 	label := "authorino"
 	return &api.Authorino{
@@ -233,13 +234,9 @@ func newFullAuthorinoInstance() *api.Authorino {
 			ClusterWide:              false,
 			AuthConfigLabelSelectors: label,
 			SecretLabelSelectors:     label,
+			EvaluatorCacheSize:       &cacheSize,
 			Listener: api.Listener{
 				Port: &port,
-				Tls: api.Tls{
-					CertSecret: &k8score.LocalObjectReference{
-						Name: secretName,
-					},
-				},
 			},
 			OIDCServer: api.OIDCServer{
 				Port: &port,
@@ -273,6 +270,9 @@ func checkAuthorinoEnvVar(authorinoInstance *api.Authorino, envs []k8score.EnvVa
 		}
 		if env.Name == api.SecretLabelSelector {
 			Expect(env.Value).Should(Equal(authorinoInstance.Spec.SecretLabelSelectors))
+		}
+		if env.Name == api.EvaluatorCacheSize {
+			Expect(env.Value).Should(Equal(fmt.Sprintf("%v", *authorinoInstance.Spec.EvaluatorCacheSize)))
 		}
 
 		if env.Name == api.ExtAuthGRPCPort {
