@@ -22,6 +22,7 @@ A Kubernetes Operator to manage [Authorino](https://github.com/Kuadrant/authorin
 | logMode | string | Defines the log mode in authorino (`development` or `production`), default to one if not specified `production` |
 | imagePullPolicy | string | Defines the [imagePullPolicy](https://kubernetes.io/docs/concepts/containers/images/) for when a deployment is created  |
 | clusterWide | boolean | Defines the scope of an instance of Authorino, it can be either `namespaced` or `cluster-wide` for further information look at the [Authorino deployment guide](https://github.com/Kuadrant/authorino/blob/main/docs/deploy.md#5-deploy-authorino-instances). It will default to `cluster-wide` if not specified |
+| evaluatorCacheSize | int | Defines the authorino evaluator cache size in megabytes, defaults to 1 if not specified  |
 | listener | [Listener](#listener)  | Specification of the authorization service (gRPC interface) |
 | oidcServer | [OIDC Server](#oidcserver) | Specification of the OIDC service |
 
