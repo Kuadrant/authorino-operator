@@ -24,6 +24,7 @@ testbin/*
 *.swp
 *.swo
 *~
+target
 
 # Vendor dependencies
 vendor
