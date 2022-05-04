@@ -4,7 +4,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   creationTimestamp: null
-  name: manager-role
+  name: authorino-operator-manager
 rules:
 - apiGroups:
   - '*'
@@ -102,6 +102,18 @@ rules:
   - list
   - update
   - watch
+- apiGroups:
+  - '*'
+  resources:
+  - subjectaccessreviews
+  verbs:
+  - create
+- apiGroups:
+  - '*'
+  resources:
+  - tokenreviews
+  verbs:
+  - create
 - apiGroups:
   - apps
   resources:

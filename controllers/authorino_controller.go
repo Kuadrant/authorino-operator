@@ -67,6 +67,8 @@ const (
 // +kubebuilder:rbac:groups="*",resources=clusterrolebindings,verbs=get;list;watch;create;update;
 // +kubebuilder:rbac:groups="*",resources=serviceaccounts,verbs=get;list;watch;create;update;
 // +kubebuilder:rbac:groups="*",resources=roles,verbs=get;list;watch;create;update;
+// +kubebuilder:rbac:groups="*",resources=tokenreviews,verbs=create;
+// +kubebuilder:rbac:groups="*",resources=subjectaccessreviews,verbs=create;
 // +kubebuilder:rbac:groups="*",resources=configmaps,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="*",resources=configmaps/status,verbs=get;update;delete;patch
 // +kubebuilder:rbac:groups="*",resources=events,verbs=create;patch;

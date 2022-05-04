@@ -2,7 +2,7 @@ apiVersion: v1
 kind: Namespace
 metadata:
   labels:
-    control-plane: controller-manager
+    control-plane: authorino-operator
   name: authorino-operator
 ---
 apiVersion: apiextensions.k8s.io/v1
@@ -1397,13 +1397,13 @@ status:
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: authorino-operator-controller-manager
+  name: authorino-operator
   namespace: authorino-operator
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
-  name: authorino-operator-leader-election-role
+  name: authorino-operator-leader-election
   namespace: authorino-operator
 rules:
 - apiGroups:
@@ -1546,18 +1546,8 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: authorino-metrics-reader
-rules:
-- nonResourceURLs:
-  - /metrics
-  verbs:
-  - get
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
   creationTimestamp: null
-  name: authorino-operator-manager-role
+  name: authorino-operator-manager
 rules:
 - apiGroups:
   - '*'
@@ -1656,6 +1646,18 @@ rules:
   - update
   - watch
 - apiGroups:
+  - '*'
+  resources:
+  - subjectaccessreviews
+  verbs:
+  - create
+- apiGroups:
+  - '*'
+  resources:
+  - tokenreviews
+  verbs:
+  - create
+- apiGroups:
   - apps
   resources:
   - deployments
@@ -1724,89 +1726,30 @@ rules:
   - update
 ---
 apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: authorino-operator-metrics-reader
-rules:
-- nonResourceURLs:
-  - /metrics
-  verbs:
-  - get
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: authorino-operator-proxy-role
-rules:
-- apiGroups:
-  - authentication.k8s.io
-  resources:
-  - tokenreviews
-  verbs:
-  - create
-- apiGroups:
-  - authorization.k8s.io
-  resources:
-  - subjectaccessreviews
-  verbs:
-  - create
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: authorino-proxy-role
-rules:
-- apiGroups:
-  - authentication.k8s.io
-  resources:
-  - tokenreviews
-  verbs:
-  - create
-- apiGroups:
-  - authorization.k8s.io
-  resources:
-  - subjectaccessreviews
-  verbs:
-  - create
----
-apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: authorino-operator-leader-election-rolebinding
+  name: authorino-operator-leader-election
   namespace: authorino-operator
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
-  name: authorino-operator-leader-election-role
+  name: authorino-operator-leader-election
 subjects:
 - kind: ServiceAccount
-  name: authorino-operator-controller-manager
+  name: authorino-operator
   namespace: authorino-operator
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: authorino-operator-manager-rolebinding
+  name: authorino-operator-manager
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: authorino-operator-manager-role
+  name: authorino-operator-manager
 subjects:
 - kind: ServiceAccount
-  name: authorino-operator-controller-manager
-  namespace: authorino-operator
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: authorino-operator-proxy-rolebinding
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: authorino-operator-proxy-role
-subjects:
-- kind: ServiceAccount
-  name: authorino-operator-controller-manager
+  name: authorino-operator
   namespace: authorino-operator
 ---
 apiVersion: v1
@@ -1825,57 +1768,28 @@ data:
       resourceName: aac3a15d.authorino.kuadrant.io
 kind: ConfigMap
 metadata:
-  name: authorino-operator-manager-config
+  name: manager-config
   namespace: authorino-operator
----
-apiVersion: v1
-kind: Service
-metadata:
-  labels:
-    control-plane: controller-manager
-  name: authorino-operator-controller-manager-metrics-service
-  namespace: authorino-operator
-spec:
-  ports:
-  - name: https
-    port: 8443
-    protocol: TCP
-    targetPort: https
-  selector:
-    control-plane: controller-manager
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   labels:
-    control-plane: controller-manager
-  name: authorino-operator-controller-manager
+    control-plane: authorino-operator
+  name: authorino-operator
   namespace: authorino-operator
 spec:
   replicas: 1
   selector:
     matchLabels:
-      control-plane: controller-manager
+      control-plane: authorino-operator
   template:
     metadata:
       labels:
-        control-plane: controller-manager
+        control-plane: authorino-operator
     spec:
       containers:
       - args:
-        - --secure-listen-address=0.0.0.0:8443
-        - --upstream=http://127.0.0.1:8080/
-        - --logtostderr=true
-        - --v=10
-        image: gcr.io/kubebuilder/kube-rbac-proxy:v0.8.0
-        name: kube-rbac-proxy
-        ports:
-        - containerPort: 8443
-          name: https
-          protocol: TCP
-      - args:
-        - --health-probe-bind-address=:8081
-        - --metrics-bind-address=127.0.0.1:8080
         - --leader-elect
         command:
         - /manager
@@ -1904,5 +1818,5 @@ spec:
           allowPrivilegeEscalation: false
       securityContext:
         runAsNonRoot: true
-      serviceAccountName: authorino-operator-controller-manager
+      serviceAccountName: authorino-operator
       terminationGracePeriodSeconds: 10
