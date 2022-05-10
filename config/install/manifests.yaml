@@ -187,13 +187,13 @@ status:
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: authorino-operator-controller-manager
+  name: authorino-operator
   namespace: authorino-operator
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
-  name: authorino-operator-leader-election-role
+  name: authorino-operator-leader-election
   namespace: authorino-operator
 rules:
 - apiGroups:
@@ -232,7 +232,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   creationTimestamp: null
-  name: authorino-operator-manager-role
+  name: authorino-operator-manager
 rules:
 - apiGroups:
   - '*'
@@ -331,6 +331,18 @@ rules:
   - update
   - watch
 - apiGroups:
+  - '*'
+  resources:
+  - subjectaccessreviews
+  verbs:
+  - create
+- apiGroups:
+  - '*'
+  resources:
+  - tokenreviews
+  verbs:
+  - create
+- apiGroups:
   - apps
   resources:
   - deployments
@@ -399,85 +411,28 @@ rules:
   - update
 ---
 apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: authorino-operator-metrics-reader
-rules:
-- nonResourceURLs:
-  - /metrics
-  verbs:
-  - get
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: authorino-operator-proxy-role
-rules:
-- apiGroups:
-  - authentication.k8s.io
-  resources:
-  - tokenreviews
-  verbs:
-  - create
-- apiGroups:
-  - authorization.k8s.io
-  resources:
-  - subjectaccessreviews
-  verbs:
-  - create
----
-apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: authorino-operator-leader-election-rolebinding
+  name: authorino-operator-leader-election
   namespace: authorino-operator
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
-  name: authorino-operator-leader-election-role
+  name: authorino-operator-leader-election
 subjects:
 - kind: ServiceAccount
-  name: authorino-operator-controller-manager
+  name: authorino-operator
   namespace: authorino-operator
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: authorino-operator-manager-rolebinding
+  name: authorino-operator-manager
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: authorino-operator-manager-role
+  name: authorino-operator-manager
 subjects:
 - kind: ServiceAccount
-  name: authorino-operator-controller-manager
+  name: authorino-operator
   namespace: authorino-operator
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: authorino-operator-proxy-rolebinding
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: authorino-operator-proxy-role
-subjects:
-- kind: ServiceAccount
-  name: authorino-operator-controller-manager
-  namespace: authorino-operator
----
-apiVersion: v1
-kind: Service
-metadata:
-  labels:
-    control-plane: controller-manager
-  name: authorino-operator-controller-manager-metrics-service
-  namespace: authorino-operator
-spec:
-  ports:
-  - name: https
-    port: 8443
-    protocol: TCP
-    targetPort: https
-  selector:
-    control-plane: controller-manager
