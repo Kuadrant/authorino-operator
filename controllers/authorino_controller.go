@@ -196,7 +196,7 @@ func (r *AuthorinoReconciler) buildAuthorinoDeployment(authorino *api.Authorino)
 	var saName = authorino.Name + "-authorino"
 
 	if authorino.Spec.Image == "" {
-		authorino.Spec.Image = fmt.Sprintf("quay.io/3scale/authorino:%s", api.AuthorinoVersion)
+		authorino.Spec.Image = fmt.Sprintf("quay.io/kuadrant/authorino:%s", api.AuthorinoVersion)
 	}
 
 	var volumes []k8score.Volume

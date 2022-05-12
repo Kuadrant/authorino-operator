@@ -4,12 +4,12 @@ metadata:
   name: authorino-sample
   namespace: authorino-operator
 spec:
-  image: quay.io/3scale/authorino:latest
+  image: quay.io/kuadrant/authorino:latest
   replicas: 1
   imagePullPolicy: Always
   clusterWide: true
   listener:
-    port: 
+    port:
     tls:
       enabled: true
       certSecretRef:
@@ -17,6 +17,6 @@ spec:
   oidcServer:
     port:
     tls:
-      enabled: true 
-      certSecretRef: 
+      enabled: true
+      certSecretRef:
         name: authorino-cert # secret must contain `tls.crt` and `tls.key` entries

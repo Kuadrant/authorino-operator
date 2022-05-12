@@ -1793,7 +1793,7 @@ spec:
         - --leader-elect
         command:
         - /manager
-        image: quay.io/3scale/authorino-operator:latest
+        image: quay.io/kuadrant/authorino-operator:latest
         livenessProbe:
           httpGet:
             path: /healthz

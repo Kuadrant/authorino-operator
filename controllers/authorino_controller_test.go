@@ -24,7 +24,7 @@ import (
 const (
 	AuthorinoNamespace = "default"
 	AuthorinoReplicas  = 1
-	AuthorinoImage     = "quay.io/3scale/authorino"
+	AuthorinoImage     = "quay.io/kuadrant/authorino"
 
 	timeout  = time.Minute * 1
 	interval = time.Second * 5
