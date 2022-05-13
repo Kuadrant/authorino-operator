@@ -122,7 +122,7 @@ var _ = Describe("Authorino controller", func() {
 			}, timeout, interval).Should(BeTrue())
 
 			replicas := int32(AuthorinoReplicas)
-			image := fmt.Sprintf("%s:%s", defaultAuthorinoImageRepo, api.AuthorinoVersion)
+			image := api.AuthorinoImage
 			existContainer := false
 
 			Expect(deployment.Spec.Replicas).Should(Equal(&replicas))
@@ -197,7 +197,7 @@ func newExtServerConfigMap() *k8score.ConfigMap {
 
 func newFullAuthorinoInstance() *api.Authorino {
 	name := "a" + string(uuid.NewUUID())
-	image := fmt.Sprintf("%s:%s", defaultAuthorinoImageRepo, api.AuthorinoVersion)
+	image := api.AuthorinoImage
 	replicas := int32(AuthorinoReplicas)
 	tslEnable := true
 	port := int32(1000)

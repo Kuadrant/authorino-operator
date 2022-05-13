@@ -45,8 +45,6 @@ type AuthorinoReconciler struct {
 }
 
 const (
-	defaultAuthorinoImageRepo string = "quay.io/kuadrant/authorino"
-
 	tlsCertName     string = "tls-cert"
 	oidcTlsCertName string = "oidc-cert"
 
@@ -198,7 +196,7 @@ func (r *AuthorinoReconciler) buildAuthorinoDeployment(authorino *api.Authorino)
 	var saName = authorino.Name + "-authorino"
 
 	if authorino.Spec.Image == "" {
-		authorino.Spec.Image = fmt.Sprintf("%s:%s", defaultAuthorinoImageRepo, api.AuthorinoVersion)
+		authorino.Spec.Image = api.AuthorinoImage
 	}
 
 	var volumes []k8score.Volume
