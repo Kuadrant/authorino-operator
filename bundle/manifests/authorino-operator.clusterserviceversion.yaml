@@ -167,6 +167,18 @@ spec:
           - update
           - watch
         - apiGroups:
+          - '*'
+          resources:
+          - subjectaccessreviews
+          verbs:
+          - create
+        - apiGroups:
+          - '*'
+          resources:
+          - tokenreviews
+          verbs:
+          - create
+        - apiGroups:
           - apps
           resources:
           - deployments
@@ -233,48 +245,22 @@ spec:
           - get
           - patch
           - update
-        - apiGroups:
-          - authentication.k8s.io
-          resources:
-          - tokenreviews
-          verbs:
-          - create
-        - apiGroups:
-          - authorization.k8s.io
-          resources:
-          - subjectaccessreviews
-          verbs:
-          - create
-        serviceAccountName: authorino-operator-controller-manager
+        serviceAccountName: authorino-operator
       deployments:
-      - name: authorino-operator-controller-manager
+      - name: authorino-operator
         spec:
           replicas: 1
           selector:
             matchLabels:
-              control-plane: controller-manager
+              control-plane: authorino-operator
           strategy: {}
           template:
             metadata:
               labels:
-                control-plane: controller-manager
+                control-plane: authorino-operator
             spec:
               containers:
               - args:
-                - --secure-listen-address=0.0.0.0:8443
-                - --upstream=http://127.0.0.1:8080/
-                - --logtostderr=true
-                - --v=10
-                image: gcr.io/kubebuilder/kube-rbac-proxy:v0.8.0
-                name: kube-rbac-proxy
-                ports:
-                - containerPort: 8443
-                  name: https
-                  protocol: TCP
-                resources: {}
-              - args:
-                - --health-probe-bind-address=:8081
-                - --metrics-bind-address=127.0.0.1:8080
                 - --leader-elect
                 command:
                 - /manager
@@ -292,18 +278,12 @@ spec:
                     port: 8081
                   initialDelaySeconds: 5
                   periodSeconds: 10
-                resources:
-                  limits:
-                    cpu: 200m
-                    memory: 100Mi
-                  requests:
-                    cpu: 100m
-                    memory: 20Mi
+                resources: {}
                 securityContext:
                   allowPrivilegeEscalation: false
               securityContext:
                 runAsNonRoot: true
-              serviceAccountName: authorino-operator-controller-manager
+              serviceAccountName: authorino-operator
               terminationGracePeriodSeconds: 10
       permissions:
       - rules:
@@ -338,7 +318,7 @@ spec:
           verbs:
           - create
           - patch
-        serviceAccountName: authorino-operator-controller-manager
+        serviceAccountName: authorino-operator
     strategy: deployment
   installModes:
   - supported: false
