@@ -1,4 +1,4 @@
-name: Build and push image
+name: Build and push images
 
 on:
   push:
@@ -117,7 +117,7 @@ jobs:
         run: echo "Image pushed to ${{ steps.push-to-quay.outputs.registry-paths }}"
 
   build-catalog:
-    name: Build Catalog
+    name: Build and push catalog image
     needs: [build, build-bundle]
     runs-on: ubuntu-20.04
     steps:
