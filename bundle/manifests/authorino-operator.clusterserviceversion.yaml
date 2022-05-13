@@ -13,7 +13,7 @@ metadata:
           },
           "spec": {
             "clusterWide": true,
-            "image": "quay.io/3scale/authorino:latest",
+            "image": "quay.io/kuadrant/authorino:latest",
             "imagePullPolicy": "Always",
             "listener": {
               "port": null,
@@ -39,7 +39,7 @@ metadata:
       ]
     capabilities: Basic Install
     categories: Integration & Delivery
-    containerImage: quay.io/3scale/authorino-operator:v0.0.1
+    containerImage: quay.io/kuadrant/authorino-operator:v0.0.1
     createdAt: 2021-12-08T10-00-00Z
     operators.operatorframework.io/builder: operator-sdk-v1.14.0+git
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
@@ -264,7 +264,7 @@ spec:
                 - --leader-elect
                 command:
                 - /manager
-                image: quay.io/3scale/authorino-operator:latest
+                image: quay.io/kuadrant/authorino-operator:latest
                 livenessProbe:
                   httpGet:
                     path: /healthz

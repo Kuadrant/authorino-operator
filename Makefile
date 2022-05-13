@@ -5,7 +5,7 @@ VERSION ?= 0.0.0
 REGISTRY = quay.io
 
 # Organization in container resgistry
-ORG ?= 3scale
+ORG ?= kuadrant
 
 # IMAGE_TAG_BASE defines the docker.io namespace and part of the image name for remote images.
 IMAGE_TAG_BASE ?= $(REGISTRY)/$(ORG)/authorino-operator

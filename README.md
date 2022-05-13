@@ -16,7 +16,7 @@ A Kubernetes Operator to manage [Authorino](https://github.com/Kuadrant/authorin
 
 | Field | Type | Description |
 |----------|:----:|---------|
-| image    | string | Authorino image to be deployed, it will default to `quay.io/3scale/authorino:latest` if not specified |
+| image    | string | Authorino image to be deployed, it will default to `quay.io/kuadrant/authorino:latest` if not specified |
 | replicas | number | Number of replicas desired for the given instance, default to one if not specified |
 | logLevel | string | Defines the level of log you want to enable in authorino (`debug`, `info` and `error`), if not specified it defaults to `info` |
 | logMode | string | Defines the log mode in authorino (`development` or `production`), default to one if not specified `production` |
@@ -44,7 +44,7 @@ Specifies the details to communicate to an OIDC server, check out [Authorino's a
 | port | number | Specify to port to the server, if not speficied it will default to port `8083` |
 | tls | [TLS](#tls) | Specification of the TLS certificate |
 
-#### TLS 
+#### TLS
 
 Defines the TLS certificate to a server
 
@@ -60,12 +60,12 @@ kind: Authorino
 metadata:
   name: authorino-sample
 spec:
-  image: quay.io/3scale/authorino:latest
+  image: quay.io/kuadrant/authorino:latest
   replicas: 1
   imagePullPolicy: Always
   clusterWide: true
   listener:
-    port: 
+    port:
     tls:
       enabled: true
       certSecretRef:
@@ -73,8 +73,8 @@ spec:
   oidcServer:
     port:
     tls:
-      enabled: true 
-      certSecretRef: 
+      enabled: true
+      certSecretRef:
         name: authorino-cert # secret must contain `tls.crt` and `tls.key` entries
 ```
 
@@ -96,7 +96,7 @@ kubectl create namespace authorino-operator
 ```bash
 make install
 ```
-3) Deploy the operator 
+3) Deploy the operator
 ```bash
 make deploy
 ```
@@ -109,14 +109,14 @@ make deploy
 
 ### Installing via OLM
 
-To install the operator using the [Operator Lifecycle Manager](https://olm.operatorframework.io/), you need to make the operator CSVs available on the cluster via a CatalogSource resource. 
+To install the operator using the [Operator Lifecycle Manager](https://olm.operatorframework.io/), you need to make the operator CSVs available on the cluster via a CatalogSource resource.
 
-The bundles and catalog with the versions of the operator are available in the `quay.io` repo 
+The bundles and catalog with the versions of the operator are available in the `quay.io` repo
 
-* [Bundles](https://quay.io/repository/3scale/authorino-operator-bundle)
-* [Catalogs](https://quay.io/repository/3scale/authorino-operator-catalog)
+* [Bundles](https://quay.io/kuadrant/authorino-operator-bundle)
+* [Catalogs](https://quay.io/kuadrant/authorino-operator-catalog)
 
-Create a [CatalogSource](https://olm.operatorframework.io/docs/concepts/crds/catalogsource/) pointing to one of the images available in the operator's catalogs repo 
+Create a [CatalogSource](https://olm.operatorframework.io/docs/concepts/crds/catalogsource/) pointing to one of the images available in the operator's catalogs repo
 
 ```bash
 # Create a namespace to deploy the operator
@@ -131,7 +131,7 @@ metadata:
   namespace: authorino-operator
 spec:
   sourceType: grpc
-  image: quay.io/3scale/authorino-operator-catalog:v0.0.1
+  image: quay.io/kuadrant/authorino-operator-catalog:v0.0.1
   displayName: Authorino Operator
 EOF
 ```

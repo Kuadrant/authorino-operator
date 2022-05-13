@@ -51,7 +51,7 @@ const (
 	DefaultOidcTlsCertPath    string = "/etc/ssl/certs/oidc.crt"
 	DefaultOidcTlsCertKeyPath string = "/etc/ssl/private/oidc.key"
 
-	AuthorinoVersion string = "latest"
+	AuthorinoImage string = "quay.io/kuadrant/authorino:latest"
 
 	// Status reasons
 	AuthorinoProvisioningReason                      = "Provisioning"

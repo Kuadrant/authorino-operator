@@ -1,12 +1,14 @@
-name: Build Images
+name: Build and push image
 
 on:
   push:
-    branches: [ '*' ]
-    tags: [ '*' ]
+    branches:
+      - 'main'
+      - 'master'
+  workflow_dispatch: {}
 
 env:
-  IMG_TAGS: ${{ github.ref_name }}
+  IMG_TAGS: ${{ github.sha }}
   IMG_REGISTRY_HOST: quay.io
   IMG_REGISTRY_ORG: kuadrant
   MAIN_BRANCH_NAME: main
@@ -14,8 +16,8 @@ env:
 
 jobs:
   build:
-    name: Build
-    runs-on: ubuntu-latest
+    name: Build and push image
+    runs-on: ubuntu-20.04
     steps:
       - name: Check out code
         uses: actions/checkout@v2
@@ -24,13 +26,23 @@ jobs:
         id: add-latest-tag
         run: |
           echo "IMG_TAGS=latest ${{ env.IMG_TAGS }}" >> $GITHUB_ENV
+      - name: Add branch tag
+        if: ${{ github.ref_name != env.MAIN_BRANCH_NAME }}
+        id: add-branch-tag
+        run: |
+          echo "IMG_TAGS=${GITHUB_REF_NAME/\//-} ${{ env.IMG_TAGS }}" >> $GITHUB_ENV
+      - name: Install qemu dependency
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qemu-user-static
       - name: Build Image
         id: build-image
         uses: redhat-actions/buildah-build@v2
         with:
           image: ${{ env.OPERATOR_NAME }}
           tags: ${{ env.IMG_TAGS }}
-          dockerfiles: |
+          platforms: linux/amd64,linux/arm64
+          containerfiles: |
             ./Dockerfile
       - name: Push Image
         if: ${{ !env.ACT }}
@@ -47,13 +59,13 @@ jobs:
 
   build-bundle:
     needs: build
-    name: Build Bundle
-    runs-on: ubuntu-latest
+    name: Build and push bundle image
+    runs-on: ubuntu-20.04
     steps:
-      - name: Set up Go 1.16.x
+      - name: Set up Go 1.17.x
         uses: actions/setup-go@v2
         with:
-          go-version: 1.16.x
+          go-version: 1.17.x
         id: go
       - name: Check out code
         uses: actions/checkout@v2
@@ -62,6 +74,15 @@ jobs:
         id: add-latest-tag
         run: |
           echo "IMG_TAGS=latest ${{ env.IMG_TAGS }}" >> $GITHUB_ENV
+      - name: Add branch tag
+        if: ${{ github.ref_name != env.MAIN_BRANCH_NAME }}
+        id: add-branch-tag
+        run: |
+          echo "IMG_TAGS=${GITHUB_REF_NAME/\//-} ${{ env.IMG_TAGS }}" >> $GITHUB_ENV
+      - name: Install qemu dependency
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qemu-user-static
       - name: Run make bundle
         if: ${{ github.ref_name != env.MAIN_BRANCH_NAME }}
         run: make bundle REGISTRY=${{ env.IMG_REGISTRY_HOST }} ORG=${{ env.IMG_REGISTRY_ORG }} IMAGE_TAG=${{ github.ref_name }}
@@ -70,17 +91,17 @@ jobs:
         run: make bundle REGISTRY=${{ env.IMG_REGISTRY_HOST }} ORG=${{ env.IMG_REGISTRY_ORG }} IMAGE_TAG=latest VERSION=0.0.0
       - name: Git diff
         run: git diff
-#       Uncomment this when ORG in the Makefile to be updated to "kuadrant"
-#      - name: Verify manifests and bundle
-#        if: startsWith(github.ref, 'refs/tags/v') || github.ref_name == env.MAIN_BRANCH_NAME
-#        run: make verify-manifests verify-bundle
+      - name: Verify manifests and bundle
+        if: startsWith(github.ref, 'refs/tags/v') || github.ref_name == env.MAIN_BRANCH_NAME
+        run: make verify-manifests verify-bundle
       - name: Build Image
         id: build-image
         uses: redhat-actions/buildah-build@v2
         with:
           image: ${{ env.OPERATOR_NAME }}-bundle
           tags: ${{ env.IMG_TAGS }}
-          dockerfiles: |
+          platforms: linux/amd64,linux/arm64
+          containerfiles: |
             ./bundle.Dockerfile
       - name: Push Image
         if: ${{ !env.ACT }}
@@ -98,12 +119,12 @@ jobs:
   build-catalog:
     name: Build Catalog
     needs: [build, build-bundle]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     steps:
-      - name: Set up Go 1.16.x
+      - name: Set up Go 1.17.x
         uses: actions/setup-go@v2
         with:
-          go-version: 1.16.x
+          go-version: 1.17.x
         id: go
       - name: Check out code
         uses: actions/checkout@v2
@@ -112,6 +133,15 @@ jobs:
         id: add-latest-tag
         run: |
           echo "IMG_TAGS=latest ${{ env.IMG_TAGS }}" >> $GITHUB_ENV
+      - name: Add branch tag
+        if: ${{ github.ref_name != env.MAIN_BRANCH_NAME }}
+        id: add-branch-tag
+        run: |
+          echo "IMG_TAGS=${GITHUB_REF_NAME/\//-} ${{ env.IMG_TAGS }}" >> $GITHUB_ENV
+      - name: Install qemu dependency
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qemu-user-static
       - name: Run make catalog-generate
         if: ${{ github.ref_name != env.MAIN_BRANCH_NAME }}
         run: make catalog-generate REGISTRY=${{ env.IMG_REGISTRY_HOST }} ORG=${{ env.IMG_REGISTRY_ORG }} IMAGE_TAG=${{ github.ref_name }}
@@ -126,7 +156,8 @@ jobs:
         with:
           image: ${{ env.OPERATOR_NAME }}-catalog
           tags: ${{ env.IMG_TAGS }}
-          dockerfiles: |
+          platforms: linux/amd64,linux/arm64
+          containerfiles: |
             ./index.Dockerfile
       - name: Push Image
         if: ${{ !env.ACT }}
