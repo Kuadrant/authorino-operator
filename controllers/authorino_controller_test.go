@@ -24,7 +24,6 @@ import (
 const (
 	AuthorinoNamespace = "default"
 	AuthorinoReplicas  = 1
-	AuthorinoImage     = "quay.io/kuadrant/authorino"
 
 	timeout  = time.Minute * 1
 	interval = time.Second * 5
@@ -123,7 +122,7 @@ var _ = Describe("Authorino controller", func() {
 			}, timeout, interval).Should(BeTrue())
 
 			replicas := int32(AuthorinoReplicas)
-			image := fmt.Sprintf("%s:%s", AuthorinoImage, api.AuthorinoVersion)
+			image := fmt.Sprintf("%s:%s", defaultAuthorinoImageRepo, api.AuthorinoVersion)
 			existContainer := false
 
 			Expect(deployment.Spec.Replicas).Should(Equal(&replicas))
@@ -198,7 +197,7 @@ func newExtServerConfigMap() *k8score.ConfigMap {
 
 func newFullAuthorinoInstance() *api.Authorino {
 	name := "a" + string(uuid.NewUUID())
-	image := fmt.Sprintf("%s:%s", AuthorinoImage, api.AuthorinoVersion)
+	image := fmt.Sprintf("%s:%s", defaultAuthorinoImageRepo, api.AuthorinoVersion)
 	replicas := int32(AuthorinoReplicas)
 	tslEnable := true
 	port := int32(1000)
