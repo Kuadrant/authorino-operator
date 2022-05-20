@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	k8sapps "k8s.io/api/apps/v1"
@@ -266,14 +267,26 @@ func (r *AuthorinoReconciler) buildAuthorinoDeployment(authorino *api.Authorino)
 	// generates the env variables
 	envs := r.buildAuthorinoEnv(authorino)
 
+	replicas := authorino.Spec.Replicas
+	if replicas == nil {
+		value := int32(1)
+		replicas = &value
+	}
+
 	// generates the Container where authorino will be running
 	// adds to the list of containers available in the deployment
-	// TODO: set --enable-leader-election and --metrics-addr command-line flags
-	authorinoContainer := authorinoResources.GetContainer(authorino.Spec.Image, authorino.Spec.ImagePullPolicy, api.AuthorinoContainerName, envs, volumeMounts)
+	var args []string
+	if *replicas > 1 {
+		args = append(args, fmt.Sprintf("--%s", api.FlagLeaderElectionEnabled))
+	}
+	if p := authorino.Spec.Metrics.Port; p != nil {
+		args = append(args, fmt.Sprintf("--%s=:%d", api.FlagMetricsAddr, *p))
+	}
+	authorinoContainer := authorinoResources.GetContainer(authorino.Spec.Image, authorino.Spec.ImagePullPolicy, api.AuthorinoContainerName, args, envs, volumeMounts)
 	containers = append(containers, authorinoContainer)
 
 	// generate Deployment resource to deploy an authorino instance
-	deployment := authorinoResources.GetDeployment(authorino.Name, authorino.Namespace, saName, authorino.Spec.Replicas, containers, volumes)
+	deployment := authorinoResources.GetDeployment(authorino.Name, authorino.Namespace, saName, replicas, containers, volumes)
 
 	_ = ctrl.SetControllerReference(authorino, deployment, r.Scheme)
 	return deployment
@@ -310,7 +323,7 @@ func (r *AuthorinoReconciler) buildAuthorinoEnv(authorino *api.Authorino) []k8sc
 		})
 	}
 
-	if v := authorino.Spec.DeepMetricsEnabled; v != nil {
+	if v := authorino.Spec.Metrics.DeepMetricsEnabled; v != nil {
 		envVar = append(envVar, k8score.EnvVar{
 			Name:  api.EnvDeepMetricsEnabled,
 			Value: fmt.Sprintf("%v", *v),
@@ -411,6 +424,14 @@ func (r *AuthorinoReconciler) authorinoDeploymentChanges(existingDeployment, des
 	}
 
 	if existingContainer.ImagePullPolicy != desiredContainer.ImagePullPolicy {
+		return true
+	}
+
+	existingArgs := sort.StringSlice(existingContainer.Args)
+	existingArgs.Sort()
+	desiredArgs := sort.StringSlice(desiredContainer.Args)
+	desiredArgs.Sort()
+	if strings.Join(existingArgs, " ") != strings.Join(desiredArgs, " ") {
 		return true
 	}
 
@@ -517,7 +538,11 @@ func (r *AuthorinoReconciler) createAuthorinoServices(authorino *api.Authorino) 
 	desiredServices = append(desiredServices, authorinoResources.NewOIDCService(authorinoInstanceName, authorinoInstanceNamespace, httpPort))
 
 	// metrics service
-	httpPort = api.DefaultMetricsServicePort
+	if p := authorino.Spec.Metrics.Port; p != nil {
+		httpPort = *p
+	} else {
+		httpPort = api.DefaultMetricsServicePort
+	}
 	desiredServices = append(desiredServices, authorinoResources.NewMetricsService(authorinoInstanceName, authorinoInstanceNamespace, httpPort))
 
 	for _, desiredService := range desiredServices {

@@ -34,8 +34,6 @@ spec:
                 type: string
               clusterWide:
                 type: boolean
-              deepMetricsEnabled:
-                type: boolean
               evaluatorCacheSize:
                 type: integer
               image:
@@ -79,6 +77,14 @@ spec:
                 type: string
               logMode:
                 type: string
+              metrics:
+                properties:
+                  deep:
+                    type: boolean
+                  port:
+                    format: int32
+                    type: integer
+                type: object
               oidcServer:
                 properties:
                   port:

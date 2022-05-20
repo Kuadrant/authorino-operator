@@ -47,6 +47,8 @@ const (
 	EnvOIDCHTTPPort            string = "OIDC_HTTP_PORT"
 	EnvOidcTlsCertPath         string = "OIDC_TLS_CERT"
 	EnvOidcTlsCertKeyPath      string = "OIDC_TLS_CERT_KEY"
+	FlagLeaderElectionEnabled  string = "enable-leader-election"
+	FlagMetricsAddr            string = "metrics-addr"
 
 	// Authorino TLS file paths
 	DefaultTlsCertPath        string = "/etc/ssl/certs/tls.crt"
@@ -128,7 +130,7 @@ type AuthorinoSpec struct {
 	AuthConfigLabelSelectors string      `json:"authConfigLabelSelectors,omitempty"`
 	SecretLabelSelectors     string      `json:"secretLabelSelectors,omitempty"`
 	EvaluatorCacheSize       *int        `json:"evaluatorCacheSize,omitempty"`
-	DeepMetricsEnabled       *bool       `json:"deepMetricsEnabled,omitempty"`
+	Metrics                  Metrics     `json:"metrics,omitempty"`
 }
 
 type Listener struct {
@@ -151,6 +153,11 @@ type OIDCServer struct {
 type Ports struct {
 	GRPC *int32 `json:"grpc,omitempty"`
 	HTTP *int32 `json:"http,omitempty"`
+}
+
+type Metrics struct {
+	Port               *int32 `json:"port,omitempty"`
+	DeepMetricsEnabled *bool  `json:"deep,omitempty"`
 }
 
 type Tls struct {

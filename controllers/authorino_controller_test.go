@@ -268,7 +268,7 @@ func checkAuthorinoEnvVar(authorinoInstance *api.Authorino, envs []k8score.EnvVa
 		case api.EnvEvaluatorCacheSize:
 			Expect(env.Value).Should(Equal(fmt.Sprintf("%v", *authorinoInstance.Spec.EvaluatorCacheSize)))
 		case api.EnvDeepMetricsEnabled:
-			Expect(env.Value).Should(Equal(fmt.Sprintf("%v", *authorinoInstance.Spec.DeepMetricsEnabled)))
+			Expect(env.Value).Should(Equal(fmt.Sprintf("%v", *authorinoInstance.Spec.Metrics.DeepMetricsEnabled)))
 		case api.EnvLogLevel:
 			Expect(env.Value).Should(Equal(authorinoInstance.Spec.LogLevel))
 		case api.EnvLogMode:
