@@ -122,7 +122,7 @@ var _ = Describe("Authorino controller", func() {
 			}, timeout, interval).Should(BeTrue())
 
 			replicas := int32(AuthorinoReplicas)
-			image := api.AuthorinoImage
+			image := api.DefaultAuthorinoImage
 			existContainer := false
 
 			Expect(deployment.Spec.Replicas).Should(Equal(&replicas))
@@ -196,7 +196,7 @@ func newExtServerConfigMap() *k8score.ConfigMap {
 
 func newFullAuthorinoInstance() *api.Authorino {
 	name := "a" + string(uuid.NewUUID())
-	image := api.AuthorinoImage
+	image := api.DefaultAuthorinoImage
 	replicas := int32(AuthorinoReplicas)
 	tslEnable := true
 	portGRPC := int32(30051)
@@ -258,30 +258,36 @@ func checkAuthorinoEnvVar(authorinoInstance *api.Authorino, envs []k8score.EnvVa
 
 	for _, env := range envs {
 		switch env.Name {
-		case api.WatchNamespace:
+		case api.EnvWatchNamespace:
 			Expect(authorinoInstance.Spec.ClusterWide).To(BeFalse())
 			Expect(env.Value).Should(Equal(AuthorinoNamespace))
-		case api.AuthConfigLabelSelector:
+		case api.EnvAuthConfigLabelSelector:
 			Expect(env.Value).Should(Equal(authorinoInstance.Spec.AuthConfigLabelSelectors))
+		case api.EnvSecretLabelSelector:
+			Expect(env.Value).Should(Equal(authorinoInstance.Spec.SecretLabelSelectors))
+		case api.EnvEvaluatorCacheSize:
+			Expect(env.Value).Should(Equal(fmt.Sprintf("%v", *authorinoInstance.Spec.EvaluatorCacheSize)))
+		case api.EnvDeepMetricsEnabled:
+			Expect(env.Value).Should(Equal(fmt.Sprintf("%v", *authorinoInstance.Spec.DeepMetricsEnabled)))
 		case api.EnvLogLevel:
 			Expect(env.Value).Should(Equal(authorinoInstance.Spec.LogLevel))
 		case api.EnvLogMode:
 			Expect(env.Value).Should(Equal(authorinoInstance.Spec.LogMode))
-		case api.SecretLabelSelector:
-			Expect(env.Value).Should(Equal(authorinoInstance.Spec.SecretLabelSelectors))
-		case api.EvaluatorCacheSize:
-			Expect(env.Value).Should(Equal(fmt.Sprintf("%v", *authorinoInstance.Spec.EvaluatorCacheSize)))
-		case api.ExtAuthGRPCPort:
+		case api.EnvExtAuthGRPCPort:
 			Expect(env.Value).Should(Equal(fmt.Sprintf("%v", *authorinoInstance.Spec.Listener.Ports.GRPC)))
-		case api.ExtAuthHTTPPort:
+		case api.EnvExtAuthHTTPPort:
 			Expect(env.Value).Should(Equal(fmt.Sprintf("%v", *authorinoInstance.Spec.Listener.Ports.HTTP)))
-		case api.EnvVarTlsCert, api.EnvVarTlsCertKey:
+		case api.EnvTlsCert, api.EnvTlsCertKey:
 			Expect(authorinoInstance.Spec.Listener.Tls.Enabled).Should(SatisfyAny(
 				BeNil(), Equal(&tslEnable),
 			))
 			Expect(env.Value).Should(SatisfyAny(
 				Equal(api.DefaultTlsCertPath), Equal(api.DefaultTlsCertKeyPath)))
-		case api.EnvVarOidcTlsCertPath, api.EnvVarOidcTlsCertKeyPath:
+		case api.EnvTimeout:
+			Expect(env.Value).Should(Equal(fmt.Sprintf("%v", *authorinoInstance.Spec.Listener.Timeout)))
+		case api.EnvOIDCHTTPPort:
+			Expect(env.Value).Should(Equal(fmt.Sprintf("%v", *authorinoInstance.Spec.OIDCServer.Port)))
+		case api.EnvOidcTlsCertPath, api.EnvOidcTlsCertKeyPath:
 			Expect(authorinoInstance.Spec.OIDCServer.Tls.Enabled).To(SatisfyAny(
 				Equal(&tslEnable), BeNil(),
 			))

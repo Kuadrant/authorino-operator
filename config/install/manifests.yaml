@@ -34,6 +34,8 @@ spec:
                 type: string
               clusterWide:
                 type: boolean
+              deepMetricsEnabled:
+                type: boolean
               evaluatorCacheSize:
                 type: integer
               image:
@@ -56,6 +58,9 @@ spec:
                         format: int32
                         type: integer
                     type: object
+                  timeout:
+                    description: Timeout of the auth service (GRPC and HTTP interfaces), in milliseconds.
+                    type: integer
                   tls:
                     description: TLS configuration of the auth service (GRPC and HTTP interfaces).
                     properties:
