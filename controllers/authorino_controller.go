@@ -323,11 +323,25 @@ func (r *AuthorinoReconciler) buildAuthorinoEnv(authorino *api.Authorino) []k8sc
 		})
 	}
 
+	var p *int32
+
 	// external auth service via GRPC
-	if authorino.Spec.Listener.Port != nil {
+	p = authorino.Spec.Listener.Ports.GRPC
+	if p == nil {
+		p = authorino.Spec.Listener.Port // deprecated
+	}
+	if p != nil {
 		envVar = append(envVar, k8score.EnvVar{
 			Name:  api.ExtAuthGRPCPort,
-			Value: fmt.Sprintf("%v", *authorino.Spec.Listener.Port),
+			Value: fmt.Sprintf("%v", *p),
+		})
+	}
+
+	// external auth service via HTTP
+	if p = authorino.Spec.Listener.Ports.HTTP; p != nil {
+		envVar = append(envVar, k8score.EnvVar{
+			Name:  api.ExtAuthHTTPPort,
+			Value: fmt.Sprintf("%v", *p),
 		})
 	}
 
@@ -457,29 +471,69 @@ func (r *AuthorinoReconciler) authorinoDeploymentChanges(existingDeployment, des
 func (r *AuthorinoReconciler) createAuthorinoServices(authorino *api.Authorino) error {
 	logger := r.Log
 
-	var services = authorinoResources.GetAuthorinoServices(
-		authorino.Name,
-		authorino.Namespace,
-	)
+	authorinoInstanceName := authorino.Name
+	authorinoInstanceNamespace := authorino.Namespace
 
-	for _, service := range services {
-		// get services from an authorino instance
-		nsdName := namespacedName(service.Namespace, service.Name)
-		if err := r.Client.Get(context.TODO(), nsdName, service); err != nil {
+	var desiredServices []*k8score.Service
+	var grpcPort, httpPort int32
+
+	// auth service
+	if p := authorino.Spec.Listener.Ports.GRPC; p != nil {
+		grpcPort = *p
+	} else if p := authorino.Spec.Listener.Port; p != nil { // deprecated
+		grpcPort = *p
+	} else {
+		grpcPort = api.DefaultAuthGRPCServicePort
+	}
+	if p := authorino.Spec.Listener.Ports.HTTP; p != nil {
+		httpPort = *p
+	} else {
+		httpPort = api.DefaultAuthHTTPServicePort
+	}
+	desiredServices = append(desiredServices, authorinoResources.NewAuthService(authorinoInstanceName, authorinoInstanceNamespace, grpcPort, httpPort))
+
+	// oidc service
+	if p := authorino.Spec.OIDCServer.Port; p != nil {
+		httpPort = *p
+	} else {
+		httpPort = api.DefaultOIDCServicePort
+	}
+	desiredServices = append(desiredServices, authorinoResources.NewOIDCService(authorinoInstanceName, authorinoInstanceNamespace, httpPort))
+
+	// metrics service
+	httpPort = api.DefaultMetricsServicePort
+	desiredServices = append(desiredServices, authorinoResources.NewMetricsService(authorinoInstanceName, authorinoInstanceNamespace, httpPort))
+
+	for _, desiredService := range desiredServices {
+		// get existing service for the authorino instance
+		existingService := &k8score.Service{}
+		if err := r.Client.Get(context.TODO(), namespacedName(desiredService.Namespace, desiredService.Name), existingService); err != nil {
 			if errors.IsNotFound(err) {
 				// service doesn't exist then create
-				_ = ctrl.SetControllerReference(authorino, service, r.Scheme)
-				if err := r.Client.Create(context.TODO(), service); err != nil {
+				_ = ctrl.SetControllerReference(authorino, desiredService, r.Scheme)
+				if err := r.Client.Create(context.TODO(), desiredService); err != nil {
 					return r.wrapErrorWithStatusUpdate(
 						logger, authorino, r.setStatusFailed(api.AuthorinoUnableToGetLeaderElectionRoleBinding),
-						fmt.Errorf("failed to create %s service, err: %v", service.Name, err),
+						fmt.Errorf("failed to create %s service, err: %v", desiredService.Name, err),
 					)
 				}
 			}
 			return r.wrapErrorWithStatusUpdate(
 				logger, authorino, r.setStatusFailed(api.AuthorinoUnableToGetServices),
-				fmt.Errorf("failed to get %s service, err: %v", service.Name, err),
+				fmt.Errorf("failed to get %s service, err: %v", desiredService.Name, err),
 			)
+		}
+
+		if equal := authorinoResources.EqualServices(desiredService, existingService); !equal {
+			existingService.Spec.Selector = desiredService.Spec.Selector
+			existingService.Spec.Ports = desiredService.Spec.Ports
+
+			if err := r.Client.Update(context.Background(), existingService); err != nil {
+				return r.wrapErrorWithStatusUpdate(
+					logger, authorino, r.setStatusFailed(api.AuthorinoUnableToGetServices),
+					fmt.Errorf("failed to update %s service, err: %v", existingService.Name, err),
+				)
+			}
 		}
 	}
 	return nil
