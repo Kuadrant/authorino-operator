@@ -39,7 +39,7 @@ metadata:
       ]
     capabilities: Basic Install
     categories: Integration & Delivery
-    containerImage: quay.io/kuadrant/authorino-operator:v0.0.1
+    containerImage: quay.io/kuadrant/authorino-operator:latest
     createdAt: 2021-12-08T10-00-00Z
     operators.operatorframework.io/builder: operator-sdk-v1.14.0+git
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
