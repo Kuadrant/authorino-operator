@@ -135,7 +135,6 @@ func (r *AuthorinoReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		// Deployment created successfully - return and requeue
 		return ctrl.Result{Requeue: true}, nil
 	} else {
-
 		// deployment already exists, then build a new resource with the desired changes
 		// and compare them, if changes are encountered apply the desired changes
 		desiredDeployment := r.buildAuthorinoDeployment(authorinoInstance)
@@ -152,6 +151,11 @@ func (r *AuthorinoReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 			err = updateStatusConditions(logger, authorinoInstance,
 				r.Client, statusNotReady(api.AuthorinoUpdatedReason, "Authorino Deployment resource updated"))
 			return ctrl.Result{RequeueAfter: time.Minute}, err
+		}
+
+		if !deploymentAvailable(existingDeployment) {
+			// Deployment not ready – return and requeue
+			return ctrl.Result{Requeue: true}, nil
 		}
 	}
 
@@ -853,4 +857,14 @@ func statusNotReady(reason, message string) api.Condition {
 
 func namespacedName(namespace, name string) types.NamespacedName {
 	return types.NamespacedName{Namespace: namespace, Name: name}
+}
+
+func deploymentAvailable(deployment *k8sapps.Deployment) bool {
+	for _, condition := range deployment.Status.Conditions {
+		switch condition.Type {
+		case "Available":
+			return condition.Status == "True"
+		}
+	}
+	return false
 }
