@@ -166,6 +166,7 @@ func (r *AuthorinoReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 // SetupWithManager sets up the controller with the Manager.
 func (r *AuthorinoReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
+		Owns(&k8sapps.Deployment{}).
 		For(&api.Authorino{}).
 		Complete(r)
 }
