@@ -1266,9 +1266,21 @@ spec:
               listener:
                 properties:
                   port:
+                    description: 'Port number of the GRPC interface. DEPRECATED: use ''ports.grpc'' instead.'
                     format: int32
                     type: integer
+                  ports:
+                    description: Port numbers of the GRPC and HTTP auth interfaces.
+                    properties:
+                      grpc:
+                        format: int32
+                        type: integer
+                      http:
+                        format: int32
+                        type: integer
+                    type: object
                   tls:
+                    description: TLS configuration of the auth service (GRPC and HTTP interfaces).
                     properties:
                       certSecretRef:
                         description: LocalObjectReference contains enough information to let you locate the referenced object inside the same namespace.

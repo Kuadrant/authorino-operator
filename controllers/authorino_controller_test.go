@@ -179,7 +179,6 @@ var _ = Describe("Authorino controller", func() {
 					checkAuthorinoEnvVar(existingAuthorinoInstance, container.Env)
 				}
 			}
-
 		})
 	})
 })
@@ -200,7 +199,8 @@ func newFullAuthorinoInstance() *api.Authorino {
 	image := api.AuthorinoImage
 	replicas := int32(AuthorinoReplicas)
 	tslEnable := true
-	port := int32(1000)
+	portGRPC := int32(30051)
+	portHTTP := int32(3000)
 	cacheSize := 10
 	secretName := "bkabk"
 	label := "authorino"
@@ -235,10 +235,13 @@ func newFullAuthorinoInstance() *api.Authorino {
 			SecretLabelSelectors:     label,
 			EvaluatorCacheSize:       &cacheSize,
 			Listener: api.Listener{
-				Port: &port,
+				Ports: api.Ports{
+					GRPC: &portGRPC,
+					HTTP: &portHTTP,
+				},
 			},
 			OIDCServer: api.OIDCServer{
-				Port: &port,
+				Port: &portHTTP,
 				Tls: api.Tls{
 					Enabled: &tslEnable,
 					CertSecret: &k8score.LocalObjectReference{
@@ -254,38 +257,31 @@ func checkAuthorinoEnvVar(authorinoInstance *api.Authorino, envs []k8score.EnvVa
 	tslEnable := true
 
 	for _, env := range envs {
-		if env.Name == api.WatchNamespace {
+		switch env.Name {
+		case api.WatchNamespace:
 			Expect(authorinoInstance.Spec.ClusterWide).To(BeFalse())
 			Expect(env.Value).Should(Equal(AuthorinoNamespace))
-		}
-		if env.Name == api.AuthConfigLabelSelector {
+		case api.AuthConfigLabelSelector:
 			Expect(env.Value).Should(Equal(authorinoInstance.Spec.AuthConfigLabelSelectors))
-		}
-		if env.Name == api.EnvLogLevel {
+		case api.EnvLogLevel:
 			Expect(env.Value).Should(Equal(authorinoInstance.Spec.LogLevel))
-		}
-		if env.Name == api.EnvLogMode {
+		case api.EnvLogMode:
 			Expect(env.Value).Should(Equal(authorinoInstance.Spec.LogMode))
-		}
-		if env.Name == api.SecretLabelSelector {
+		case api.SecretLabelSelector:
 			Expect(env.Value).Should(Equal(authorinoInstance.Spec.SecretLabelSelectors))
-		}
-		if env.Name == api.EvaluatorCacheSize {
+		case api.EvaluatorCacheSize:
 			Expect(env.Value).Should(Equal(fmt.Sprintf("%v", *authorinoInstance.Spec.EvaluatorCacheSize)))
-		}
-
-		if env.Name == api.ExtAuthGRPCPort {
-			Expect(env.Value).Should(Equal(fmt.Sprintf("%v", *authorinoInstance.Spec.Listener.Port)))
-		}
-		if env.Name == api.EnvVarTlsCert || env.Name == api.EnvVarTlsCertKey {
+		case api.ExtAuthGRPCPort:
+			Expect(env.Value).Should(Equal(fmt.Sprintf("%v", *authorinoInstance.Spec.Listener.Ports.GRPC)))
+		case api.ExtAuthHTTPPort:
+			Expect(env.Value).Should(Equal(fmt.Sprintf("%v", *authorinoInstance.Spec.Listener.Ports.HTTP)))
+		case api.EnvVarTlsCert, api.EnvVarTlsCertKey:
 			Expect(authorinoInstance.Spec.Listener.Tls.Enabled).Should(SatisfyAny(
 				BeNil(), Equal(&tslEnable),
 			))
 			Expect(env.Value).Should(SatisfyAny(
 				Equal(api.DefaultTlsCertPath), Equal(api.DefaultTlsCertKeyPath)))
-		}
-
-		if env.Name == api.EnvVarOidcTlsCertPath || env.Name == api.EnvVarOidcTlsCertKeyPath {
+		case api.EnvVarOidcTlsCertPath, api.EnvVarOidcTlsCertKeyPath:
 			Expect(authorinoInstance.Spec.OIDCServer.Tls.Enabled).To(SatisfyAny(
 				Equal(&tslEnable), BeNil(),
 			))

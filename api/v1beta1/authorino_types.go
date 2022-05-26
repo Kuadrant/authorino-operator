@@ -34,6 +34,7 @@ const (
 	// Authorino EnvVars
 	WatchNamespace           string = "WATCH_NAMESPACE"
 	ExtAuthGRPCPort          string = "EXT_AUTH_GRPC_PORT"
+	ExtAuthHTTPPort          string = "EXT_AUTH_HTTP_PORT"
 	EnvVarTlsCert            string = "TLS_CERT"
 	EnvVarTlsCertKey         string = "TLS_CERT_KEY"
 	OIDCHTTPPort             string = "OIDC_HTTP_PORT"
@@ -50,6 +51,12 @@ const (
 	DefaultTlsCertKeyPath     string = "/etc/ssl/private/tls.key"
 	DefaultOidcTlsCertPath    string = "/etc/ssl/certs/oidc.crt"
 	DefaultOidcTlsCertKeyPath string = "/etc/ssl/private/oidc.key"
+
+	// Authorino service ports
+	DefaultAuthGRPCServicePort int32 = 50051
+	DefaultAuthHTTPServicePort int32 = 5001
+	DefaultOIDCServicePort     int32 = 8083
+	DefaultMetricsServicePort  int32 = 8080
 
 	AuthorinoImage string = "quay.io/kuadrant/authorino:latest"
 
@@ -122,13 +129,23 @@ type AuthorinoSpec struct {
 }
 
 type Listener struct {
+	// Port number of the GRPC interface.
+	// DEPRECATED: use 'ports.grpc' instead.
 	Port *int32 `json:"port,omitempty"`
-	Tls  Tls    `json:"tls,omitempty"`
+	// Port numbers of the GRPC and HTTP auth interfaces.
+	Ports Ports `json:"ports,omitempty"`
+	// TLS configuration of the auth service (GRPC and HTTP interfaces).
+	Tls Tls `json:"tls,omitempty"`
 }
 
 type OIDCServer struct {
 	Port *int32 `json:"port,omitempty"`
 	Tls  Tls    `json:"tls,omitempty"`
+}
+
+type Ports struct {
+	GRPC *int32 `json:"grpc,omitempty"`
+	HTTP *int32 `json:"http,omitempty"`
 }
 
 type Tls struct {
