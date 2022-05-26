@@ -32,19 +32,23 @@ const (
 	AuthorinoContainerName string        = "authorino"
 
 	// Authorino EnvVars
-	WatchNamespace           string = "WATCH_NAMESPACE"
-	ExtAuthGRPCPort          string = "EXT_AUTH_GRPC_PORT"
-	ExtAuthHTTPPort          string = "EXT_AUTH_HTTP_PORT"
-	EnvVarTlsCert            string = "TLS_CERT"
-	EnvVarTlsCertKey         string = "TLS_CERT_KEY"
-	OIDCHTTPPort             string = "OIDC_HTTP_PORT"
-	EnvVarOidcTlsCertPath    string = "OIDC_TLS_CERT"
-	EnvVarOidcTlsCertKeyPath string = "OIDC_TLS_CERT_KEY"
-	AuthConfigLabelSelector  string = "AUTH_CONFIG_LABEL_SELECTOR"
-	SecretLabelSelector      string = "SECRET_LABEL_SELECTOR"
-	EnvLogLevel              string = "LOG_LEVEL"
-	EnvLogMode               string = "LOG_MODE"
-	EvaluatorCacheSize       string = "EVALUATOR_CACHE_SIZE"
+	EnvWatchNamespace          string = "WATCH_NAMESPACE"
+	EnvAuthConfigLabelSelector string = "AUTH_CONFIG_LABEL_SELECTOR"
+	EnvSecretLabelSelector     string = "SECRET_LABEL_SELECTOR"
+	EnvEvaluatorCacheSize      string = "EVALUATOR_CACHE_SIZE"
+	EnvDeepMetricsEnabled      string = "DEEP_METRICS_ENABLED"
+	EnvLogLevel                string = "LOG_LEVEL"
+	EnvLogMode                 string = "LOG_MODE"
+	EnvExtAuthGRPCPort         string = "EXT_AUTH_GRPC_PORT"
+	EnvExtAuthHTTPPort         string = "EXT_AUTH_HTTP_PORT"
+	EnvTlsCert                 string = "TLS_CERT"
+	EnvTlsCertKey              string = "TLS_CERT_KEY"
+	EnvTimeout                 string = "TIMEOUT"
+	EnvOIDCHTTPPort            string = "OIDC_HTTP_PORT"
+	EnvOidcTlsCertPath         string = "OIDC_TLS_CERT"
+	EnvOidcTlsCertKeyPath      string = "OIDC_TLS_CERT_KEY"
+	FlagLeaderElectionEnabled  string = "enable-leader-election"
+	FlagMetricsAddr            string = "metrics-addr"
 
 	// Authorino TLS file paths
 	DefaultTlsCertPath        string = "/etc/ssl/certs/tls.crt"
@@ -58,7 +62,7 @@ const (
 	DefaultOIDCServicePort     int32 = 8083
 	DefaultMetricsServicePort  int32 = 8080
 
-	AuthorinoImage string = "quay.io/kuadrant/authorino:latest"
+	DefaultAuthorinoImage string = "quay.io/kuadrant/authorino:latest"
 
 	// Status reasons
 	AuthorinoProvisioningReason                      = "Provisioning"
@@ -115,8 +119,8 @@ type AuthorinoSpec struct {
 	// Important: Run "make" to regenerate code after modifying this file
 
 	Image                    string      `json:"image,omitempty"`
-	Replicas                 *int32      `json:"replicas,omitempty"`
 	ImagePullPolicy          string      `json:"imagePullPolicy,omitempty"`
+	Replicas                 *int32      `json:"replicas,omitempty"`
 	Volumes                  VolumesSpec `json:"volumes,omitempty"`
 	LogLevel                 string      `json:"logLevel,omitempty"`
 	LogMode                  string      `json:"logMode,omitempty"`
@@ -126,6 +130,7 @@ type AuthorinoSpec struct {
 	AuthConfigLabelSelectors string      `json:"authConfigLabelSelectors,omitempty"`
 	SecretLabelSelectors     string      `json:"secretLabelSelectors,omitempty"`
 	EvaluatorCacheSize       *int        `json:"evaluatorCacheSize,omitempty"`
+	Metrics                  Metrics     `json:"metrics,omitempty"`
 }
 
 type Listener struct {
@@ -136,6 +141,8 @@ type Listener struct {
 	Ports Ports `json:"ports,omitempty"`
 	// TLS configuration of the auth service (GRPC and HTTP interfaces).
 	Tls Tls `json:"tls,omitempty"`
+	// Timeout of the auth service (GRPC and HTTP interfaces), in milliseconds.
+	Timeout *int `json:"timeout,omitempty"`
 }
 
 type OIDCServer struct {
@@ -146,6 +153,11 @@ type OIDCServer struct {
 type Ports struct {
 	GRPC *int32 `json:"grpc,omitempty"`
 	HTTP *int32 `json:"http,omitempty"`
+}
+
+type Metrics struct {
+	Port               *int32 `json:"port,omitempty"`
+	DeepMetricsEnabled *bool  `json:"deep,omitempty"`
 }
 
 type Tls struct {

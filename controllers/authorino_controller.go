@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	k8sapps "k8s.io/api/apps/v1"
@@ -196,7 +197,7 @@ func (r *AuthorinoReconciler) buildAuthorinoDeployment(authorino *api.Authorino)
 	var saName = authorino.Name + "-authorino"
 
 	if authorino.Spec.Image == "" {
-		authorino.Spec.Image = api.AuthorinoImage
+		authorino.Spec.Image = api.DefaultAuthorinoImage
 	}
 
 	var volumes []k8score.Volume
@@ -266,13 +267,26 @@ func (r *AuthorinoReconciler) buildAuthorinoDeployment(authorino *api.Authorino)
 	// generates the env variables
 	envs := r.buildAuthorinoEnv(authorino)
 
+	replicas := authorino.Spec.Replicas
+	if replicas == nil {
+		value := int32(1)
+		replicas = &value
+	}
+
 	// generates the Container where authorino will be running
 	// adds to the list of containers available in the deployment
-	authorinoContainer := authorinoResources.GetContainer(authorino.Spec.Image, authorino.Spec.ImagePullPolicy, api.AuthorinoContainerName, envs, volumeMounts)
+	var args []string
+	if *replicas > 1 {
+		args = append(args, fmt.Sprintf("--%s", api.FlagLeaderElectionEnabled))
+	}
+	if p := authorino.Spec.Metrics.Port; p != nil {
+		args = append(args, fmt.Sprintf("--%s=:%d", api.FlagMetricsAddr, *p))
+	}
+	authorinoContainer := authorinoResources.GetContainer(authorino.Spec.Image, authorino.Spec.ImagePullPolicy, api.AuthorinoContainerName, args, envs, volumeMounts)
 	containers = append(containers, authorinoContainer)
 
 	// generate Deployment resource to deploy an authorino instance
-	deployment := authorinoResources.GetDeployment(authorino.Name, authorino.Namespace, saName, authorino.Spec.Replicas, containers, volumes)
+	deployment := authorinoResources.GetDeployment(authorino.Name, authorino.Namespace, saName, replicas, containers, volumes)
 
 	_ = ctrl.SetControllerReference(authorino, deployment, r.Scheme)
 	return deployment
@@ -283,43 +297,50 @@ func (r *AuthorinoReconciler) buildAuthorinoEnv(authorino *api.Authorino) []k8sc
 
 	if !authorino.Spec.ClusterWide {
 		envVar = append(envVar, k8score.EnvVar{
-			Name:  api.WatchNamespace,
+			Name:  api.EnvWatchNamespace,
 			Value: authorino.GetNamespace(),
 		})
 	}
 
-	if authorino.Spec.AuthConfigLabelSelectors != "" {
+	if v := authorino.Spec.AuthConfigLabelSelectors; v != "" {
 		envVar = append(envVar, k8score.EnvVar{
-			Name:  api.AuthConfigLabelSelector,
-			Value: fmt.Sprint(authorino.Spec.AuthConfigLabelSelectors),
+			Name:  api.EnvAuthConfigLabelSelector,
+			Value: v,
 		})
 	}
 
-	if authorino.Spec.LogLevel != "" {
+	if v := authorino.Spec.SecretLabelSelectors; v != "" {
+		envVar = append(envVar, k8score.EnvVar{
+			Name:  api.EnvSecretLabelSelector,
+			Value: v,
+		})
+	}
+
+	if v := authorino.Spec.EvaluatorCacheSize; v != nil {
+		envVar = append(envVar, k8score.EnvVar{
+			Name:  api.EnvEvaluatorCacheSize,
+			Value: fmt.Sprintf("%v", *v),
+		})
+	}
+
+	if v := authorino.Spec.Metrics.DeepMetricsEnabled; v != nil {
+		envVar = append(envVar, k8score.EnvVar{
+			Name:  api.EnvDeepMetricsEnabled,
+			Value: fmt.Sprintf("%v", *v),
+		})
+	}
+
+	if v := authorino.Spec.LogLevel; v != "" {
 		envVar = append(envVar, k8score.EnvVar{
 			Name:  api.EnvLogLevel,
-			Value: fmt.Sprint(authorino.Spec.LogLevel),
+			Value: v,
 		})
 	}
 
-	if authorino.Spec.LogMode != "" {
+	if v := authorino.Spec.LogMode; v != "" {
 		envVar = append(envVar, k8score.EnvVar{
 			Name:  api.EnvLogMode,
-			Value: fmt.Sprint(authorino.Spec.LogMode),
-		})
-	}
-
-	if authorino.Spec.SecretLabelSelectors != "" {
-		envVar = append(envVar, k8score.EnvVar{
-			Name:  api.SecretLabelSelector,
-			Value: fmt.Sprint(authorino.Spec.SecretLabelSelectors),
-		})
-	}
-
-	if authorino.Spec.EvaluatorCacheSize != nil {
-		envVar = append(envVar, k8score.EnvVar{
-			Name:  api.EvaluatorCacheSize,
-			Value: fmt.Sprintf("%v", *authorino.Spec.EvaluatorCacheSize),
+			Value: v,
 		})
 	}
 
@@ -332,7 +353,7 @@ func (r *AuthorinoReconciler) buildAuthorinoEnv(authorino *api.Authorino) []k8sc
 	}
 	if p != nil {
 		envVar = append(envVar, k8score.EnvVar{
-			Name:  api.ExtAuthGRPCPort,
+			Name:  api.EnvExtAuthGRPCPort,
 			Value: fmt.Sprintf("%v", *p),
 		})
 	}
@@ -340,37 +361,45 @@ func (r *AuthorinoReconciler) buildAuthorinoEnv(authorino *api.Authorino) []k8sc
 	// external auth service via HTTP
 	if p = authorino.Spec.Listener.Ports.HTTP; p != nil {
 		envVar = append(envVar, k8score.EnvVar{
-			Name:  api.ExtAuthHTTPPort,
+			Name:  api.EnvExtAuthHTTPPort,
 			Value: fmt.Sprintf("%v", *p),
 		})
 	}
 
 	if enabled := authorino.Spec.Listener.Tls.Enabled; enabled == nil || *enabled {
 		envVar = append(envVar, k8score.EnvVar{
-			Name:  api.EnvVarTlsCert,
+			Name:  api.EnvTlsCert,
 			Value: api.DefaultTlsCertPath,
 		})
 
 		envVar = append(envVar, k8score.EnvVar{
-			Name:  api.EnvVarTlsCertKey,
+			Name:  api.EnvTlsCertKey,
 			Value: api.DefaultTlsCertKeyPath,
 		})
 	}
 
-	// OIDC service
-	if authorino.Spec.OIDCServer.Port != nil {
+	if v := authorino.Spec.Listener.Timeout; v != nil {
 		envVar = append(envVar, k8score.EnvVar{
-			Name:  api.OIDCHTTPPort,
-			Value: fmt.Sprintf("%v", *authorino.Spec.OIDCServer.Port),
+			Name:  api.EnvTimeout,
+			Value: fmt.Sprintf("%v", *v),
 		})
 	}
+
+	// oidc service
+	if v := authorino.Spec.OIDCServer.Port; v != nil {
+		envVar = append(envVar, k8score.EnvVar{
+			Name:  api.EnvOIDCHTTPPort,
+			Value: fmt.Sprintf("%v", *v),
+		})
+	}
+
 	if enabled := authorino.Spec.OIDCServer.Tls.Enabled; enabled == nil || *enabled {
 		envVar = append(envVar, k8score.EnvVar{
-			Name:  api.EnvVarOidcTlsCertPath,
+			Name:  api.EnvOidcTlsCertPath,
 			Value: api.DefaultOidcTlsCertPath,
 		})
 		envVar = append(envVar, k8score.EnvVar{
-			Name:  api.EnvVarOidcTlsCertKeyPath,
+			Name:  api.EnvOidcTlsCertKeyPath,
 			Value: api.DefaultOidcTlsCertKeyPath,
 		})
 	}
@@ -395,6 +424,14 @@ func (r *AuthorinoReconciler) authorinoDeploymentChanges(existingDeployment, des
 	}
 
 	if existingContainer.ImagePullPolicy != desiredContainer.ImagePullPolicy {
+		return true
+	}
+
+	existingArgs := sort.StringSlice(existingContainer.Args)
+	existingArgs.Sort()
+	desiredArgs := sort.StringSlice(desiredContainer.Args)
+	desiredArgs.Sort()
+	if strings.Join(existingArgs, " ") != strings.Join(desiredArgs, " ") {
 		return true
 	}
 
@@ -501,7 +538,11 @@ func (r *AuthorinoReconciler) createAuthorinoServices(authorino *api.Authorino) 
 	desiredServices = append(desiredServices, authorinoResources.NewOIDCService(authorinoInstanceName, authorinoInstanceNamespace, httpPort))
 
 	// metrics service
-	httpPort = api.DefaultMetricsServicePort
+	if p := authorino.Spec.Metrics.Port; p != nil {
+		httpPort = *p
+	} else {
+		httpPort = api.DefaultMetricsServicePort
+	}
 	desiredServices = append(desiredServices, authorinoResources.NewMetricsService(authorinoInstanceName, authorinoInstanceNamespace, httpPort))
 
 	for _, desiredService := range desiredServices {

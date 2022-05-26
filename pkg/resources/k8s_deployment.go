@@ -10,16 +10,10 @@ func GetDeployment(name, namespace, saName string, replicas *int32, containers [
 	objMeta := getObjectMeta(namespace, name)
 	labels := labelsForAuthorino(name)
 
-	numOfReplicas := replicas
-	if numOfReplicas == nil {
-		value := int32(1)
-		numOfReplicas = &value
-	}
-
 	return &k8sapps.Deployment{
 		ObjectMeta: objMeta,
 		Spec: k8sapps.DeploymentSpec{
-			Replicas: numOfReplicas,
+			Replicas: replicas,
 			Selector: &v1.LabelSelector{
 				MatchLabels: labels,
 			},
@@ -37,17 +31,21 @@ func GetDeployment(name, namespace, saName string, replicas *int32, containers [
 	}
 }
 
-func GetContainer(image, imagePullPolicy, containerName string, envVars []k8score.EnvVar, volMounts []k8score.VolumeMount) k8score.Container {
+func GetContainer(image, imagePullPolicy, containerName string, args []string, envVars []k8score.EnvVar, volMounts []k8score.VolumeMount) k8score.Container {
 	if imagePullPolicy == "" {
 		imagePullPolicy = "Always"
 	}
-	return k8score.Container{
+	c := k8score.Container{
 		Image:           image,
 		ImagePullPolicy: k8score.PullPolicy(imagePullPolicy),
 		Name:            containerName,
 		Env:             envVars,
 		VolumeMounts:    volMounts,
 	}
+	if len(args) > 0 {
+		c.Args = args
+	}
+	return c
 }
 
 func GetTlsVolumeMount(certName, certPath, certKeyPath string) []k8score.VolumeMount {

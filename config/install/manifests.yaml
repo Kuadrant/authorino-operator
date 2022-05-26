@@ -56,6 +56,9 @@ spec:
                         format: int32
                         type: integer
                     type: object
+                  timeout:
+                    description: Timeout of the auth service (GRPC and HTTP interfaces), in milliseconds.
+                    type: integer
                   tls:
                     description: TLS configuration of the auth service (GRPC and HTTP interfaces).
                     properties:
@@ -74,6 +77,14 @@ spec:
                 type: string
               logMode:
                 type: string
+              metrics:
+                properties:
+                  deep:
+                    type: boolean
+                  port:
+                    format: int32
+                    type: integer
+                type: object
               oidcServer:
                 properties:
                   port:
