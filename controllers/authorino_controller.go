@@ -148,14 +148,14 @@ func (r *AuthorinoReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 				)
 			}
 
-			err = updateStatusConditions(logger, authorinoInstance,
-				r.Client, statusNotReady(api.AuthorinoUpdatedReason, "Authorino Deployment resource updated"))
-			return ctrl.Result{RequeueAfter: time.Minute}, err
+			err = updateStatusConditions(logger, authorinoInstance, r.Client, statusNotReady(api.AuthorinoUpdatedReason, "Authorino Deployment resource updated"))
+			return ctrl.Result{RequeueAfter: time.Second}, err
 		}
 
 		if !deploymentAvailable(existingDeployment) {
 			// Deployment not ready – return and requeue
-			return ctrl.Result{Requeue: true}, nil
+			err = updateStatusConditions(logger, authorinoInstance, r.Client, statusNotReady(api.AuthorinoDeploymentNotReady, "Authorino Deployment resource not ready"))
+			return ctrl.Result{RequeueAfter: time.Second}, err
 		}
 	}
 
