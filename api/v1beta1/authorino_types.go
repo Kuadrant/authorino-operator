@@ -87,6 +87,7 @@ const (
 	AuthorinoTlsSecretNotFound                       = "TlsSecretNotFound"
 	AuthorinoTlsSecretNotProvided                    = "TlsSecretNotProvided"
 	AuthorinoUnableToUpdateDeployment                = "UnableToUpdateDeployment"
+	AuthorinoDeploymentNotReady                      = "DeploymentNotReady"
 )
 
 type Condition struct {
