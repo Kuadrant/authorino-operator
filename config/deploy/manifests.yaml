@@ -1331,6 +1331,8 @@ spec:
                       enabled:
                         type: boolean
                     type: object
+                required:
+                - tls
                 type: object
               logLevel:
                 type: string
@@ -1361,6 +1363,8 @@ spec:
                       enabled:
                         type: boolean
                     type: object
+                required:
+                - tls
                 type: object
               replicas:
                 format: int32
@@ -1417,6 +1421,9 @@ spec:
                       type: object
                     type: array
                 type: object
+            required:
+            - listener
+            - oidcServer
             type: object
           status:
             description: AuthorinoStatus defines the observed state of Authorino
