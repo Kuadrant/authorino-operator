@@ -62,7 +62,7 @@ const (
 	DefaultOIDCServicePort     int32 = 8083
 	DefaultMetricsServicePort  int32 = 8080
 
-	DefaultAuthorinoImage string = "quay.io/kuadrant/authorino:latest"
+	DefaultAuthorinoImage string = "quay.io/kuadrant/authorino:v0.9.0"
 
 	// Status reasons
 	AuthorinoProvisioningReason                      = "Provisioning"

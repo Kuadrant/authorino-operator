@@ -13,4 +13,4 @@ kind: Kustomization
 images:
 - name: controller
   newName: quay.io/kuadrant/authorino-operator
-  newTag: latest
+  newTag: v0.3.0
