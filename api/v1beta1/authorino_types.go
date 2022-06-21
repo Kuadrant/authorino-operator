@@ -126,8 +126,8 @@ type AuthorinoSpec struct {
 	LogLevel                 string      `json:"logLevel,omitempty"`
 	LogMode                  string      `json:"logMode,omitempty"`
 	ClusterWide              bool        `json:"clusterWide,omitempty"`
-	Listener                 Listener    `json:"listener,omitempty"`
-	OIDCServer               OIDCServer  `json:"oidcServer,omitempty"`
+	Listener                 Listener    `json:"listener"`
+	OIDCServer               OIDCServer  `json:"oidcServer"`
 	AuthConfigLabelSelectors string      `json:"authConfigLabelSelectors,omitempty"`
 	SecretLabelSelectors     string      `json:"secretLabelSelectors,omitempty"`
 	EvaluatorCacheSize       *int        `json:"evaluatorCacheSize,omitempty"`
@@ -141,14 +141,14 @@ type Listener struct {
 	// Port numbers of the GRPC and HTTP auth interfaces.
 	Ports Ports `json:"ports,omitempty"`
 	// TLS configuration of the auth service (GRPC and HTTP interfaces).
-	Tls Tls `json:"tls,omitempty"`
+	Tls Tls `json:"tls"`
 	// Timeout of the auth service (GRPC and HTTP interfaces), in milliseconds.
 	Timeout *int `json:"timeout,omitempty"`
 }
 
 type OIDCServer struct {
 	Port *int32 `json:"port,omitempty"`
-	Tls  Tls    `json:"tls,omitempty"`
+	Tls  Tls    `json:"tls"`
 }
 
 type Ports struct {
