@@ -84,7 +84,9 @@ jobs:
         if: ${{ github.ref_name != env.MAIN_BRANCH_NAME }}
         id: add-branch-tag
         run: |
-          echo "IMG_TAGS=${GITHUB_REF_NAME/\//-} ${{ env.IMG_TAGS }}" >> $GITHUB_ENV
+          TAG_NAME=${GITHUB_REF_NAME/\//-}
+          echo "TAG_NAME=${TAG_NAME}" >> $GITHUB_ENV
+          echo "IMG_TAGS=${TAG_NAME} ${{ env.IMG_TAGS }}" >> $GITHUB_ENV
       - name: Install qemu dependency
         run: |
           sudo apt-get update
@@ -94,7 +96,7 @@ jobs:
         run: make bundle REGISTRY=${{ env.IMG_REGISTRY_HOST }} ORG=${{ env.IMG_REGISTRY_ORG }}
       - name: Run make bundle (release)
         if: ${{ github.ref_name != env.MAIN_BRANCH_NAME }}
-        run: make bundle REGISTRY=${{ env.IMG_REGISTRY_HOST }} ORG=${{ env.IMG_REGISTRY_ORG }} VERSION=${${GITHUB_REF_NAME/\//-}/v/} AUTHORINO_VERSION=${{ github.event.inputs.authorinoVersion }}
+        run: make bundle REGISTRY=${{ env.IMG_REGISTRY_HOST }} ORG=${{ env.IMG_REGISTRY_ORG }} VERSION=${TAG_NAME/v/} AUTHORINO_VERSION=${{ github.event.inputs.authorinoVersion }}
       - name: Git diff
         run: git diff
       - name: Verify manifests and bundle (main)
@@ -102,7 +104,7 @@ jobs:
         run: make verify-manifests verify-bundle REGISTRY=${{ env.IMG_REGISTRY_HOST }} ORG=${{ env.IMG_REGISTRY_ORG }}
       - name: Verify manifests and bundle (release)
         if: ${{ github.ref_name != env.MAIN_BRANCH_NAME }}
-        run: make verify-manifests verify-bundle REGISTRY=${{ env.IMG_REGISTRY_HOST }} ORG=${{ env.IMG_REGISTRY_ORG }} VERSION=${${GITHUB_REF_NAME/\//-}/v/} AUTHORINO_VERSION=${{ github.event.inputs.authorinoVersion }}
+        run: make verify-manifests verify-bundle REGISTRY=${{ env.IMG_REGISTRY_HOST }} ORG=${{ env.IMG_REGISTRY_ORG }} VERSION=${TAG_NAME/v/} AUTHORINO_VERSION=${{ github.event.inputs.authorinoVersion }}
       - name: Build Image
         id: build-image
         uses: redhat-actions/buildah-build@v2
@@ -147,7 +149,9 @@ jobs:
         if: ${{ github.ref_name != env.MAIN_BRANCH_NAME }}
         id: add-branch-tag
         run: |
-          echo "IMG_TAGS=${GITHUB_REF_NAME/\//-} ${{ env.IMG_TAGS }}" >> $GITHUB_ENV
+          TAG_NAME=${GITHUB_REF_NAME/\//-}
+          echo "TAG_NAME=${TAG_NAME}" >> $GITHUB_ENV
+          echo "IMG_TAGS=${TAG_NAME} ${{ env.IMG_TAGS }}" >> $GITHUB_ENV
       - name: Install qemu dependency
         run: |
           sudo apt-get update
@@ -157,7 +161,7 @@ jobs:
         run: make catalog-generate REGISTRY=${{ env.IMG_REGISTRY_HOST }} ORG=${{ env.IMG_REGISTRY_ORG }}
       - name: Run make catalog-generate (release)
         if: ${{ github.ref_name != env.MAIN_BRANCH_NAME }}
-        run: make catalog-generate REGISTRY=${{ env.IMG_REGISTRY_HOST }} ORG=${{ env.IMG_REGISTRY_ORG }} IMAGE_TAG=${GITHUB_REF_NAME/\//-}
+        run: make catalog-generate REGISTRY=${{ env.IMG_REGISTRY_HOST }} ORG=${{ env.IMG_REGISTRY_ORG }} IMAGE_TAG=${{ env.TAG_NAME }}
       - name: Git diff
         run: git diff
       - name: Build Image
