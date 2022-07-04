@@ -321,6 +321,13 @@ func (r *AuthorinoReconciler) buildAuthorinoEnv(authorino *api.Authorino) []k8sc
 		})
 	}
 
+	if v := authorino.Spec.WildcardHosts; v != nil {
+		envVar = append(envVar, k8score.EnvVar{
+			Name:  api.EnvWildcardsEnabled,
+			Value: fmt.Sprintf("%v", *v),
+		})
+	}
+
 	if v := authorino.Spec.EvaluatorCacheSize; v != nil {
 		envVar = append(envVar, k8score.EnvVar{
 			Name:  api.EnvEvaluatorCacheSize,

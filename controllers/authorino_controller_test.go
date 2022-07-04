@@ -264,6 +264,8 @@ func checkAuthorinoEnvVar(authorinoInstance *api.Authorino, envs []k8score.EnvVa
 		case api.EnvAuthConfigLabelSelector:
 			Expect(env.Value).Should(Equal(authorinoInstance.Spec.AuthConfigLabelSelectors))
 		case api.EnvSecretLabelSelector:
+			Expect(env.Value).Should(Equal(fmt.Sprintf("%v", *authorinoInstance.Spec.WildcardHosts)))
+		case api.EnvWildcardsEnabled:
 			Expect(env.Value).Should(Equal(authorinoInstance.Spec.SecretLabelSelectors))
 		case api.EnvEvaluatorCacheSize:
 			Expect(env.Value).Should(Equal(fmt.Sprintf("%v", *authorinoInstance.Spec.EvaluatorCacheSize)))

@@ -187,6 +187,8 @@ spec:
                       type: object
                     type: array
                 type: object
+              wildcards:
+                type: boolean
             required:
             - listener
             - oidcServer
