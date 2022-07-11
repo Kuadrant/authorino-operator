@@ -137,8 +137,9 @@ Configuration of the authorization server – [gRPC](https://github.com/Kuadrant
 | Field    | Type            | Description | Required/Default |
 |----------|:---------------:|-------------|------------------|
 | port     | Integer         | Port number of authorization server (gRPC interface). | _**DEPRECATED**_<br/>Use `ports` instead |
-| ports    | [Ports](#ports) | Port numbers of the authorization server (gRPC and raw HTTPinterfaces) | Optional |
+| ports    | [Ports](#ports) | Port numbers of the authorization server (gRPC and raw HTTPinterfaces). | Optional |
 | tls      | [TLS](#tls)     | TLS configuration of the authorization server (GRPC and HTTP interfaces). | Required |
+| timeout  | Integer         | Timeout of external authorization request (in milliseconds), controlled internally by the authorization server. | Default: `0` (disabled) |
 
 #### OIDCServer
 
