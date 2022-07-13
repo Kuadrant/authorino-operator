@@ -47,6 +47,7 @@ const (
 	EnvOIDCHTTPPort            string = "OIDC_HTTP_PORT"
 	EnvOidcTlsCertPath         string = "OIDC_TLS_CERT"
 	EnvOidcTlsCertKeyPath      string = "OIDC_TLS_CERT_KEY"
+	EnvMaxHttpRequestBodySize  string = "MAX_HTTP_REQUEST_BODY_SIZE"
 	FlagLeaderElectionEnabled  string = "enable-leader-election"
 	FlagMetricsAddr            string = "metrics-addr"
 
@@ -144,6 +145,8 @@ type Listener struct {
 	Tls Tls `json:"tls"`
 	// Timeout of the auth service (GRPC and HTTP interfaces), in milliseconds.
 	Timeout *int `json:"timeout,omitempty"`
+	// Maximum payload (request body) size for the auth service (HTTP interface), in bytes.
+	MaxHttpRequestBodySize *int `json:"maxHttpRequestBodySize,omitempty"`
 }
 
 type OIDCServer struct {
