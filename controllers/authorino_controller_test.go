@@ -285,6 +285,8 @@ func checkAuthorinoEnvVar(authorinoInstance *api.Authorino, envs []k8score.EnvVa
 				Equal(api.DefaultTlsCertPath), Equal(api.DefaultTlsCertKeyPath)))
 		case api.EnvTimeout:
 			Expect(env.Value).Should(Equal(fmt.Sprintf("%v", *authorinoInstance.Spec.Listener.Timeout)))
+		case api.EnvMaxHttpRequestBodySize:
+			Expect(env.Value).Should(Equal(fmt.Sprintf("%v", *authorinoInstance.Spec.Listener.MaxHttpRequestBodySize)))
 		case api.EnvOIDCHTTPPort:
 			Expect(env.Value).Should(Equal(fmt.Sprintf("%v", *authorinoInstance.Spec.OIDCServer.Port)))
 		case api.EnvOidcTlsCertPath, api.EnvOidcTlsCertKeyPath:
