@@ -41,7 +41,7 @@ metadata:
     categories: Integration & Delivery
     containerImage: quay.io/kuadrant/authorino-operator:latest
     createdAt: 2021-12-08T10-00-00Z
-    operators.operatorframework.io/builder: operator-sdk-v1.14.0+git
+    operators.operatorframework.io/builder: operator-sdk-v1.22.0
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
     repository: https://github.com/Kuadrant/authorino-operator
     support: kuadrant
@@ -247,7 +247,9 @@ spec:
           - update
         serviceAccountName: authorino-operator
       deployments:
-      - name: authorino-operator
+      - label:
+          control-plane: authorino-operator
+        name: authorino-operator
         spec:
           replicas: 1
           selector:
