@@ -176,7 +176,7 @@ deploy-manifest:
 	cd $(PROJECT_DIR)/config/manager && $(KUSTOMIZE) edit set image controller=${DEFAULT_OPERATOR_IMAGE}
 
 OPERATOR_SDK = $(shell pwd)/bin/operator-sdk
-OPERATOR_SDK_VERSION = v1.15.0
+OPERATOR_SDK_VERSION = v1.22.0
 operator-sdk: ## Download operator-sdk locally if necessary.
 	./utils/install-operator-sdk.sh $(OPERATOR_SDK) $(OPERATOR_SDK_VERSION)
 
