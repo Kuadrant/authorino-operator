@@ -390,6 +390,13 @@ func (r *AuthorinoReconciler) buildAuthorinoEnv(authorino *api.Authorino) []k8sc
 		})
 	}
 
+	if v := authorino.Spec.Listener.MaxHttpRequestBodySize; v != nil {
+		envVar = append(envVar, k8score.EnvVar{
+			Name:  api.EnvMaxHttpRequestBodySize,
+			Value: fmt.Sprintf("%v", *v),
+		})
+	}
+
 	// oidc service
 	if v := authorino.Spec.OIDCServer.Port; v != nil {
 		envVar = append(envVar, k8score.EnvVar{
