@@ -19,6 +19,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/uuid"
 
 	api "github.com/kuadrant/authorino-operator/api/v1beta1"
+	authorinoResources "github.com/kuadrant/authorino-operator/pkg/resources"
 )
 
 const (
@@ -37,34 +38,46 @@ var _ = Describe("Authorino controller", func() {
 		BeforeEach(func() {
 			_ = k8sClient.Create(context.TODO(), newExtServerConfigMap())
 
+			Expect(k8sClient.Create(context.TODO(), newCertSecret())).Should(Succeed())
+
 			authorinoInstance = newFullAuthorinoInstance()
 			Expect(k8sClient.Create(context.TODO(), authorinoInstance)).Should(Succeed())
+
+			nsdName := namespacedName(authorinoInstance.GetNamespace(), authorinoInstance.GetName())
+
+			Eventually(func() bool {
+				var authorino api.Authorino
+				err := k8sClient.Get(context.TODO(),
+					nsdName,
+					&authorino)
+				return err == nil && isAuthorinoInstanceReady(&authorino)
+			}, timeout, interval).Should(BeFalse())
 		})
 
 		It("Should create authorino required services", func() {
-			servicesName := []string{"authorino-authorization", "authorino-oidc", "controller-metrics"}
+			desiredServices := []*k8score.Service{
+				authorinoResources.NewOIDCService(authorinoInstance.Name, authorinoInstance.Namespace, api.DefaultOIDCServicePort),
+				authorinoResources.NewMetricsService(authorinoInstance.Name, authorinoInstance.Namespace, api.DefaultMetricsServicePort),
+				authorinoResources.NewAuthService(authorinoInstance.Name, authorinoInstance.Namespace, api.DefaultAuthGRPCServicePort, api.DefaultAuthHTTPServicePort),
+			}
 
-			for _, serviceName := range servicesName {
-				service := k8score.Service{}
-
-				nsdName := types.NamespacedName{
-					Namespace: AuthorinoNamespace,
-					Name:      serviceName + "-" + authorinoInstance.Name,
-				}
+			for _, service := range desiredServices {
+				nsdName := namespacedName(service.GetNamespace(), service.GetName())
 
 				Eventually(func() bool {
 					err := k8sClient.Get(context.TODO(),
 						nsdName,
-						&service)
+						&k8score.Service{})
 					return err == nil
 				}, timeout, interval).Should(BeTrue())
 			}
 		})
 
 		It("Should create authorino permission", func() {
-			sa := &k8score.ServiceAccount{}
-			nsdName := namespacedName(AuthorinoNamespace, authorinoInstance.Name+"-authorino")
 
+			// service account
+			sa := authorinoResources.GetAuthorinoServiceAccount(AuthorinoNamespace, authorinoInstance.Name)
+			nsdName := namespacedName(sa.GetNamespace(), sa.GetName())
 			Eventually(func() bool {
 				err := k8sClient.Get(context.TODO(),
 					nsdName,
@@ -194,11 +207,21 @@ func newExtServerConfigMap() *k8score.ConfigMap {
 	}
 }
 
+func newCertSecret() *k8score.Secret {
+	return &k8score.Secret{
+		ObjectMeta: v1.ObjectMeta{
+			Name:      "bkabk",
+			Namespace: AuthorinoNamespace,
+		},
+	}
+}
+
 func newFullAuthorinoInstance() *api.Authorino {
 	name := "a" + string(uuid.NewUUID())
 	image := api.DefaultAuthorinoImage
 	replicas := int32(AuthorinoReplicas)
 	tslEnable := true
+	tlsDisabled := false
 	portGRPC := int32(30051)
 	portHTTP := int32(3000)
 	cacheSize := 10
@@ -235,6 +258,9 @@ func newFullAuthorinoInstance() *api.Authorino {
 			SecretLabelSelectors:     label,
 			EvaluatorCacheSize:       &cacheSize,
 			Listener: api.Listener{
+				Tls: api.Tls{
+					Enabled: &tlsDisabled,
+				},
 				Ports: api.Ports{
 					GRPC: &portGRPC,
 					HTTP: &portHTTP,
@@ -298,4 +324,14 @@ func checkAuthorinoEnvVar(authorinoInstance *api.Authorino, envs []k8score.EnvVa
 			))
 		}
 	}
+}
+
+func isAuthorinoInstanceReady(authorino *api.Authorino) bool {
+	for _, condition := range authorino.Status.Conditions {
+		switch condition.Type {
+		case api.ConditionReady:
+			return condition.Status == k8score.ConditionTrue
+		}
+	}
+	return false
 }
