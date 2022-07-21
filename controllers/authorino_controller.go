@@ -101,7 +101,7 @@ func (r *AuthorinoReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	logger.V(1).Info("Found an instance of authorino", "authorinoInstanceName", authorinoInstance.Name)
 
 	if err := r.installationPreflightCheck(authorinoInstance); err != nil {
-		return ctrl.Result{Requeue: true}, nil
+		return ctrl.Result{Requeue: true}, err
 	}
 
 	// Creates services required by authorino
