@@ -23,6 +23,7 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	k8score "k8s.io/api/core/v1"
 	k8srbac "k8s.io/api/rbac/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -85,8 +86,11 @@ var _ = BeforeSuite(func() {
 	Expect(err).ToNot(HaveOccurred())
 
 	// creates authorino ClusterRole
-	clusterRole := getAuthorinoClusterRole()
-	Expect(k8sClient.Create(context.TODO(), clusterRole)).Should(Succeed())
+	Expect(k8sClient.Create(context.TODO(), getAuthorinoClusterRole(authorinoManagerClusterRoleName))).Should(Succeed())
+
+	Expect(k8sClient.Create(context.TODO(), getAuthorinoClusterRole(authorinoK8sAuthClusterRoleName))).Should(Succeed())
+
+	Expect(k8sClient.Create(context.TODO(), newCertSecret())).Should(Succeed())
 
 	err = (&AuthorinoReconciler{
 		Client: k8sClient,
@@ -109,10 +113,19 @@ var _ = AfterSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 })
 
-func getAuthorinoClusterRole() *k8srbac.ClusterRole {
+func getAuthorinoClusterRole(clusterRoleName string) *k8srbac.ClusterRole {
 	return &k8srbac.ClusterRole{
 		ObjectMeta: v1.ObjectMeta{
-			Name: authorinoManagerClusterRoleName,
+			Name: clusterRoleName,
+		},
+	}
+}
+
+func newCertSecret() *k8score.Secret {
+	return &k8score.Secret{
+		ObjectMeta: v1.ObjectMeta{
+			Name:      "bkabk",
+			Namespace: AuthorinoNamespace,
 		},
 	}
 }

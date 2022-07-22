@@ -39,7 +39,7 @@ func getRoleRefAndSubject(roleName, roleKind string, serviceAccount k8score.Serv
 	}
 
 	var roleSubject = k8srbac.Subject{
-		Kind:      serviceAccount.Kind,
+		Kind:      "ServiceAccount",
 		Name:      serviceAccount.Name,
 		Namespace: serviceAccount.Namespace,
 	}
@@ -75,7 +75,7 @@ func appendSubjectToClusterRoleBinding(roleBinding client.Object, subject k8srba
 
 func GetSubjectForRoleBinding(serviceAccount k8score.ServiceAccount) k8srbac.Subject {
 	return k8srbac.Subject{
-		Kind:      serviceAccount.Kind,
+		Kind:      "ServiceAccount",
 		Name:      serviceAccount.Name,
 		Namespace: serviceAccount.Namespace,
 	}
