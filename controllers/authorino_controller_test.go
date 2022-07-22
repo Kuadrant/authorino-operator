@@ -48,7 +48,7 @@ var _ = Describe("Authorino controller", func() {
 				err := k8sClient.Get(context.TODO(),
 					nsdName,
 					&authorino)
-				return err == nil && isAuthorinoInstanceReady(&authorino)
+				return err == nil && authorinoInstance.Status.Ready()
 			}, timeout, interval).Should(BeFalse())
 		})
 
@@ -316,16 +316,6 @@ func checkAuthorinoEnvVar(authorinoInstance *api.Authorino, envs []k8score.EnvVa
 			))
 		}
 	}
-}
-
-func isAuthorinoInstanceReady(authorino *api.Authorino) bool {
-	for _, condition := range authorino.Status.Conditions {
-		switch condition.Type {
-		case api.ConditionReady:
-			return condition.Status == k8score.ConditionTrue
-		}
-	}
-	return false
 }
 
 func newAuthorinoClusterRolebinding(roleBindingName string, clusterScoped bool, clusterRoleName string, serviceAccount k8score.ServiceAccount, authorino *api.Authorino) client.Object {

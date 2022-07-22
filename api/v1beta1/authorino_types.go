@@ -207,6 +207,16 @@ type AuthorinoStatus struct {
 	Conditions []Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type"`
 }
 
+func (status *AuthorinoStatus) Ready() bool {
+	for _, condition := range status.Conditions {
+		switch condition.Type {
+		case ConditionReady:
+			return condition.Status == k8score.ConditionTrue
+		}
+	}
+	return false
+}
+
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 //+kubebuilder:resource:path="authorinos"
