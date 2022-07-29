@@ -35,6 +35,7 @@ const (
 	EnvWatchNamespace          string = "WATCH_NAMESPACE"
 	EnvAuthConfigLabelSelector string = "AUTH_CONFIG_LABEL_SELECTOR"
 	EnvSecretLabelSelector     string = "SECRET_LABEL_SELECTOR"
+	EnvPreventCollisions       string = "PREVENT_COLLISIONS"
 	EnvEvaluatorCacheSize      string = "EVALUATOR_CACHE_SIZE"
 	EnvDeepMetricsEnabled      string = "DEEP_METRICS_ENABLED"
 	EnvLogLevel                string = "LOG_LEVEL"
@@ -127,6 +128,7 @@ type AuthorinoSpec struct {
 	LogLevel                 string      `json:"logLevel,omitempty"`
 	LogMode                  string      `json:"logMode,omitempty"`
 	ClusterWide              bool        `json:"clusterWide,omitempty"`
+	PreventCollisions        *bool       `json:"preventCollisions,omitempty"`
 	Listener                 Listener    `json:"listener"`
 	OIDCServer               OIDCServer  `json:"oidcServer"`
 	AuthConfigLabelSelectors string      `json:"authConfigLabelSelectors,omitempty"`

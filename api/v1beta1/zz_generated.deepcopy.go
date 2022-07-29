@@ -94,6 +94,11 @@ func (in *AuthorinoSpec) DeepCopyInto(out *AuthorinoSpec) {
 		**out = **in
 	}
 	in.Volumes.DeepCopyInto(&out.Volumes)
+	if in.PreventCollisions != nil {
+		in, out := &in.PreventCollisions, &out.PreventCollisions
+		*out = new(bool)
+		**out = **in
+	}
 	in.Listener.DeepCopyInto(&out.Listener)
 	in.OIDCServer.DeepCopyInto(&out.OIDCServer)
 	if in.EvaluatorCacheSize != nil {
