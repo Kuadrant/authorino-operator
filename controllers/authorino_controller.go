@@ -321,6 +321,13 @@ func (r *AuthorinoReconciler) buildAuthorinoEnv(authorino *api.Authorino) []k8sc
 		})
 	}
 
+	if v := authorino.Spec.PreventCollisions; v != nil && !*v {
+		envVar = append(envVar, k8score.EnvVar{
+			Name:  api.EnvPreventCollisions,
+			Value: fmt.Sprintf("%v", *v),
+		})
+	}
+
 	if v := authorino.Spec.EvaluatorCacheSize; v != nil {
 		envVar = append(envVar, k8score.EnvVar{
 			Name:  api.EnvEvaluatorCacheSize,

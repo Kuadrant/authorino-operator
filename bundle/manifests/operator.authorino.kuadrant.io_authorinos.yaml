@@ -124,6 +124,8 @@ spec:
                 required:
                 - tls
                 type: object
+              preventCollisions:
+                type: boolean
               replicas:
                 format: int32
                 type: integer

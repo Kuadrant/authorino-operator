@@ -219,6 +219,7 @@ func newFullAuthorinoInstance() *api.Authorino {
 	cacheSize := 10
 	secretName := "bkabk"
 	label := "authorino"
+	preventCollisions := true
 	return &api.Authorino{
 		ObjectMeta: v1.ObjectMeta{
 			Name:      name,
@@ -248,6 +249,7 @@ func newFullAuthorinoInstance() *api.Authorino {
 			ClusterWide:              false,
 			AuthConfigLabelSelectors: label,
 			SecretLabelSelectors:     label,
+			PreventCollisions:        &preventCollisions,
 			EvaluatorCacheSize:       &cacheSize,
 			Listener: api.Listener{
 				Tls: api.Tls{
@@ -283,6 +285,8 @@ func checkAuthorinoEnvVar(authorinoInstance *api.Authorino, envs []k8score.EnvVa
 			Expect(env.Value).Should(Equal(authorinoInstance.Spec.AuthConfigLabelSelectors))
 		case api.EnvSecretLabelSelector:
 			Expect(env.Value).Should(Equal(authorinoInstance.Spec.SecretLabelSelectors))
+		case api.EnvPreventCollisions:
+			Expect(env.Value).Should(Equal(fmt.Sprintf("%v", *authorinoInstance.Spec.PreventCollisions)))
 		case api.EnvEvaluatorCacheSize:
 			Expect(env.Value).Should(Equal(fmt.Sprintf("%v", *authorinoInstance.Spec.EvaluatorCacheSize)))
 		case api.EnvDeepMetricsEnabled:
