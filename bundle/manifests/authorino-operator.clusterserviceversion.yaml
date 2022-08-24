@@ -280,7 +280,13 @@ spec:
                     port: 8081
                   initialDelaySeconds: 5
                   periodSeconds: 10
-                resources: {}
+                resources:
+                  limits:
+                    cpu: 200m
+                    memory: 300Mi
+                  requests:
+                    cpu: 200m
+                    memory: 200Mi
                 securityContext:
                   allowPrivilegeEscalation: false
                   capabilities:

@@ -51,5 +51,12 @@ spec:
             port: 8081
           initialDelaySeconds: 5
           periodSeconds: 10
+        resources:
+          limits:
+            cpu: 200m
+            memory: 300Mi
+          requests:
+            cpu: 200m
+            memory: 200Mi
       serviceAccountName: authorino-operator
       terminationGracePeriodSeconds: 10
