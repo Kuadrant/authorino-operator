@@ -115,7 +115,7 @@ build: generate fmt vet ## Build manager binary.
 	go build -o bin/manager main.go
 
 run: manifests generate fmt vet ## Run a controller from your host.
-	go run ./main.go
+	go run -ldflags "-X api/v1beta1.authorino_types.AuthorinoVersion=$(AUTHORINO_VERSION)"./main.go
 
 docker-build:  ## Build docker image with the manager.
 	docker build -t ${OPERATOR_IMAGE} .
