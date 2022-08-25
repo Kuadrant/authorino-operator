@@ -54,9 +54,9 @@ var _ = Describe("Authorino controller", func() {
 
 		It("Should create authorino required services", func() {
 			desiredServices := []*k8score.Service{
-				authorinoResources.NewOIDCService(authorinoInstance.Name, authorinoInstance.Namespace, api.DefaultOIDCServicePort),
-				authorinoResources.NewMetricsService(authorinoInstance.Name, authorinoInstance.Namespace, api.DefaultMetricsServicePort),
-				authorinoResources.NewAuthService(authorinoInstance.Name, authorinoInstance.Namespace, api.DefaultAuthGRPCServicePort, api.DefaultAuthHTTPServicePort),
+				authorinoResources.NewOIDCService(authorinoInstance.Name, authorinoInstance.Namespace, api.DefaultOIDCServicePort, authorinoInstance.Labels),
+				authorinoResources.NewMetricsService(authorinoInstance.Name, authorinoInstance.Namespace, api.DefaultMetricsServicePort, authorinoInstance.Labels),
+				authorinoResources.NewAuthService(authorinoInstance.Name, authorinoInstance.Namespace, api.DefaultAuthGRPCServicePort, api.DefaultAuthHTTPServicePort, authorinoInstance.Labels),
 			}
 
 			for _, service := range desiredServices {
@@ -74,7 +74,7 @@ var _ = Describe("Authorino controller", func() {
 		It("Should create authorino permission", func() {
 
 			// service account
-			sa := authorinoResources.GetAuthorinoServiceAccount(AuthorinoNamespace, authorinoInstance.Name)
+			sa := authorinoResources.GetAuthorinoServiceAccount(AuthorinoNamespace, authorinoInstance.Name, authorinoInstance.Labels)
 			nsdName := namespacedName(sa.GetNamespace(), sa.GetName())
 			Eventually(func() bool {
 				err := k8sClient.Get(context.TODO(),
@@ -140,6 +140,7 @@ var _ = Describe("Authorino controller", func() {
 			existContainer := false
 
 			Expect(deployment.Spec.Replicas).Should(Equal(&replicas))
+			Expect(deployment.Labels).Should(Equal(map[string]string{"thisLabel": "willPropagate"}))
 			for _, container := range deployment.Spec.Template.Spec.Containers {
 				if container.Name == api.AuthorinoContainerName {
 					Expect(container.Image).Should(Equal(image))
@@ -223,6 +224,7 @@ func newFullAuthorinoInstance() *api.Authorino {
 		ObjectMeta: v1.ObjectMeta{
 			Name:      name,
 			Namespace: AuthorinoNamespace,
+			Labels:    map[string]string{"thisLabel": "willPropagate"},
 		},
 		Spec: api.AuthorinoSpec{
 			Image:           image,
@@ -323,7 +325,15 @@ func newAuthorinoClusterRolebinding(roleBindingName string, clusterScoped bool, 
 	if clusterScoped {
 		binding = authorinoResources.GetAuthorinoClusterRoleBinding(roleBindingName, clusterRoleName, serviceAccount)
 	} else {
-		binding = authorinoResources.GetAuthorinoRoleBinding(authorino.Namespace, authorino.Name, roleBindingName, "ClusterRole", clusterRoleName, serviceAccount)
+		binding = authorinoResources.GetAuthorinoRoleBinding(
+			authorino.Namespace,
+			authorino.Name,
+			roleBindingName,
+			"ClusterRole",
+			clusterRoleName,
+			serviceAccount,
+			authorino.Labels,
+		)
 		binding.SetNamespace(authorino.Namespace)
 	}
 
