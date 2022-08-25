@@ -17,6 +17,7 @@ limitations under the License.
 package v1beta1
 
 import (
+	"fmt"
 	k8score "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -25,6 +26,11 @@ import (
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
 type ConditionType string
+
+var (
+	AuthorinoVersion         string
+	DefaultAuthorinoImage, _ = fmt.Printf("quay.io/kuadrant/authorino:%s", AuthorinoVersion)
+)
 
 const (
 	// ConditionReady specifies that the resource is ready
@@ -62,8 +68,6 @@ const (
 	DefaultAuthHTTPServicePort int32 = 5001
 	DefaultOIDCServicePort     int32 = 8083
 	DefaultMetricsServicePort  int32 = 8080
-
-	DefaultAuthorinoImage string = "quay.io/kuadrant/authorino:latest"
 
 	// Status reasons
 	AuthorinoProvisioningReason                      = "Provisioning"
