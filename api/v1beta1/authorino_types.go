@@ -18,6 +18,9 @@ package v1beta1
 
 import (
 	"fmt"
+
+	"github.com/kuadrant/authorino-operator/pkg/utils"
+
 	k8score "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -28,8 +31,8 @@ import (
 type ConditionType string
 
 var (
-	AuthorinoVersion         string
-	DefaultAuthorinoImage, _ = fmt.Printf("quay.io/kuadrant/authorino:%s", AuthorinoVersion)
+	AuthorinoVersion      string // value injected in compilation-time
+	DefaultAuthorinoImage = fmt.Sprintf("quay.io/kuadrant/authorino:%s", utils.ToVersionTag(AuthorinoVersion))
 )
 
 const (

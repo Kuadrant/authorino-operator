@@ -36,6 +36,14 @@ jobs:
         id: add-branch-tag
         run: |
           echo "IMG_TAGS=${GITHUB_REF_NAME/\//-} ${{ env.IMG_TAGS }}" >> $GITHUB_ENV
+      - name: Set Operator version
+        id: operator-version
+        run: |
+          if [[ ${GITHUB_REF_NAME/\//-} =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-.+)?$ ]]; then
+          echo "VERSION=${GITHUB_REF_NAME/\//-}" >> $GITHUB_ENV
+          else
+          echo "VERSION=${{ github.sha }}" >> $GITHUB_ENV
+          fi
       - name: Install qemu dependency
         run: |
           sudo apt-get update
@@ -47,6 +55,9 @@ jobs:
           image: ${{ env.OPERATOR_NAME }}
           tags: ${{ env.IMG_TAGS }}
           platforms: linux/amd64,linux/arm64
+          build-args: |
+            version=${{ env.VERSION }}
+            authorinoversion=${{ github.event.inputs.authorinoVersion }}  # <========= FIXME: It won't work for automated workflow events (e.g. push)
           containerfiles: |
             ./Dockerfile
       - name: Push Image
@@ -87,6 +98,14 @@ jobs:
           TAG_NAME=${GITHUB_REF_NAME/\//-}
           echo "TAG_NAME=${TAG_NAME}" >> $GITHUB_ENV
           echo "IMG_TAGS=${TAG_NAME} ${{ env.IMG_TAGS }}" >> $GITHUB_ENV
+      - name: Set Operator version
+        id: operator-version
+        run: |
+          if [[ ${GITHUB_REF_NAME/\//-} =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-.+)?$ ]]; then
+          echo "VERSION=${GITHUB_REF_NAME/\//-}" >> $GITHUB_ENV
+          else
+          echo "VERSION=${{ github.sha }}" >> $GITHUB_ENV
+          fi
       - name: Install qemu dependency
         run: |
           sudo apt-get update
@@ -112,6 +131,9 @@ jobs:
           image: ${{ env.OPERATOR_NAME }}-bundle
           tags: ${{ env.IMG_TAGS }}
           platforms: linux/amd64,linux/arm64
+          build-args: |
+            version=${{ env.VERSION }}
+            authorinoversion=${{ github.event.inputs.authorinoVersion }}  # <========= FIXME: It won't work for automated workflow events (e.g. push)
           containerfiles: |
             ./bundle.Dockerfile
       - name: Push Image
@@ -152,6 +174,14 @@ jobs:
           TAG_NAME=${GITHUB_REF_NAME/\//-}
           echo "TAG_NAME=${TAG_NAME}" >> $GITHUB_ENV
           echo "IMG_TAGS=${TAG_NAME} ${{ env.IMG_TAGS }}" >> $GITHUB_ENV
+      - name: Set Operator version
+        id: operator-version
+        run: |
+          if [[ ${GITHUB_REF_NAME/\//-} =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-.+)?$ ]]; then
+          echo "VERSION=${GITHUB_REF_NAME/\//-}" >> $GITHUB_ENV
+          else
+          echo "VERSION=${{ github.sha }}" >> $GITHUB_ENV
+          fi
       - name: Install qemu dependency
         run: |
           sudo apt-get update
@@ -171,6 +201,9 @@ jobs:
           image: ${{ env.OPERATOR_NAME }}-catalog
           tags: ${{ env.IMG_TAGS }}
           platforms: linux/amd64,linux/arm64
+          build-args: |
+            version=${{ env.VERSION }}
+            authorinoversion=${{ github.event.inputs.authorinoVersion }}  # <========= FIXME: It won't work for automated workflow events (e.g. push)
           containerfiles: |
             ./index.Dockerfile
       - name: Push Image
