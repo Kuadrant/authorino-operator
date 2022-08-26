@@ -177,7 +177,7 @@ func (r *AuthorinoReconciler) getAuthorinoInstance(namespacedName types.Namespac
 	if err != nil {
 		if errors.IsNotFound(err) {
 			r.Log.Info("Authorino CR not found.")
-			r.cleanupClusterScopedPermissions(context.Background(), namespacedName)
+			r.cleanupClusterScopedPermissions(context.Background(), namespacedName, authorinoInstance.Labels)
 			return nil, nil
 		}
 		return nil, err
@@ -291,7 +291,15 @@ func (r *AuthorinoReconciler) buildAuthorinoDeployment(authorino *api.Authorino)
 	containers = append(containers, authorinoContainer)
 
 	// generate Deployment resource to deploy an authorino instance
-	deployment := authorinoResources.GetDeployment(authorino.Name, authorino.Namespace, saName, replicas, containers, volumes)
+	deployment := authorinoResources.GetDeployment(
+		authorino.Name,
+		authorino.Namespace,
+		saName,
+		replicas,
+		containers,
+		volumes,
+		authorino.Labels,
+	)
 
 	_ = ctrl.SetControllerReference(authorino, deployment, r.Scheme)
 	return deployment
@@ -539,7 +547,13 @@ func (r *AuthorinoReconciler) createAuthorinoServices(authorino *api.Authorino) 
 	} else {
 		httpPort = api.DefaultAuthHTTPServicePort
 	}
-	desiredServices = append(desiredServices, authorinoResources.NewAuthService(authorinoInstanceName, authorinoInstanceNamespace, grpcPort, httpPort))
+	desiredServices = append(desiredServices, authorinoResources.NewAuthService(
+		authorinoInstanceName,
+		authorinoInstanceNamespace,
+		grpcPort,
+		httpPort,
+		authorino.Labels,
+	))
 
 	// oidc service
 	if p := authorino.Spec.OIDCServer.Port; p != nil {
@@ -547,7 +561,12 @@ func (r *AuthorinoReconciler) createAuthorinoServices(authorino *api.Authorino) 
 	} else {
 		httpPort = api.DefaultOIDCServicePort
 	}
-	desiredServices = append(desiredServices, authorinoResources.NewOIDCService(authorinoInstanceName, authorinoInstanceNamespace, httpPort))
+	desiredServices = append(desiredServices, authorinoResources.NewOIDCService(
+		authorinoInstanceName,
+		authorinoInstanceNamespace,
+		httpPort,
+		authorino.Labels,
+	))
 
 	// metrics service
 	if p := authorino.Spec.Metrics.Port; p != nil {
@@ -555,7 +574,12 @@ func (r *AuthorinoReconciler) createAuthorinoServices(authorino *api.Authorino) 
 	} else {
 		httpPort = api.DefaultMetricsServicePort
 	}
-	desiredServices = append(desiredServices, authorinoResources.NewMetricsService(authorinoInstanceName, authorinoInstanceNamespace, httpPort))
+	desiredServices = append(desiredServices, authorinoResources.NewMetricsService(
+		authorinoInstanceName,
+		authorinoInstanceNamespace,
+		httpPort,
+		authorino.Labels,
+	))
 
 	for _, desiredService := range desiredServices {
 		// get existing service for the authorino instance
@@ -615,7 +639,7 @@ func (r *AuthorinoReconciler) createAuthorinoPermission(authorino *api.Authorino
 
 func (r *AuthorinoReconciler) createAuthorinoServiceAccount(authorino *api.Authorino) (*k8score.ServiceAccount, error) {
 	var logger = r.Log
-	sa := authorinoResources.GetAuthorinoServiceAccount(authorino.Namespace, authorino.Name)
+	sa := authorinoResources.GetAuthorinoServiceAccount(authorino.Namespace, authorino.Name, authorino.Labels)
 	if err := r.Get(context.TODO(), namespacedName(sa.Namespace, sa.Name), sa); err != nil {
 		if errors.IsNotFound(err) {
 			// ServiceAccount doesn't exit - create one
@@ -655,7 +679,7 @@ func (r *AuthorinoReconciler) bindAuthorinoServiceAccountToClusterRole(roleBindi
 	if clusterScoped {
 		roleBinding = authorinoResources.GetAuthorinoClusterRoleBinding(roleBindingName, clusterRoleName, serviceAccount)
 	} else {
-		roleBinding = authorinoResources.GetAuthorinoRoleBinding(authorino.Namespace, authorino.Name, roleBindingName, "ClusterRole", clusterRoleName, serviceAccount)
+		roleBinding = authorinoResources.GetAuthorinoRoleBinding(authorino.Namespace, authorino.Name, roleBindingName, "ClusterRole", clusterRoleName, serviceAccount, authorino.Labels)
 		roleBinding.SetNamespace(authorino.Namespace)
 	}
 
@@ -723,7 +747,15 @@ func (r *AuthorinoReconciler) bindAuthorinoServiceAccountToLeaderElectionRole(au
 		)
 	}
 
-	leRoleBinding := authorinoResources.GetAuthorinoRoleBinding(authorino.Namespace, authorino.Name, authorinoLeaderElectionRoleBindingName, "Role", authorinoLeaderElectionRoleName, serviceAccount)
+	leRoleBinding := authorinoResources.GetAuthorinoRoleBinding(
+		authorino.Namespace,
+		authorino.Name,
+		authorinoLeaderElectionRoleBindingName,
+		"Role",
+		authorinoLeaderElectionRoleName,
+		serviceAccount,
+		authorino.Labels,
+	)
 	if err := r.Get(context.TODO(), namespacedName(leRoleBinding.Namespace, leRoleBinding.Name), leRoleBinding); err != nil {
 		if errors.IsNotFound(err) {
 			_ = ctrl.SetControllerReference(authorino, leRoleBinding, r.Scheme)
@@ -743,9 +775,9 @@ func (r *AuthorinoReconciler) bindAuthorinoServiceAccountToLeaderElectionRole(au
 	return nil
 }
 
-func (r *AuthorinoReconciler) cleanupClusterScopedPermissions(ctx context.Context, crNamespacedName types.NamespacedName) {
+func (r *AuthorinoReconciler) cleanupClusterScopedPermissions(ctx context.Context, crNamespacedName types.NamespacedName, labels map[string]string) {
 	crName := crNamespacedName.Name
-	sa := authorinoResources.GetAuthorinoServiceAccount(crNamespacedName.Namespace, crName)
+	sa := authorinoResources.GetAuthorinoServiceAccount(crNamespacedName.Namespace, crName, labels)
 
 	// we only care about cluster-scoped role bindings for the cleanup
 	// namespaced ones are garbage collected automatically by k8s because of the owner reference

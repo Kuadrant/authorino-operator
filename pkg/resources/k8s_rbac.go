@@ -7,10 +7,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func GetAuthorinoServiceAccount(namespace, crName string) *k8score.ServiceAccount {
+func GetAuthorinoServiceAccount(namespace, crName string, labels map[string]string) *k8score.ServiceAccount {
 	return &k8score.ServiceAccount{
 		TypeMeta:   k8smeta.TypeMeta{Kind: "ServiceAccount"},
-		ObjectMeta: getObjectMeta(namespace, authorinoServiceAccountName(crName)),
+		ObjectMeta: getObjectMeta(namespace, authorinoServiceAccountName(crName), labels),
 	}
 }
 
@@ -23,10 +23,10 @@ func GetAuthorinoClusterRoleBinding(roleBindingName, clusterRoleName string, ser
 	}
 }
 
-func GetAuthorinoRoleBinding(namespace, crName, roleBindingNameSuffix, roleKind, roleName string, serviceAccount k8score.ServiceAccount) *k8srbac.RoleBinding {
+func GetAuthorinoRoleBinding(namespace, crName, roleBindingNameSuffix, roleKind, roleName string, serviceAccount k8score.ServiceAccount, labels map[string]string) *k8srbac.RoleBinding {
 	roleRef, roleSubject := getRoleRefAndSubject(roleName, roleKind, serviceAccount)
 	return &k8srbac.RoleBinding{
-		ObjectMeta: getObjectMeta(namespace, authorinoRoleBindingName(crName, roleBindingNameSuffix)),
+		ObjectMeta: getObjectMeta(namespace, authorinoRoleBindingName(crName, roleBindingNameSuffix), labels),
 		RoleRef:    roleRef,
 		Subjects:   []k8srbac.Subject{roleSubject},
 	}
