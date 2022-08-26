@@ -1,24 +1,33 @@
 # VERSION defines the project version for the bundle.
-VERSION ?= 0.0.0
+VERSION ?= $(shell git rev-parse HEAD)
 
 # Address of the container registry
-REGISTRY = quay.io
+DEFAULT_REGISTRY = quay.io
+REGISTRY ?= $(DEFAULT_REGISTRY)
 
-# Organization in container resgistry
-ORG ?= kuadrant
+# Organization in the container resgistry
+DEFAULT_ORG = kuadrant
+ORG ?= $(DEFAULT_ORG)
 
-# IMAGE_TAG_BASE defines the docker.io namespace and part of the image name for remote images.
-IMAGE_TAG_BASE ?= $(REGISTRY)/$(ORG)/authorino-operator
+# Repo in the container registry
+DEFAULT_REPO = authorino-operator
+REPO ?= $(DEFAULT_REPO)
 
-ifeq (0.0.0,$(VERSION))
-IMAGE_TAG ?= latest
+DEFAULT_IMAGE_TAG = latest
+IMAGE_TAG_BASE ?= $(REGISTRY)/$(ORG)/$(REPO)
+
+using_semantic_version := $(shell [[ $(VERSION) =~ ^[0-9]+\.[0-9]+\.[0-9]+(-.+)?$$ ]] && echo "true")
+ifdef using_semantic_version
+BUNDLE_VERSION=$(VERSION)
+IMAGE_TAG=v$(VERSION)
 else
-IMAGE_TAG ?= v$(VERSION)
+BUNDLE_VERSION=0.0.0
+IMAGE_TAG=$(DEFAULT_IMAGE_TAG)
 endif
 
 # Image URL to use all building/pushing image targets
-DEFAULT_OPERATOR_IMAGE = $(IMAGE_TAG_BASE):$(IMAGE_TAG)
-OPERATOR_IMAGE ?= $(DEFAULT_OPERATOR_IMAGE)
+DEFAULT_OPERATOR_IMAGE = $(DEFAULT_REGISTRY)/$(DEFAULT_ORG)/$(DEFAULT_REPO):$(DEFAULT_IMAGE_TAG)
+OPERATOR_IMAGE ?= $(IMAGE_TAG_BASE):$(IMAGE_TAG)
 
 # BUNDLE_IMG defines the image:tag used for the bundle.
 # You can use it as an arg. (E.g make bundle-build BUNDLE_IMG=<some-registry>/<project-name-bundle>:<tag>)
@@ -112,13 +121,13 @@ test: manifests generate fmt vet setup-envtest
 ##@ Build
 
 build: generate fmt vet ## Build manager binary.
-	go build -o bin/manager main.go
+	go build -ldflags "-X main.version=$(VERSION)" -o bin/manager main.go
 
 run: manifests generate fmt vet ## Run a controller from your host.
-	go run ./main.go
+	go run -ldflags "-X main.version=$(VERSION)" ./main.go
 
 docker-build:  ## Build docker image with the manager.
-	docker build -t ${OPERATOR_IMAGE} .
+	docker build --build-args version=$(VERSION) -t $(OPERATOR_IMAGE) .
 
 docker-push: ## Push docker image with the manager.
 	docker push ${OPERATOR_IMAGE}
@@ -184,7 +193,7 @@ operator-sdk: ## Download operator-sdk locally if necessary.
 bundle: manifests kustomize operator-sdk ## Generate bundle manifests and metadata, then validate generated files.
 	$(OPERATOR_SDK) generate kustomize manifests -q
 	cd config/manager && $(KUSTOMIZE) edit set image controller=$(OPERATOR_IMAGE)
-	$(KUSTOMIZE) build config/manifests | $(OPERATOR_SDK) generate bundle -q --overwrite --version $(VERSION) $(BUNDLE_METADATA_OPTS) --package authorino-operator
+	$(KUSTOMIZE) build config/manifests | $(OPERATOR_SDK) generate bundle -q --overwrite --version $(BUNDLE_VERSION) $(BUNDLE_METADATA_OPTS) --package authorino-operator
 	$(OPERATOR_SDK) bundle validate ./bundle
 	# Roll back edit
 	cd config/manager && $(KUSTOMIZE) edit set image controller=${DEFAULT_OPERATOR_IMAGE}
