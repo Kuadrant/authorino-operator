@@ -39,13 +39,13 @@ metadata:
       ]
     capabilities: Basic Install
     categories: Integration & Delivery
-    containerImage: quay.io/kuadrant/authorino-operator:latest
+    containerImage: quay.io/kuadrant/authorino-operator:v0.4.0
     createdAt: 2021-12-08T10-00-00Z
     operators.operatorframework.io/builder: operator-sdk-v1.22.0
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
     repository: https://github.com/Kuadrant/authorino-operator
     support: kuadrant
-  name: authorino-operator.v0.0.0
+  name: authorino-operator.v0.4.0
   namespace: placeholder
 spec:
   apiservicedefinitions: {}
@@ -266,7 +266,7 @@ spec:
                 - --leader-elect
                 command:
                 - /manager
-                image: quay.io/kuadrant/authorino-operator:latest
+                image: quay.io/kuadrant/authorino-operator:v0.4.0
                 livenessProbe:
                   httpGet:
                     path: /healthz
@@ -363,4 +363,4 @@ spec:
   minKubeVersion: 1.8.0
   provider:
     name: Authorino
-  version: 0.0.0
+  version: 0.4.0
