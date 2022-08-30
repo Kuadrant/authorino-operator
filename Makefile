@@ -1,3 +1,6 @@
+# Use bash as shell
+SHELL = /bin/bash
+
 # VERSION defines the project version for the bundle.
 VERSION ?= $(shell git rev-parse HEAD)
 
