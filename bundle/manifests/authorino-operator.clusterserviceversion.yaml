@@ -8,32 +8,19 @@ metadata:
           "apiVersion": "operator.authorino.kuadrant.io/v1beta1",
           "kind": "Authorino",
           "metadata": {
-            "name": "authorino-sample",
-            "namespace": "authorino-operator"
+            "name": "authorino-sample"
           },
           "spec": {
-            "clusterWide": true,
-            "image": "quay.io/kuadrant/authorino:latest",
-            "imagePullPolicy": "Always",
             "listener": {
-              "port": null,
               "tls": {
-                "certSecretRef": {
-                  "name": "authorino-cert"
-                },
-                "enabled": true
+                "enabled": false
               }
             },
             "oidcServer": {
-              "port": null,
               "tls": {
-                "certSecretRef": {
-                  "name": "authorino-cert"
-                },
-                "enabled": true
+                "enabled": false
               }
-            },
-            "replicas": 1
+            }
           }
         }
       ]
