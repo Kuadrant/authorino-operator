@@ -13,18 +13,12 @@ metadata:
           "spec": {
             "listener": {
               "tls": {
-                "certSecretRef": {
-                  "name": "authorino-server-cert"
-                },
-                "enabled": true
+                "enabled": false
               }
             },
             "oidcServer": {
               "tls": {
-                "certSecretRef": {
-                  "name": "authorino-oidc-server-cert"
-                },
-                "enabled": true
+                "enabled": false
               }
             }
           }

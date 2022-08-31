@@ -5,11 +5,7 @@ metadata:
 spec:
   listener:
     tls:
-      enabled: true
-      certSecretRef:
-        name: authorino-server-cert # kubernetes secret must contain 'tls.crt' and 'tls.key' entries
+      enabled: false
   oidcServer:
     tls:
-      enabled: true
-      certSecretRef:
-        name: authorino-oidc-server-cert # kubernetes secret must contain 'tls.crt' and 'tls.key' entries
+      enabled: false
