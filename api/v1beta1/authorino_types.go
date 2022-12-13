@@ -28,67 +28,7 @@ type ConditionType string
 
 const (
 	// ConditionReady specifies that the resource is ready
-	ConditionReady         ConditionType = "Ready"
-	AuthorinoContainerName string        = "authorino"
-
-	// Authorino EnvVars
-	EnvWatchNamespace          string = "WATCH_NAMESPACE"
-	EnvAuthConfigLabelSelector string = "AUTH_CONFIG_LABEL_SELECTOR"
-	EnvSecretLabelSelector     string = "SECRET_LABEL_SELECTOR"
-	EnvEvaluatorCacheSize      string = "EVALUATOR_CACHE_SIZE"
-	EnvDeepMetricsEnabled      string = "DEEP_METRICS_ENABLED"
-	EnvLogLevel                string = "LOG_LEVEL"
-	EnvLogMode                 string = "LOG_MODE"
-	EnvExtAuthGRPCPort         string = "EXT_AUTH_GRPC_PORT"
-	EnvExtAuthHTTPPort         string = "EXT_AUTH_HTTP_PORT"
-	EnvTlsCert                 string = "TLS_CERT"
-	EnvTlsCertKey              string = "TLS_CERT_KEY"
-	EnvTimeout                 string = "TIMEOUT"
-	EnvOIDCHTTPPort            string = "OIDC_HTTP_PORT"
-	EnvOidcTlsCertPath         string = "OIDC_TLS_CERT"
-	EnvOidcTlsCertKeyPath      string = "OIDC_TLS_CERT_KEY"
-	EnvMaxHttpRequestBodySize  string = "MAX_HTTP_REQUEST_BODY_SIZE"
-	FlagLeaderElectionEnabled  string = "enable-leader-election"
-	FlagMetricsAddr            string = "metrics-addr"
-
-	// Authorino TLS file paths
-	DefaultTlsCertPath        string = "/etc/ssl/certs/tls.crt"
-	DefaultTlsCertKeyPath     string = "/etc/ssl/private/tls.key"
-	DefaultOidcTlsCertPath    string = "/etc/ssl/certs/oidc.crt"
-	DefaultOidcTlsCertKeyPath string = "/etc/ssl/private/oidc.key"
-
-	// Authorino service ports
-	DefaultAuthGRPCServicePort int32 = 50051
-	DefaultAuthHTTPServicePort int32 = 5001
-	DefaultOIDCServicePort     int32 = 8083
-	DefaultMetricsServicePort  int32 = 8080
-
-	DefaultAuthorinoImage string = "quay.io/kuadrant/authorino:latest"
-
-	// Status reasons
-	AuthorinoProvisioningReason                      = "Provisioning"
-	AuthorinoProvisionedReason                       = "Provisioned"
-	AuthorinoUpdatedReason                           = "Updated"
-	AuthorinoUnableToCreateServices                  = "UnableToCreateServices"
-	AuthorinoUnableToCreateDeployment                = "UnableToCreateDeployment"
-	AuthorinoUnableToCreateLeaderElectionRole        = "UnableToCreateLeaderElectionRole"
-	AuthorinoUnableToCreatePermission                = "UnableToCreatePermission"
-	AuthorinoUnableToCreateServiceAccount            = "UnableToCreateServiceAccount"
-	AuthorinoUnableToCreateBindingForClusterRole     = "UnableToBindingForClusterRole"
-	AuthorinoUnableToCreateLeaderElectionRoleBinding = "UnableToCreateLeaderElectionRoleBinding"
-	AuthorinoClusterRoleNotFound                     = "ClusterRoleNotFound"
-	AuthorinoUnableToGetClusterRole                  = "UnableToGetClusterRole"
-	AuthorinoUnableToGetServices                     = "UnableToGetServices"
-	AuthorinoUnableToGetBindingForClusterRole        = "UnableToGetBindingForClusterRole"
-	AuthorinoUnableToGetServiceAccount               = "UnableToGetServiceAccount"
-	AuthorinoUnableToGetLeaderElectionRole           = "UnableToGetLeaderElectionRole"
-	AuthorinoUnableToGetLeaderElectionRoleBinding    = "UnableToGetLeaderElectionRoleBinding"
-	AuthorinoUnableToGetDeployment                   = "UnableToGetDeployment"
-	AuthorinoUnableToGetTlsSecret                    = "UnableToGetTlsSecret"
-	AuthorinoTlsSecretNotFound                       = "TlsSecretNotFound"
-	AuthorinoTlsSecretNotProvided                    = "TlsSecretNotProvided"
-	AuthorinoUnableToUpdateDeployment                = "UnableToUpdateDeployment"
-	AuthorinoDeploymentNotReady                      = "DeploymentNotReady"
+	ConditionReady ConditionType = "Ready"
 )
 
 type Condition struct {

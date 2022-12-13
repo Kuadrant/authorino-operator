@@ -54,9 +54,9 @@ var _ = Describe("Authorino controller", func() {
 
 		It("Should create authorino required services", func() {
 			desiredServices := []*k8score.Service{
-				authorinoResources.NewOIDCService(authorinoInstance.Name, authorinoInstance.Namespace, api.DefaultOIDCServicePort, authorinoInstance.Labels),
-				authorinoResources.NewMetricsService(authorinoInstance.Name, authorinoInstance.Namespace, api.DefaultMetricsServicePort, authorinoInstance.Labels),
-				authorinoResources.NewAuthService(authorinoInstance.Name, authorinoInstance.Namespace, api.DefaultAuthGRPCServicePort, api.DefaultAuthHTTPServicePort, authorinoInstance.Labels),
+				authorinoResources.NewOIDCService(authorinoInstance.Name, authorinoInstance.Namespace, defaultOIDCServicePort, authorinoInstance.Labels),
+				authorinoResources.NewMetricsService(authorinoInstance.Name, authorinoInstance.Namespace, defaultMetricsServicePort, authorinoInstance.Labels),
+				authorinoResources.NewAuthService(authorinoInstance.Name, authorinoInstance.Namespace, defaultAuthGRPCServicePort, defaultAuthHTTPServicePort, authorinoInstance.Labels),
 			}
 
 			for _, service := range desiredServices {
@@ -136,13 +136,13 @@ var _ = Describe("Authorino controller", func() {
 			}, timeout, interval).Should(BeTrue())
 
 			replicas := int32(AuthorinoReplicas)
-			image := api.DefaultAuthorinoImage
+			image := defaultAuthorinoImage
 			existContainer := false
 
 			Expect(deployment.Spec.Replicas).Should(Equal(&replicas))
 			Expect(deployment.Labels).Should(Equal(map[string]string{"thisLabel": "willPropagate"}))
 			for _, container := range deployment.Spec.Template.Spec.Containers {
-				if container.Name == api.AuthorinoContainerName {
+				if container.Name == authorinoContainerName {
 					Expect(container.Image).Should(Equal(image))
 					Expect(container.ImagePullPolicy).Should(Equal(k8score.PullAlways))
 					checkAuthorinoEnvVar(authorinoInstance, container.Env)
@@ -190,7 +190,7 @@ var _ = Describe("Authorino controller", func() {
 
 			Expect(desiredDevelopment.Spec.Replicas).Should(Equal(&replicas))
 			for _, container := range desiredDevelopment.Spec.Template.Spec.Containers {
-				if container.Name == api.AuthorinoContainerName {
+				if container.Name == authorinoContainerName {
 					checkAuthorinoEnvVar(existingAuthorinoInstance, container.Env)
 				}
 			}
@@ -211,7 +211,7 @@ func newExtServerConfigMap() *k8score.ConfigMap {
 
 func newFullAuthorinoInstance() *api.Authorino {
 	name := "a" + string(uuid.NewUUID())
-	image := api.DefaultAuthorinoImage
+	image := defaultAuthorinoImage
 	replicas := int32(AuthorinoReplicas)
 	tslEnable := true
 	tlsDisabled := false
@@ -278,43 +278,43 @@ func checkAuthorinoEnvVar(authorinoInstance *api.Authorino, envs []k8score.EnvVa
 
 	for _, env := range envs {
 		switch env.Name {
-		case api.EnvWatchNamespace:
+		case envWatchNamespace:
 			Expect(authorinoInstance.Spec.ClusterWide).To(BeFalse())
 			Expect(env.Value).Should(Equal(AuthorinoNamespace))
-		case api.EnvAuthConfigLabelSelector:
+		case envAuthConfigLabelSelector:
 			Expect(env.Value).Should(Equal(authorinoInstance.Spec.AuthConfigLabelSelectors))
-		case api.EnvSecretLabelSelector:
+		case envSecretLabelSelector:
 			Expect(env.Value).Should(Equal(authorinoInstance.Spec.SecretLabelSelectors))
-		case api.EnvEvaluatorCacheSize:
+		case envEvaluatorCacheSize:
 			Expect(env.Value).Should(Equal(fmt.Sprintf("%v", *authorinoInstance.Spec.EvaluatorCacheSize)))
-		case api.EnvDeepMetricsEnabled:
+		case envDeepMetricsEnabled:
 			Expect(env.Value).Should(Equal(fmt.Sprintf("%v", *authorinoInstance.Spec.Metrics.DeepMetricsEnabled)))
-		case api.EnvLogLevel:
+		case envLogLevel:
 			Expect(env.Value).Should(Equal(authorinoInstance.Spec.LogLevel))
-		case api.EnvLogMode:
+		case envLogMode:
 			Expect(env.Value).Should(Equal(authorinoInstance.Spec.LogMode))
-		case api.EnvExtAuthGRPCPort:
+		case envExtAuthGRPCPort:
 			Expect(env.Value).Should(Equal(fmt.Sprintf("%v", *authorinoInstance.Spec.Listener.Ports.GRPC)))
-		case api.EnvExtAuthHTTPPort:
+		case envExtAuthHTTPPort:
 			Expect(env.Value).Should(Equal(fmt.Sprintf("%v", *authorinoInstance.Spec.Listener.Ports.HTTP)))
-		case api.EnvTlsCert, api.EnvTlsCertKey:
+		case envTlsCert, envTlsCertKey:
 			Expect(authorinoInstance.Spec.Listener.Tls.Enabled).Should(SatisfyAny(
 				BeNil(), Equal(&tslEnable),
 			))
 			Expect(env.Value).Should(SatisfyAny(
-				Equal(api.DefaultTlsCertPath), Equal(api.DefaultTlsCertKeyPath)))
-		case api.EnvTimeout:
+				Equal(defaultTlsCertPath), Equal(defaultTlsCertKeyPath)))
+		case envTimeout:
 			Expect(env.Value).Should(Equal(fmt.Sprintf("%v", *authorinoInstance.Spec.Listener.Timeout)))
-		case api.EnvMaxHttpRequestBodySize:
+		case envMaxHttpRequestBodySize:
 			Expect(env.Value).Should(Equal(fmt.Sprintf("%v", *authorinoInstance.Spec.Listener.MaxHttpRequestBodySize)))
-		case api.EnvOIDCHTTPPort:
+		case envOIDCHTTPPort:
 			Expect(env.Value).Should(Equal(fmt.Sprintf("%v", *authorinoInstance.Spec.OIDCServer.Port)))
-		case api.EnvOidcTlsCertPath, api.EnvOidcTlsCertKeyPath:
+		case envOidcTlsCertPath, envOidcTlsCertKeyPath:
 			Expect(authorinoInstance.Spec.OIDCServer.Tls.Enabled).To(SatisfyAny(
 				Equal(&tslEnable), BeNil(),
 			))
 			Expect(env.Value).Should(SatisfyAny(
-				Equal(api.DefaultOidcTlsCertPath), Equal(api.DefaultOidcTlsCertKeyPath),
+				Equal(defaultOidcTlsCertPath), Equal(defaultOidcTlsCertKeyPath),
 			))
 		}
 	}
