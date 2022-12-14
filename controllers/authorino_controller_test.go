@@ -131,6 +131,7 @@ var _ = Describe("Authorino controller", func() {
 					Expect(container.Image).Should(Equal(image))
 					Expect(container.ImagePullPolicy).Should(Equal(k8score.PullAlways))
 					checkAuthorinoArgs(authorinoInstance, container.Args)
+					Expect(len(container.Env)).Should(Equal(0))
 					existContainer = true
 				}
 			}
@@ -174,10 +175,54 @@ var _ = Describe("Authorino controller", func() {
 			for _, container := range desiredDevelopment.Spec.Template.Spec.Containers {
 				if container.Name == authorinoContainerName {
 					checkAuthorinoArgs(existingAuthorinoInstance, container.Args)
+					Expect(len(container.Env)).Should(Equal(0))
 				}
 			}
 		})
 	})
+
+	Context("Deploy an old version of Authorino", func() {
+		var authorinoInstance *api.Authorino
+
+		BeforeEach(func() {
+			authorinoInstance = newFullAuthorinoInstance()
+			authorinoInstance.Spec.Image = "quay.io/kuadrant/authorino:v0.8.0"
+			Expect(k8sClient.Create(context.TODO(), authorinoInstance)).Should(Succeed())
+		})
+
+		It("Should have injected env vars", func() {
+			deployment := &k8sapps.Deployment{}
+			nsdName := namespacedName(testAuthorinoNamespace, authorinoInstance.Name)
+
+			Eventually(func() bool {
+				err := k8sClient.Get(context.TODO(), nsdName, deployment)
+				return err == nil
+			}, testTimeout, testInterval).Should(BeTrue())
+
+			for _, container := range deployment.Spec.Template.Spec.Containers {
+				if container.Name == authorinoContainerName {
+					checkAuthorinoEnvVar(authorinoInstance, container.Env)
+					Expect(len(container.Args) <= 2).Should(BeTrue())
+				}
+			}
+		})
+	})
+})
+
+var _ = Describe("Detect Authorino old version", func() {
+	// old authorino versions
+	Expect(detectEnvVarAuthorinoVersion("v0.9.0")).Should(BeTrue())
+	Expect(detectEnvVarAuthorinoVersion("v0.10.0")).Should(BeTrue())
+	Expect(detectEnvVarAuthorinoVersion("v0.10.11")).Should(BeTrue())
+
+	// new authorino versions
+	Expect(detectEnvVarAuthorinoVersion("v0.11.0")).Should(BeFalse())
+
+	// undetectable authorino versions
+	Expect(detectEnvVarAuthorinoVersion("latest")).Should(BeFalse())
+	Expect(detectEnvVarAuthorinoVersion("3ba0baa64b9b86a0a197e28fcb269a07cbae8e04")).Should(BeFalse())
+	Expect(detectEnvVarAuthorinoVersion("git-ref-name")).Should(BeFalse())
+	Expect(detectEnvVarAuthorinoVersion("very.weird.version")).Should(BeFalse())
 })
 
 func newExtServerConfigMap() *k8score.ConfigMap {
@@ -318,6 +363,46 @@ func checkAuthorinoArgs(authorinoInstance *api.Authorino, args []string) {
 			Expect(*replicas > 1).Should(BeTrue())
 		case flagMaxHttpRequestBodySize:
 			Expect(value).Should(Equal(fmt.Sprintf("%v", *authorinoInstance.Spec.Listener.MaxHttpRequestBodySize)))
+		}
+	}
+}
+
+func checkAuthorinoEnvVar(authorinoInstance *api.Authorino, envs []k8score.EnvVar) {
+	tslEnable := true
+
+	for _, env := range envs {
+		switch env.Name {
+		case envWatchNamespace:
+			Expect(authorinoInstance.Spec.ClusterWide).To(BeFalse())
+			Expect(env.Value).Should(Equal(testAuthorinoNamespace))
+		case envAuthConfigLabelSelector:
+			Expect(env.Value).Should(Equal(authorinoInstance.Spec.AuthConfigLabelSelectors))
+		case envSecretLabelSelector:
+			Expect(env.Value).Should(Equal(authorinoInstance.Spec.SecretLabelSelectors))
+		case envEvaluatorCacheSize:
+			Expect(env.Value).Should(Equal(fmt.Sprintf("%v", *authorinoInstance.Spec.EvaluatorCacheSize)))
+		case envDeepMetricsEnabled:
+			Expect(env.Value).Should(Equal(fmt.Sprintf("%v", *authorinoInstance.Spec.Metrics.DeepMetricsEnabled)))
+		case envLogLevel:
+			Expect(env.Value).Should(Equal(authorinoInstance.Spec.LogLevel))
+		case envLogMode:
+			Expect(env.Value).Should(Equal(authorinoInstance.Spec.LogMode))
+		case envExtAuthGRPCPort:
+			Expect(env.Value).Should(Equal(fmt.Sprintf("%v", *authorinoInstance.Spec.Listener.Ports.GRPC)))
+		case envExtAuthHTTPPort:
+			Expect(env.Value).Should(Equal(fmt.Sprintf("%v", *authorinoInstance.Spec.Listener.Ports.HTTP)))
+		case envTlsCert, envTlsCertKey:
+			Expect(authorinoInstance.Spec.Listener.Tls.Enabled).Should(SatisfyAny(BeNil(), Equal(&tslEnable)))
+			Expect(env.Value).Should(SatisfyAny(Equal(defaultTlsCertPath), Equal(defaultTlsCertKeyPath)))
+		case envTimeout:
+			Expect(env.Value).Should(Equal(fmt.Sprintf("%v", *authorinoInstance.Spec.Listener.Timeout)))
+		case envMaxHttpRequestBodySize:
+			Expect(env.Value).Should(Equal(fmt.Sprintf("%v", *authorinoInstance.Spec.Listener.MaxHttpRequestBodySize)))
+		case envOIDCHTTPPort:
+			Expect(env.Value).Should(Equal(fmt.Sprintf("%v", *authorinoInstance.Spec.OIDCServer.Port)))
+		case envOidcTlsCertPath, envOidcTlsCertKeyPath:
+			Expect(authorinoInstance.Spec.OIDCServer.Tls.Enabled).To(SatisfyAny(Equal(&tslEnable), BeNil()))
+			Expect(env.Value).Should(SatisfyAny(Equal(defaultOidcTlsCertPath), Equal(defaultOidcTlsCertKeyPath)))
 		}
 	}
 }

@@ -19,7 +19,9 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -257,11 +259,30 @@ func (r *AuthorinoReconciler) buildAuthorinoDeployment(authorino *api.Authorino)
 		volumes = append(volumes, authorinoResources.GetTlsVolume(authorinoOidcTlsCertVolumeName, secretName))
 	}
 
+	image := authorino.Spec.Image
+
 	args := r.buildAuthorinoArgs(authorino)
+	var envs []k8score.EnvVar
+
+	// [DEPRECATED] configure authorino using env vars (only for old Authorino versions)
+	authorinoVersion := authorinoVersionFromImageTag(image)
+	if detectEnvVarAuthorinoVersion(authorinoVersion) {
+		envs = r.buildAuthorinoEnv(authorino)
+
+		var compatibleArgs []string
+		for _, arg := range args {
+			parts := strings.Split(strings.TrimPrefix(arg, "--"), "=")
+			switch parts[0] {
+			case flagMetricsAddr, flagEnableLeaderElection:
+				compatibleArgs = append(compatibleArgs, arg)
+			}
+		}
+		args = compatibleArgs
+	}
 
 	// generates the Container where authorino will be running
 	// adds to the list of containers available in the deployment
-	authorinoContainer := authorinoResources.GetContainer(authorino.Spec.Image, authorino.Spec.ImagePullPolicy, authorinoContainerName, args, volumeMounts)
+	authorinoContainer := authorinoResources.GetContainer(image, authorino.Spec.ImagePullPolicy, authorinoContainerName, args, envs, volumeMounts)
 	containers = append(containers, authorinoContainer)
 
 	replicas := authorino.Spec.Replicas
@@ -380,6 +401,130 @@ func (r *AuthorinoReconciler) buildAuthorinoArgs(authorino *api.Authorino) []str
 	}
 
 	return args
+}
+
+// [DEPRECATED] Configures Authorino by defining environment variables (instead of command-line args)
+// Kept for backward compatibility with older versions of Authorino (<= v0.10.x)
+func (r *AuthorinoReconciler) buildAuthorinoEnv(authorino *api.Authorino) []k8score.EnvVar {
+	envVar := []k8score.EnvVar{}
+
+	if !authorino.Spec.ClusterWide {
+		envVar = append(envVar, k8score.EnvVar{
+			Name:  envWatchNamespace,
+			Value: authorino.GetNamespace(),
+		})
+	}
+
+	if v := authorino.Spec.AuthConfigLabelSelectors; v != "" {
+		envVar = append(envVar, k8score.EnvVar{
+			Name:  envAuthConfigLabelSelector,
+			Value: v,
+		})
+	}
+
+	if v := authorino.Spec.SecretLabelSelectors; v != "" {
+		envVar = append(envVar, k8score.EnvVar{
+			Name:  envSecretLabelSelector,
+			Value: v,
+		})
+	}
+
+	if v := authorino.Spec.EvaluatorCacheSize; v != nil {
+		envVar = append(envVar, k8score.EnvVar{
+			Name:  envEvaluatorCacheSize,
+			Value: fmt.Sprintf("%v", *v),
+		})
+	}
+
+	if v := authorino.Spec.Metrics.DeepMetricsEnabled; v != nil {
+		envVar = append(envVar, k8score.EnvVar{
+			Name:  envDeepMetricsEnabled,
+			Value: fmt.Sprintf("%v", *v),
+		})
+	}
+
+	if v := authorino.Spec.LogLevel; v != "" {
+		envVar = append(envVar, k8score.EnvVar{
+			Name:  envLogLevel,
+			Value: v,
+		})
+	}
+
+	if v := authorino.Spec.LogMode; v != "" {
+		envVar = append(envVar, k8score.EnvVar{
+			Name:  envLogMode,
+			Value: v,
+		})
+	}
+
+	var p *int32
+
+	// external auth service via GRPC
+	p = authorino.Spec.Listener.Ports.GRPC
+	if p == nil {
+		p = authorino.Spec.Listener.Port // deprecated
+	}
+	if p != nil {
+		envVar = append(envVar, k8score.EnvVar{
+			Name:  envExtAuthGRPCPort,
+			Value: fmt.Sprintf("%v", *p),
+		})
+	}
+
+	// external auth service via HTTP
+	if p = authorino.Spec.Listener.Ports.HTTP; p != nil {
+		envVar = append(envVar, k8score.EnvVar{
+			Name:  envExtAuthHTTPPort,
+			Value: fmt.Sprintf("%v", *p),
+		})
+	}
+
+	if enabled := authorino.Spec.Listener.Tls.Enabled; enabled == nil || *enabled {
+		envVar = append(envVar, k8score.EnvVar{
+			Name:  envTlsCert,
+			Value: defaultTlsCertPath,
+		})
+
+		envVar = append(envVar, k8score.EnvVar{
+			Name:  envTlsCertKey,
+			Value: defaultTlsCertKeyPath,
+		})
+	}
+
+	if v := authorino.Spec.Listener.Timeout; v != nil {
+		envVar = append(envVar, k8score.EnvVar{
+			Name:  envTimeout,
+			Value: fmt.Sprintf("%v", *v),
+		})
+	}
+
+	if v := authorino.Spec.Listener.MaxHttpRequestBodySize; v != nil {
+		envVar = append(envVar, k8score.EnvVar{
+			Name:  envMaxHttpRequestBodySize,
+			Value: fmt.Sprintf("%v", *v),
+		})
+	}
+
+	// oidc service
+	if v := authorino.Spec.OIDCServer.Port; v != nil {
+		envVar = append(envVar, k8score.EnvVar{
+			Name:  envOIDCHTTPPort,
+			Value: fmt.Sprintf("%v", *v),
+		})
+	}
+
+	if enabled := authorino.Spec.OIDCServer.Tls.Enabled; enabled == nil || *enabled {
+		envVar = append(envVar, k8score.EnvVar{
+			Name:  envOidcTlsCertPath,
+			Value: defaultOidcTlsCertPath,
+		})
+		envVar = append(envVar, k8score.EnvVar{
+			Name:  envOidcTlsCertKeyPath,
+			Value: defaultOidcTlsCertKeyPath,
+		})
+	}
+
+	return envVar
 }
 
 func (r *AuthorinoReconciler) authorinoDeploymentChanges(existingDeployment, desiredDeployment *k8sapps.Deployment) bool {
@@ -839,4 +984,20 @@ func deploymentAvailable(deployment *k8sapps.Deployment) bool {
 		}
 	}
 	return false
+}
+
+// Detects possible old Authorino version (<= v0.10.x) configurable with deprecated environemnt variables (instead of command-line args)
+func detectEnvVarAuthorinoVersion(version string) bool {
+	if match, err := regexp.MatchString(`v0\.(\d)+\..+`, version); err != nil || !match {
+		return false
+	}
+
+	parts := strings.Split(version, ".")
+	minor, err := strconv.Atoi(parts[1])
+	return err == nil && minor <= 10
+}
+
+func authorinoVersionFromImageTag(image string) string {
+	parts := strings.Split(image, ":")
+	return parts[len(parts)-1]
 }
