@@ -31,7 +31,7 @@ func GetDeployment(name, namespace, saName string, replicas *int32, containers [
 	}
 }
 
-func GetContainer(image, imagePullPolicy, containerName string, args []string, envVars []k8score.EnvVar, volMounts []k8score.VolumeMount) k8score.Container {
+func GetContainer(image, imagePullPolicy, containerName string, args []string, volMounts []k8score.VolumeMount) k8score.Container {
 	if imagePullPolicy == "" {
 		imagePullPolicy = "Always"
 	}
@@ -39,7 +39,6 @@ func GetContainer(image, imagePullPolicy, containerName string, args []string, e
 		Image:           image,
 		ImagePullPolicy: k8score.PullPolicy(imagePullPolicy),
 		Name:            containerName,
-		Env:             envVars,
 		VolumeMounts:    volMounts,
 	}
 	if len(args) > 0 {

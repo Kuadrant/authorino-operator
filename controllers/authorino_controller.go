@@ -257,26 +257,18 @@ func (r *AuthorinoReconciler) buildAuthorinoDeployment(authorino *api.Authorino)
 		volumes = append(volumes, authorinoResources.GetTlsVolume(authorinoOidcTlsCertVolumeName, secretName))
 	}
 
-	// generates the env variables
-	envs := r.buildAuthorinoEnv(authorino)
+	args := r.buildAuthorinoArgs(authorino)
+
+	// generates the Container where authorino will be running
+	// adds to the list of containers available in the deployment
+	authorinoContainer := authorinoResources.GetContainer(authorino.Spec.Image, authorino.Spec.ImagePullPolicy, authorinoContainerName, args, volumeMounts)
+	containers = append(containers, authorinoContainer)
 
 	replicas := authorino.Spec.Replicas
 	if replicas == nil {
 		value := int32(1)
 		replicas = &value
 	}
-
-	// generates the Container where authorino will be running
-	// adds to the list of containers available in the deployment
-	var args []string
-	if *replicas > 1 {
-		args = append(args, fmt.Sprintf("--%s", flagLeaderElectionEnabled))
-	}
-	if p := authorino.Spec.Metrics.Port; p != nil {
-		args = append(args, fmt.Sprintf("--%s=:%d", flagMetricsAddr, *p))
-	}
-	authorinoContainer := authorinoResources.GetContainer(authorino.Spec.Image, authorino.Spec.ImagePullPolicy, authorinoContainerName, args, envs, volumeMounts)
-	containers = append(containers, authorinoContainer)
 
 	// generate Deployment resource to deploy an authorino instance
 	deployment := authorinoResources.GetDeployment(
@@ -293,126 +285,99 @@ func (r *AuthorinoReconciler) buildAuthorinoDeployment(authorino *api.Authorino)
 	return deployment
 }
 
-func (r *AuthorinoReconciler) buildAuthorinoEnv(authorino *api.Authorino) []k8score.EnvVar {
-	envVar := []k8score.EnvVar{}
+func (r *AuthorinoReconciler) buildAuthorinoArgs(authorino *api.Authorino) []string {
+	var args []string
 
+	// watch-namespace
 	if !authorino.Spec.ClusterWide {
-		envVar = append(envVar, k8score.EnvVar{
-			Name:  envWatchNamespace,
-			Value: authorino.GetNamespace(),
-		})
+		args = append(args, fmt.Sprintf("--%s=%s", flagWatchNamespace, authorino.GetNamespace()))
 	}
 
-	if v := authorino.Spec.AuthConfigLabelSelectors; v != "" {
-		envVar = append(envVar, k8score.EnvVar{
-			Name:  envAuthConfigLabelSelector,
-			Value: v,
-		})
+	// auth-config-label-selector
+	if selectors := authorino.Spec.AuthConfigLabelSelectors; selectors != "" {
+		args = append(args, fmt.Sprintf("--%s=%s", flagWatchedAuthConfigLabelSelector, selectors))
 	}
 
-	if v := authorino.Spec.SecretLabelSelectors; v != "" {
-		envVar = append(envVar, k8score.EnvVar{
-			Name:  envSecretLabelSelector,
-			Value: v,
-		})
+	// secret-label-selector
+	if selectors := authorino.Spec.SecretLabelSelectors; selectors != "" {
+		args = append(args, fmt.Sprintf("--%s=%s", flagWatchedSecretLabelSelector, selectors))
 	}
 
-	if v := authorino.Spec.EvaluatorCacheSize; v != nil {
-		envVar = append(envVar, k8score.EnvVar{
-			Name:  envEvaluatorCacheSize,
-			Value: fmt.Sprintf("%v", *v),
-		})
+	// log-level
+	if logLevel := authorino.Spec.LogLevel; logLevel != "" {
+		args = append(args, fmt.Sprintf("--%s=%s", flagLogLevel, logLevel))
 	}
 
-	if v := authorino.Spec.Metrics.DeepMetricsEnabled; v != nil {
-		envVar = append(envVar, k8score.EnvVar{
-			Name:  envDeepMetricsEnabled,
-			Value: fmt.Sprintf("%v", *v),
-		})
+	// log-mode
+	if logMode := authorino.Spec.LogMode; logMode != "" {
+		args = append(args, fmt.Sprintf("--%s=%s", flagLogMode, logMode))
 	}
 
-	if v := authorino.Spec.LogLevel; v != "" {
-		envVar = append(envVar, k8score.EnvVar{
-			Name:  envLogLevel,
-			Value: v,
-		})
+	// timeout
+	if timeout := authorino.Spec.Listener.Timeout; timeout != nil {
+		args = append(args, fmt.Sprintf("--%s=%d", flagTimeout, *timeout))
 	}
 
-	if v := authorino.Spec.LogMode; v != "" {
-		envVar = append(envVar, k8score.EnvVar{
-			Name:  envLogMode,
-			Value: v,
-		})
+	// ext-auth-grpc-port
+	port := authorino.Spec.Listener.Ports.GRPC
+	if port == nil {
+		port = authorino.Spec.Listener.Port // deprecated
+	}
+	if port != nil {
+		args = append(args, fmt.Sprintf("--%s=%d", flagExtAuthGRPCPort, *port))
 	}
 
-	var p *int32
-
-	// external auth service via GRPC
-	p = authorino.Spec.Listener.Ports.GRPC
-	if p == nil {
-		p = authorino.Spec.Listener.Port // deprecated
-	}
-	if p != nil {
-		envVar = append(envVar, k8score.EnvVar{
-			Name:  envExtAuthGRPCPort,
-			Value: fmt.Sprintf("%v", *p),
-		})
+	// ext-auth-http-port
+	if port := authorino.Spec.Listener.Ports.HTTP; port != nil {
+		args = append(args, fmt.Sprintf("--%s=%d", flagExtAuthHTTPPort, *port))
 	}
 
-	// external auth service via HTTP
-	if p = authorino.Spec.Listener.Ports.HTTP; p != nil {
-		envVar = append(envVar, k8score.EnvVar{
-			Name:  envExtAuthHTTPPort,
-			Value: fmt.Sprintf("%v", *p),
-		})
-	}
-
+	// tls-cert and tls-cert-key
 	if enabled := authorino.Spec.Listener.Tls.Enabled; enabled == nil || *enabled {
-		envVar = append(envVar, k8score.EnvVar{
-			Name:  envTlsCert,
-			Value: defaultTlsCertPath,
-		})
-
-		envVar = append(envVar, k8score.EnvVar{
-			Name:  envTlsCertKey,
-			Value: defaultTlsCertKeyPath,
-		})
+		args = append(args, fmt.Sprintf("--%s=%s", flagTlsCertPath, defaultTlsCertPath))
+		args = append(args, fmt.Sprintf("--%s=%s", flagTlsCertKeyPath, defaultTlsCertKeyPath))
 	}
 
-	if v := authorino.Spec.Listener.Timeout; v != nil {
-		envVar = append(envVar, k8score.EnvVar{
-			Name:  envTimeout,
-			Value: fmt.Sprintf("%v", *v),
-		})
+	// oidc-http-port
+	if port := authorino.Spec.OIDCServer.Port; port != nil {
+		args = append(args, fmt.Sprintf("--%s=%d", flagOidcHTTPPort, *port))
 	}
 
-	if v := authorino.Spec.Listener.MaxHttpRequestBodySize; v != nil {
-		envVar = append(envVar, k8score.EnvVar{
-			Name:  envMaxHttpRequestBodySize,
-			Value: fmt.Sprintf("%v", *v),
-		})
-	}
-
-	// oidc service
-	if v := authorino.Spec.OIDCServer.Port; v != nil {
-		envVar = append(envVar, k8score.EnvVar{
-			Name:  envOIDCHTTPPort,
-			Value: fmt.Sprintf("%v", *v),
-		})
-	}
-
+	// oidc-tls-cert and oidc-tls-cert-key
 	if enabled := authorino.Spec.OIDCServer.Tls.Enabled; enabled == nil || *enabled {
-		envVar = append(envVar, k8score.EnvVar{
-			Name:  envOidcTlsCertPath,
-			Value: defaultOidcTlsCertPath,
-		})
-		envVar = append(envVar, k8score.EnvVar{
-			Name:  envOidcTlsCertKeyPath,
-			Value: defaultOidcTlsCertKeyPath,
-		})
+		args = append(args, fmt.Sprintf("--%s=%s", flagOidcTLSCertPath, defaultOidcTlsCertPath))
+		args = append(args, fmt.Sprintf("--%s=%s", flagOidcTLSCertKeyPath, defaultOidcTlsCertKeyPath))
 	}
 
-	return envVar
+	// evaluator-cache-size
+	if evaluatorCacheSize := authorino.Spec.EvaluatorCacheSize; evaluatorCacheSize != nil {
+		args = append(args, fmt.Sprintf("--%s=%d", flagEvaluatorCacheSize, *evaluatorCacheSize))
+	}
+
+	// deep-metrics-enabled
+	if enabled := authorino.Spec.Metrics.DeepMetricsEnabled; enabled != nil && *enabled {
+		args = append(args, fmt.Sprintf("--%s", flagDeepMetricsEnabled))
+	}
+
+	// metrics-addr
+	if port := authorino.Spec.Metrics.Port; port != nil {
+		args = append(args, fmt.Sprintf("--%s=:%d", flagMetricsAddr, *port))
+	}
+
+	// health-probe-addr
+	// TODO
+
+	// enable-leader-election
+	if replicas := authorino.Spec.Replicas; replicas != nil && *replicas > 1 {
+		args = append(args, fmt.Sprintf("--%s", flagEnableLeaderElection))
+	}
+
+	// max-http-request-body-size
+	if maxRequestBodySize := authorino.Spec.Listener.MaxHttpRequestBodySize; maxRequestBodySize != nil {
+		args = append(args, fmt.Sprintf("--%s=%d", flagMaxHttpRequestBodySize, *maxRequestBodySize))
+	}
+
+	return args
 }
 
 func (r *AuthorinoReconciler) authorinoDeploymentChanges(existingDeployment, desiredDeployment *k8sapps.Deployment) bool {
@@ -441,29 +406,6 @@ func (r *AuthorinoReconciler) authorinoDeploymentChanges(existingDeployment, des
 	desiredArgs.Sort()
 	if strings.Join(existingArgs, " ") != strings.Join(desiredArgs, " ") {
 		return true
-	}
-
-	// checking envvars
-	existingEnvvars := existingContainer.Env
-	desiredEnvvars := desiredContainer.Env
-
-	if len(existingEnvvars) != len(desiredEnvvars) {
-		return true
-	}
-
-	sort.Slice(existingEnvvars, func(i, j int) bool {
-		return existingEnvvars[i].Name < existingEnvvars[j].Name
-	})
-
-	sort.Slice(desiredEnvvars, func(i, j int) bool {
-		return desiredEnvvars[i].Name < desiredEnvvars[j].Name
-	})
-
-	for i, desiredEnvvar := range desiredEnvvars {
-		// checking if env vars have changed or the value
-		if desiredEnvvar.Name != existingEnvvars[i].Name || desiredEnvvar.Value != existingEnvvars[i].Value {
-			return true
-		}
 	}
 
 	// checking volumes

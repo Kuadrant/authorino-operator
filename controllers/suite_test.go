@@ -125,7 +125,7 @@ func newCertSecret() *k8score.Secret {
 	return &k8score.Secret{
 		ObjectMeta: v1.ObjectMeta{
 			Name:      "bkabk",
-			Namespace: AuthorinoNamespace,
+			Namespace: testAuthorinoNamespace,
 		},
 	}
 }
