@@ -60,6 +60,7 @@ const (
 	defaultAuthHTTPServicePort int32  = 5001
 	defaultOIDCServicePort     int32  = 8083
 	defaultMetricsServicePort  int32  = 8080
+	defaultHealthProbePort     int32  = 8081
 
 	// status reasons
 	statusProvisioning                            = "Provisioning"

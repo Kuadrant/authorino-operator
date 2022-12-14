@@ -73,6 +73,7 @@ type AuthorinoSpec struct {
 	SecretLabelSelectors     string      `json:"secretLabelSelectors,omitempty"`
 	EvaluatorCacheSize       *int        `json:"evaluatorCacheSize,omitempty"`
 	Metrics                  Metrics     `json:"metrics,omitempty"`
+	Healthz                  Healthz     `json:"healthz,omitempty"`
 }
 
 type Listener struct {
@@ -102,6 +103,11 @@ type Ports struct {
 type Metrics struct {
 	Port               *int32 `json:"port,omitempty"`
 	DeepMetricsEnabled *bool  `json:"deep,omitempty"`
+}
+
+type Healthz struct {
+	// Port number of the health/readiness probe endpoints.
+	Port *int32 `json:"port,omitempty"`
 }
 
 type Tls struct {

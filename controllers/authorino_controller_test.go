@@ -304,6 +304,11 @@ func checkAuthorinoArgs(authorinoInstance *api.Authorino, args []string) {
 			}
 			Expect(value).Should(Equal(metricsAddr))
 		case flagHealthProbeAddr:
+			healthProbeAddr := fmt.Sprintf(":%d", defaultHealthProbePort)
+			if port := authorinoInstance.Spec.Healthz.Port; port != nil {
+				healthProbeAddr = fmt.Sprintf(":%d", *port)
+			}
+			Expect(value).Should(Equal(healthProbeAddr))
 		case flagEnableLeaderElection:
 			replicas := authorinoInstance.Spec.Replicas
 			if replicas == nil {

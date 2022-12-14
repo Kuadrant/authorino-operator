@@ -128,6 +128,7 @@ Each [`Authorino`](https://github.com/Kuadrant/authorino-operator/tree/main/conf
 | listener                 | [Listener](#listener)       | Specification of the authorization service (gRPC interface). | Required |
 | oidcServer               | [OIDCServer](#oidcserver)   | Specification of the OIDC service. | Required |
 | metrics                  | [Metrics](#metrics)         | Configuration of the metrics server (port, level). | Optional |
+| healthz                  | [Healthz](#healthz)         | Configuration of the health/readiness probe (port). | Optional |
 | volumes                  | [VolumesSpec](#volumesspec) | Additional volumes to be mounted in the Authorino pods. | Optional |
 
 #### Listener
@@ -176,6 +177,14 @@ Configuration of the metrics server.
 |-------|:-------:|-------------|------------------|
 | port  | Integer | Port number of the metrics server. | Default: `8080` |
 | deep  | Boolean | Enable/disable metrics at the level of each evaluator config (if requested in the [`AuthConfig`](https://github.com/Kuadrant/authorino/blob/main/docs/user-guides/metrics.md)) exported by the metrics server. | Default: `false` |
+
+#### Healthz
+
+Configuration of the health/readiness probe (port).
+
+| Field | Type    | Description | Required/Default |
+|-------|:-------:|-------------|------------------|
+| port  | Integer | Port number of the health/readiness probe. | Default: `8081` |
 
 
 #### VolumesSpec

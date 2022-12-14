@@ -365,7 +365,9 @@ func (r *AuthorinoReconciler) buildAuthorinoArgs(authorino *api.Authorino) []str
 	}
 
 	// health-probe-addr
-	// TODO
+	if port := authorino.Spec.Healthz.Port; port != nil {
+		args = append(args, fmt.Sprintf("--%s=:%d", flagHealthProbeAddr, *port))
+	}
 
 	// enable-leader-election
 	if replicas := authorino.Spec.Replicas; replicas != nil && *replicas > 1 {
