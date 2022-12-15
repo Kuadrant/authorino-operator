@@ -42,6 +42,13 @@ spec:
                 type: boolean
               evaluatorCacheSize:
                 type: integer
+              healthz:
+                properties:
+                  port:
+                    description: Port number of the health/readiness probe endpoints.
+                    format: int32
+                    type: integer
+                type: object
               image:
                 type: string
               imagePullPolicy:

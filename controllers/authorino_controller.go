@@ -19,7 +19,9 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -44,18 +46,6 @@ type AuthorinoReconciler struct {
 	Log    logr.Logger
 	Scheme *runtime.Scheme
 }
-
-const (
-	tlsCertName     string = "tls-cert"
-	oidcTlsCertName string = "oidc-cert"
-
-	authorinoManagerClusterRoleName        string = "authorino-manager-role"
-	authorinoK8sAuthClusterRoleName        string = "authorino-manager-k8s-auth-role"
-	authorinoLeaderElectionRoleName        string = "authorino-leader-election-role"
-	authorinoManagerClusterRoleBindingName string = "authorino"
-	authorinoK8sAuthClusterRoleBindingName string = "authorino-k8s-auth"
-	authorinoLeaderElectionRoleBindingName string = "authorino-leader-election"
-)
 
 //+kubebuilder:rbac:groups=operator.authorino.kuadrant.io,resources=authorinos,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=operator.authorino.kuadrant.io,resources=authorinos/status,verbs=get;update;patch
@@ -116,7 +106,7 @@ func (r *AuthorinoReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 
 	// Gets Deployment resource for the authorino instance
 	if existingDeployment, err := r.getAuthorinoDeployment(authorinoInstance); err != nil {
-		return ctrl.Result{}, r.wrapErrorWithStatusUpdate(logger, authorinoInstance, r.setStatusFailed(api.AuthorinoUnableToGetDeployment),
+		return ctrl.Result{}, r.wrapErrorWithStatusUpdate(logger, authorinoInstance, r.setStatusFailed(statusUnableToGetDeployment),
 			fmt.Errorf("failed to get %s Deployment resource, err: %v", authorinoInstance.Name, err),
 		)
 	} else if existingDeployment == nil {
@@ -124,12 +114,12 @@ func (r *AuthorinoReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		newDeployment := r.buildAuthorinoDeployment(authorinoInstance)
 		if err := r.Client.Create(context.TODO(), newDeployment); err != nil {
 			return ctrl.Result{}, r.wrapErrorWithStatusUpdate(
-				logger, authorinoInstance, r.setStatusFailed(api.AuthorinoUnableToCreateDeployment),
+				logger, authorinoInstance, r.setStatusFailed(statusUnableToCreateDeployment),
 				fmt.Errorf("failed to create %s Deployment resource, err: %v", newDeployment.Name, err),
 			)
 		}
 		// Updates the status conditions to provisioning
-		if err := updateStatusConditions(logger, authorinoInstance, r.Client, statusNotReady(api.AuthorinoProvisioningReason, "")); err != nil {
+		if err := updateStatusConditions(logger, authorinoInstance, r.Client, statusNotReady(statusProvisioning, "")); err != nil {
 			return ctrl.Result{}, err
 		}
 		// Deployment created successfully - return and requeue
@@ -143,18 +133,18 @@ func (r *AuthorinoReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		if changed := r.authorinoDeploymentChanges(existingDeployment, desiredDeployment); changed {
 			if err := r.Update(ctx, desiredDeployment); err != nil {
 				return ctrl.Result{}, r.wrapErrorWithStatusUpdate(
-					logger, authorinoInstance, r.setStatusFailed(api.AuthorinoUnableToUpdateDeployment),
+					logger, authorinoInstance, r.setStatusFailed(statusUnableToUpdateDeployment),
 					fmt.Errorf("failed to update %s Deployment resource, err: %v", desiredDeployment.Name, err),
 				)
 			}
 
-			err = updateStatusConditions(logger, authorinoInstance, r.Client, statusNotReady(api.AuthorinoUpdatedReason, "Authorino Deployment resource updated"))
+			err = updateStatusConditions(logger, authorinoInstance, r.Client, statusNotReady(statusUpdated, "Authorino Deployment resource updated"))
 			return ctrl.Result{RequeueAfter: time.Second}, err
 		}
 
 		if !deploymentAvailable(existingDeployment) {
 			// Deployment not ready – return and requeue
-			err = updateStatusConditions(logger, authorinoInstance, r.Client, statusNotReady(api.AuthorinoDeploymentNotReady, "Authorino Deployment resource not ready"))
+			err = updateStatusConditions(logger, authorinoInstance, r.Client, statusNotReady(statusDeploymentNotReady, "Authorino Deployment resource not ready"))
 			return ctrl.Result{RequeueAfter: time.Second}, err
 		}
 	}
@@ -202,7 +192,7 @@ func (r *AuthorinoReconciler) buildAuthorinoDeployment(authorino *api.Authorino)
 	var saName = authorino.Name + "-authorino"
 
 	if authorino.Spec.Image == "" {
-		authorino.Spec.Image = api.DefaultAuthorinoImage
+		authorino.Spec.Image = defaultAuthorinoImage
 	}
 
 	var volumes []k8score.Volume
@@ -257,38 +247,49 @@ func (r *AuthorinoReconciler) buildAuthorinoDeployment(authorino *api.Authorino)
 	// by using the secret with the cert
 	if enabled := authorino.Spec.Listener.Tls.Enabled; enabled == nil || *enabled {
 		secretName := authorino.Spec.Listener.Tls.CertSecret.Name
-		volumeMounts = append(volumeMounts, authorinoResources.GetTlsVolumeMount(tlsCertName, api.DefaultTlsCertPath, api.DefaultTlsCertKeyPath)...)
-		volumes = append(volumes, authorinoResources.GetTlsVolume(tlsCertName, secretName))
+		volumeMounts = append(volumeMounts, authorinoResources.GetTlsVolumeMount(authorinoTlsCertVolumeName, defaultTlsCertPath, defaultTlsCertKeyPath)...)
+		volumes = append(volumes, authorinoResources.GetTlsVolume(authorinoTlsCertVolumeName, secretName))
 	}
 
 	// if an external OIDC server is enable mounts a volume to the container
 	// by using the secret with the certs
 	if enabled := authorino.Spec.OIDCServer.Tls.Enabled; enabled == nil || *enabled {
 		secretName := authorino.Spec.OIDCServer.Tls.CertSecret.Name
-		volumeMounts = append(volumeMounts, authorinoResources.GetTlsVolumeMount(oidcTlsCertName, api.DefaultOidcTlsCertPath, api.DefaultOidcTlsCertKeyPath)...)
-		volumes = append(volumes, authorinoResources.GetTlsVolume(oidcTlsCertName, secretName))
+		volumeMounts = append(volumeMounts, authorinoResources.GetTlsVolumeMount(authorinoOidcTlsCertVolumeName, defaultOidcTlsCertPath, defaultOidcTlsCertKeyPath)...)
+		volumes = append(volumes, authorinoResources.GetTlsVolume(authorinoOidcTlsCertVolumeName, secretName))
 	}
 
-	// generates the env variables
-	envs := r.buildAuthorinoEnv(authorino)
+	image := authorino.Spec.Image
+
+	args := r.buildAuthorinoArgs(authorino)
+	var envs []k8score.EnvVar
+
+	// [DEPRECATED] configure authorino using env vars (only for old Authorino versions)
+	authorinoVersion := authorinoVersionFromImageTag(image)
+	if detectEnvVarAuthorinoVersion(authorinoVersion) {
+		envs = r.buildAuthorinoEnv(authorino)
+
+		var compatibleArgs []string
+		for _, arg := range args {
+			parts := strings.Split(strings.TrimPrefix(arg, "--"), "=")
+			switch parts[0] {
+			case flagMetricsAddr, flagEnableLeaderElection:
+				compatibleArgs = append(compatibleArgs, arg)
+			}
+		}
+		args = compatibleArgs
+	}
+
+	// generates the Container where authorino will be running
+	// adds to the list of containers available in the deployment
+	authorinoContainer := authorinoResources.GetContainer(image, authorino.Spec.ImagePullPolicy, authorinoContainerName, args, envs, volumeMounts)
+	containers = append(containers, authorinoContainer)
 
 	replicas := authorino.Spec.Replicas
 	if replicas == nil {
 		value := int32(1)
 		replicas = &value
 	}
-
-	// generates the Container where authorino will be running
-	// adds to the list of containers available in the deployment
-	var args []string
-	if *replicas > 1 {
-		args = append(args, fmt.Sprintf("--%s", api.FlagLeaderElectionEnabled))
-	}
-	if p := authorino.Spec.Metrics.Port; p != nil {
-		args = append(args, fmt.Sprintf("--%s=:%d", api.FlagMetricsAddr, *p))
-	}
-	authorinoContainer := authorinoResources.GetContainer(authorino.Spec.Image, authorino.Spec.ImagePullPolicy, api.AuthorinoContainerName, args, envs, volumeMounts)
-	containers = append(containers, authorinoContainer)
 
 	// generate Deployment resource to deploy an authorino instance
 	deployment := authorinoResources.GetDeployment(
@@ -305,54 +306,153 @@ func (r *AuthorinoReconciler) buildAuthorinoDeployment(authorino *api.Authorino)
 	return deployment
 }
 
+func (r *AuthorinoReconciler) buildAuthorinoArgs(authorino *api.Authorino) []string {
+	var args []string
+
+	// watch-namespace
+	if !authorino.Spec.ClusterWide {
+		args = append(args, fmt.Sprintf("--%s=%s", flagWatchNamespace, authorino.GetNamespace()))
+	}
+
+	// auth-config-label-selector
+	if selectors := authorino.Spec.AuthConfigLabelSelectors; selectors != "" {
+		args = append(args, fmt.Sprintf("--%s=%s", flagWatchedAuthConfigLabelSelector, selectors))
+	}
+
+	// secret-label-selector
+	if selectors := authorino.Spec.SecretLabelSelectors; selectors != "" {
+		args = append(args, fmt.Sprintf("--%s=%s", flagWatchedSecretLabelSelector, selectors))
+	}
+
+	// log-level
+	if logLevel := authorino.Spec.LogLevel; logLevel != "" {
+		args = append(args, fmt.Sprintf("--%s=%s", flagLogLevel, logLevel))
+	}
+
+	// log-mode
+	if logMode := authorino.Spec.LogMode; logMode != "" {
+		args = append(args, fmt.Sprintf("--%s=%s", flagLogMode, logMode))
+	}
+
+	// timeout
+	if timeout := authorino.Spec.Listener.Timeout; timeout != nil {
+		args = append(args, fmt.Sprintf("--%s=%d", flagTimeout, *timeout))
+	}
+
+	// ext-auth-grpc-port
+	port := authorino.Spec.Listener.Ports.GRPC
+	if port == nil {
+		port = authorino.Spec.Listener.Port // deprecated
+	}
+	if port != nil {
+		args = append(args, fmt.Sprintf("--%s=%d", flagExtAuthGRPCPort, *port))
+	}
+
+	// ext-auth-http-port
+	if port := authorino.Spec.Listener.Ports.HTTP; port != nil {
+		args = append(args, fmt.Sprintf("--%s=%d", flagExtAuthHTTPPort, *port))
+	}
+
+	// tls-cert and tls-cert-key
+	if enabled := authorino.Spec.Listener.Tls.Enabled; enabled == nil || *enabled {
+		args = append(args, fmt.Sprintf("--%s=%s", flagTlsCertPath, defaultTlsCertPath))
+		args = append(args, fmt.Sprintf("--%s=%s", flagTlsCertKeyPath, defaultTlsCertKeyPath))
+	}
+
+	// oidc-http-port
+	if port := authorino.Spec.OIDCServer.Port; port != nil {
+		args = append(args, fmt.Sprintf("--%s=%d", flagOidcHTTPPort, *port))
+	}
+
+	// oidc-tls-cert and oidc-tls-cert-key
+	if enabled := authorino.Spec.OIDCServer.Tls.Enabled; enabled == nil || *enabled {
+		args = append(args, fmt.Sprintf("--%s=%s", flagOidcTLSCertPath, defaultOidcTlsCertPath))
+		args = append(args, fmt.Sprintf("--%s=%s", flagOidcTLSCertKeyPath, defaultOidcTlsCertKeyPath))
+	}
+
+	// evaluator-cache-size
+	if evaluatorCacheSize := authorino.Spec.EvaluatorCacheSize; evaluatorCacheSize != nil {
+		args = append(args, fmt.Sprintf("--%s=%d", flagEvaluatorCacheSize, *evaluatorCacheSize))
+	}
+
+	// deep-metrics-enabled
+	if enabled := authorino.Spec.Metrics.DeepMetricsEnabled; enabled != nil && *enabled {
+		args = append(args, fmt.Sprintf("--%s", flagDeepMetricsEnabled))
+	}
+
+	// metrics-addr
+	if port := authorino.Spec.Metrics.Port; port != nil {
+		args = append(args, fmt.Sprintf("--%s=:%d", flagMetricsAddr, *port))
+	}
+
+	// health-probe-addr
+	if port := authorino.Spec.Healthz.Port; port != nil {
+		args = append(args, fmt.Sprintf("--%s=:%d", flagHealthProbeAddr, *port))
+	}
+
+	// enable-leader-election
+	if replicas := authorino.Spec.Replicas; replicas != nil && *replicas > 1 {
+		args = append(args, fmt.Sprintf("--%s", flagEnableLeaderElection))
+	}
+
+	// max-http-request-body-size
+	if maxRequestBodySize := authorino.Spec.Listener.MaxHttpRequestBodySize; maxRequestBodySize != nil {
+		args = append(args, fmt.Sprintf("--%s=%d", flagMaxHttpRequestBodySize, *maxRequestBodySize))
+	}
+
+	return args
+}
+
+// [DEPRECATED] Configures Authorino by defining environment variables (instead of command-line args)
+// Kept for backward compatibility with older versions of Authorino (<= v0.10.x)
 func (r *AuthorinoReconciler) buildAuthorinoEnv(authorino *api.Authorino) []k8score.EnvVar {
 	envVar := []k8score.EnvVar{}
 
 	if !authorino.Spec.ClusterWide {
 		envVar = append(envVar, k8score.EnvVar{
-			Name:  api.EnvWatchNamespace,
+			Name:  envWatchNamespace,
 			Value: authorino.GetNamespace(),
 		})
 	}
 
 	if v := authorino.Spec.AuthConfigLabelSelectors; v != "" {
 		envVar = append(envVar, k8score.EnvVar{
-			Name:  api.EnvAuthConfigLabelSelector,
+			Name:  envAuthConfigLabelSelector,
 			Value: v,
 		})
 	}
 
 	if v := authorino.Spec.SecretLabelSelectors; v != "" {
 		envVar = append(envVar, k8score.EnvVar{
-			Name:  api.EnvSecretLabelSelector,
+			Name:  envSecretLabelSelector,
 			Value: v,
 		})
 	}
 
 	if v := authorino.Spec.EvaluatorCacheSize; v != nil {
 		envVar = append(envVar, k8score.EnvVar{
-			Name:  api.EnvEvaluatorCacheSize,
+			Name:  envEvaluatorCacheSize,
 			Value: fmt.Sprintf("%v", *v),
 		})
 	}
 
 	if v := authorino.Spec.Metrics.DeepMetricsEnabled; v != nil {
 		envVar = append(envVar, k8score.EnvVar{
-			Name:  api.EnvDeepMetricsEnabled,
+			Name:  envDeepMetricsEnabled,
 			Value: fmt.Sprintf("%v", *v),
 		})
 	}
 
 	if v := authorino.Spec.LogLevel; v != "" {
 		envVar = append(envVar, k8score.EnvVar{
-			Name:  api.EnvLogLevel,
+			Name:  envLogLevel,
 			Value: v,
 		})
 	}
 
 	if v := authorino.Spec.LogMode; v != "" {
 		envVar = append(envVar, k8score.EnvVar{
-			Name:  api.EnvLogMode,
+			Name:  envLogMode,
 			Value: v,
 		})
 	}
@@ -366,7 +466,7 @@ func (r *AuthorinoReconciler) buildAuthorinoEnv(authorino *api.Authorino) []k8sc
 	}
 	if p != nil {
 		envVar = append(envVar, k8score.EnvVar{
-			Name:  api.EnvExtAuthGRPCPort,
+			Name:  envExtAuthGRPCPort,
 			Value: fmt.Sprintf("%v", *p),
 		})
 	}
@@ -374,33 +474,33 @@ func (r *AuthorinoReconciler) buildAuthorinoEnv(authorino *api.Authorino) []k8sc
 	// external auth service via HTTP
 	if p = authorino.Spec.Listener.Ports.HTTP; p != nil {
 		envVar = append(envVar, k8score.EnvVar{
-			Name:  api.EnvExtAuthHTTPPort,
+			Name:  envExtAuthHTTPPort,
 			Value: fmt.Sprintf("%v", *p),
 		})
 	}
 
 	if enabled := authorino.Spec.Listener.Tls.Enabled; enabled == nil || *enabled {
 		envVar = append(envVar, k8score.EnvVar{
-			Name:  api.EnvTlsCert,
-			Value: api.DefaultTlsCertPath,
+			Name:  envTlsCert,
+			Value: defaultTlsCertPath,
 		})
 
 		envVar = append(envVar, k8score.EnvVar{
-			Name:  api.EnvTlsCertKey,
-			Value: api.DefaultTlsCertKeyPath,
+			Name:  envTlsCertKey,
+			Value: defaultTlsCertKeyPath,
 		})
 	}
 
 	if v := authorino.Spec.Listener.Timeout; v != nil {
 		envVar = append(envVar, k8score.EnvVar{
-			Name:  api.EnvTimeout,
+			Name:  envTimeout,
 			Value: fmt.Sprintf("%v", *v),
 		})
 	}
 
 	if v := authorino.Spec.Listener.MaxHttpRequestBodySize; v != nil {
 		envVar = append(envVar, k8score.EnvVar{
-			Name:  api.EnvMaxHttpRequestBodySize,
+			Name:  envMaxHttpRequestBodySize,
 			Value: fmt.Sprintf("%v", *v),
 		})
 	}
@@ -408,19 +508,19 @@ func (r *AuthorinoReconciler) buildAuthorinoEnv(authorino *api.Authorino) []k8sc
 	// oidc service
 	if v := authorino.Spec.OIDCServer.Port; v != nil {
 		envVar = append(envVar, k8score.EnvVar{
-			Name:  api.EnvOIDCHTTPPort,
+			Name:  envOIDCHTTPPort,
 			Value: fmt.Sprintf("%v", *v),
 		})
 	}
 
 	if enabled := authorino.Spec.OIDCServer.Tls.Enabled; enabled == nil || *enabled {
 		envVar = append(envVar, k8score.EnvVar{
-			Name:  api.EnvOidcTlsCertPath,
-			Value: api.DefaultOidcTlsCertPath,
+			Name:  envOidcTlsCertPath,
+			Value: defaultOidcTlsCertPath,
 		})
 		envVar = append(envVar, k8score.EnvVar{
-			Name:  api.EnvOidcTlsCertKeyPath,
-			Value: api.DefaultOidcTlsCertKeyPath,
+			Name:  envOidcTlsCertKeyPath,
+			Value: defaultOidcTlsCertKeyPath,
 		})
 	}
 
@@ -453,29 +553,6 @@ func (r *AuthorinoReconciler) authorinoDeploymentChanges(existingDeployment, des
 	desiredArgs.Sort()
 	if strings.Join(existingArgs, " ") != strings.Join(desiredArgs, " ") {
 		return true
-	}
-
-	// checking envvars
-	existingEnvvars := existingContainer.Env
-	desiredEnvvars := desiredContainer.Env
-
-	if len(existingEnvvars) != len(desiredEnvvars) {
-		return true
-	}
-
-	sort.Slice(existingEnvvars, func(i, j int) bool {
-		return existingEnvvars[i].Name < existingEnvvars[j].Name
-	})
-
-	sort.Slice(desiredEnvvars, func(i, j int) bool {
-		return desiredEnvvars[i].Name < desiredEnvvars[j].Name
-	})
-
-	for i, desiredEnvvar := range desiredEnvvars {
-		// checking if env vars have changed or the value
-		if desiredEnvvar.Name != existingEnvvars[i].Name || desiredEnvvar.Value != existingEnvvars[i].Value {
-			return true
-		}
 	}
 
 	// checking volumes
@@ -540,12 +617,12 @@ func (r *AuthorinoReconciler) createAuthorinoServices(authorino *api.Authorino) 
 	} else if p := authorino.Spec.Listener.Port; p != nil { // deprecated
 		grpcPort = *p
 	} else {
-		grpcPort = api.DefaultAuthGRPCServicePort
+		grpcPort = defaultAuthGRPCServicePort
 	}
 	if p := authorino.Spec.Listener.Ports.HTTP; p != nil {
 		httpPort = *p
 	} else {
-		httpPort = api.DefaultAuthHTTPServicePort
+		httpPort = defaultAuthHTTPServicePort
 	}
 	desiredServices = append(desiredServices, authorinoResources.NewAuthService(
 		authorinoInstanceName,
@@ -559,7 +636,7 @@ func (r *AuthorinoReconciler) createAuthorinoServices(authorino *api.Authorino) 
 	if p := authorino.Spec.OIDCServer.Port; p != nil {
 		httpPort = *p
 	} else {
-		httpPort = api.DefaultOIDCServicePort
+		httpPort = defaultOIDCServicePort
 	}
 	desiredServices = append(desiredServices, authorinoResources.NewOIDCService(
 		authorinoInstanceName,
@@ -572,7 +649,7 @@ func (r *AuthorinoReconciler) createAuthorinoServices(authorino *api.Authorino) 
 	if p := authorino.Spec.Metrics.Port; p != nil {
 		httpPort = *p
 	} else {
-		httpPort = api.DefaultMetricsServicePort
+		httpPort = defaultMetricsServicePort
 	}
 	desiredServices = append(desiredServices, authorinoResources.NewMetricsService(
 		authorinoInstanceName,
@@ -590,13 +667,13 @@ func (r *AuthorinoReconciler) createAuthorinoServices(authorino *api.Authorino) 
 				_ = ctrl.SetControllerReference(authorino, desiredService, r.Scheme)
 				if err := r.Client.Create(context.TODO(), desiredService); err != nil {
 					return r.wrapErrorWithStatusUpdate(
-						logger, authorino, r.setStatusFailed(api.AuthorinoUnableToGetLeaderElectionRoleBinding),
+						logger, authorino, r.setStatusFailed(statusUnableToGetLeaderElectionRoleBinding),
 						fmt.Errorf("failed to create %s service, err: %v", desiredService.Name, err),
 					)
 				}
 			}
 			return r.wrapErrorWithStatusUpdate(
-				logger, authorino, r.setStatusFailed(api.AuthorinoUnableToGetServices),
+				logger, authorino, r.setStatusFailed(statusUnableToGetServices),
 				fmt.Errorf("failed to get %s service, err: %v", desiredService.Name, err),
 			)
 		}
@@ -607,7 +684,7 @@ func (r *AuthorinoReconciler) createAuthorinoServices(authorino *api.Authorino) 
 
 			if err := r.Client.Update(context.Background(), existingService); err != nil {
 				return r.wrapErrorWithStatusUpdate(
-					logger, authorino, r.setStatusFailed(api.AuthorinoUnableToGetServices),
+					logger, authorino, r.setStatusFailed(statusUnableToGetServices),
 					fmt.Errorf("failed to update %s service, err: %v", existingService.Name, err),
 				)
 			}
@@ -646,13 +723,13 @@ func (r *AuthorinoReconciler) createAuthorinoServiceAccount(authorino *api.Autho
 			_ = ctrl.SetControllerReference(authorino, sa, r.Scheme)
 			if err := r.Client.Create(context.TODO(), sa); err != nil {
 				return nil, r.wrapErrorWithStatusUpdate(
-					logger, authorino, r.setStatusFailed(api.AuthorinoUnableToCreateServiceAccount),
+					logger, authorino, r.setStatusFailed(statusUnableToCreateServiceAccount),
 					fmt.Errorf("failed to create %s ServiceAccount, err: %v", sa.Name, err),
 				)
 			}
 		}
 		return nil, r.wrapErrorWithStatusUpdate(
-			logger, authorino, r.setStatusFailed(api.AuthorinoUnableToGetServiceAccount),
+			logger, authorino, r.setStatusFailed(statusUnableToGetServiceAccount),
 			fmt.Errorf("failed to get %s ServiceAccount, err: %v", sa.Name, err),
 		)
 	}
@@ -668,9 +745,9 @@ func (r *AuthorinoReconciler) bindAuthorinoServiceAccountToClusterRole(roleBindi
 	clusterRole := &k8srbac.ClusterRole{}
 	if err := r.Client.Get(ctx, types.NamespacedName{Name: clusterRoleName}, clusterRole); err != nil {
 		if errors.IsNotFound(err) {
-			return r.wrapErrorWithStatusUpdate(logger, authorino, r.setStatusFailed(api.AuthorinoClusterRoleNotFound), fmt.Errorf("failed to find authorino ClusterRole %s: %v", clusterRoleName, err))
+			return r.wrapErrorWithStatusUpdate(logger, authorino, r.setStatusFailed(statusClusterRoleNotFound), fmt.Errorf("failed to find authorino ClusterRole %s: %v", clusterRoleName, err))
 		} else {
-			return r.wrapErrorWithStatusUpdate(logger, authorino, r.setStatusFailed(api.AuthorinoUnableToGetClusterRole), fmt.Errorf("failed to get authorino ClusterRole %s: %v", clusterRoleName, err))
+			return r.wrapErrorWithStatusUpdate(logger, authorino, r.setStatusFailed(statusUnableToGetClusterRole), fmt.Errorf("failed to get authorino ClusterRole %s: %v", clusterRoleName, err))
 		}
 	}
 
@@ -691,20 +768,20 @@ func (r *AuthorinoReconciler) bindAuthorinoServiceAccountToClusterRole(roleBindi
 			_ = ctrl.SetControllerReference(authorino, roleBinding, r.Scheme) // useful for namespaced role bindings
 			if err := r.Client.Create(ctx, roleBinding); err != nil {
 				return r.wrapErrorWithStatusUpdate(
-					logger, authorino, r.setStatusFailed(api.AuthorinoUnableToCreateBindingForClusterRole),
+					logger, authorino, r.setStatusFailed(statusUnableToCreateBindingForClusterRole),
 					fmt.Errorf("failed to create %s binding for authorino ClusterRole, err: %v", roleBinding.GetName(), err),
 				)
 			}
 		} else {
 			return r.wrapErrorWithStatusUpdate(
-				logger, authorino, r.setStatusFailed(api.AuthorinoUnableToGetBindingForClusterRole),
+				logger, authorino, r.setStatusFailed(statusUnableToGetBindingForClusterRole),
 				fmt.Errorf("failed to get %s binding for authorino ClusterRole, err: %v", roleBindingName, err),
 			)
 		}
 
 		// other error -> return
 		return r.wrapErrorWithStatusUpdate(
-			logger, authorino, r.setStatusFailed(api.AuthorinoUnableToGetBindingForClusterRole),
+			logger, authorino, r.setStatusFailed(statusUnableToGetBindingForClusterRole),
 			fmt.Errorf("failed to get %s binding for authorino ClusterRole, err: %v", roleBinding.GetName(), err),
 		)
 	} else {
@@ -713,7 +790,7 @@ func (r *AuthorinoReconciler) bindAuthorinoServiceAccountToClusterRole(roleBindi
 		rb := authorinoResources.AppendSubjectToRoleBinding(roleBinding, serviceAccount)
 		if err := r.Client.Update(ctx, rb); err != nil {
 			return r.wrapErrorWithStatusUpdate(
-				logger, authorino, r.setStatusFailed(api.AuthorinoUnableToCreateBindingForClusterRole),
+				logger, authorino, r.setStatusFailed(statusUnableToCreateBindingForClusterRole),
 				fmt.Errorf("failed to update %s binding for authorino ClusterRole, err: %v", roleBinding.GetName(), err),
 			)
 		}
@@ -736,13 +813,13 @@ func (r *AuthorinoReconciler) bindAuthorinoServiceAccountToLeaderElectionRole(au
 			_ = ctrl.SetControllerReference(authorino, leaderElectionRole, r.Scheme)
 			if err := r.Client.Create(context.TODO(), leaderElectionRole); err != nil {
 				return r.wrapErrorWithStatusUpdate(
-					logger, authorino, r.setStatusFailed(api.AuthorinoUnableToCreateLeaderElectionRole),
+					logger, authorino, r.setStatusFailed(statusUnableToCreateLeaderElectionRole),
 					fmt.Errorf("failed to create %s role, err: %v", leaderElectionRole, err),
 				)
 			}
 		}
 		return r.wrapErrorWithStatusUpdate(
-			logger, authorino, r.setStatusFailed(api.AuthorinoUnableToGetLeaderElectionRole),
+			logger, authorino, r.setStatusFailed(statusUnableToGetLeaderElectionRole),
 			fmt.Errorf("failed to get %s Role, err: %v", authorinoLeaderElectionRoleName, err),
 		)
 	}
@@ -762,13 +839,13 @@ func (r *AuthorinoReconciler) bindAuthorinoServiceAccountToLeaderElectionRole(au
 			// doesn't exist - create one
 			if err := r.Client.Create(context.TODO(), leRoleBinding); err != nil {
 				return r.wrapErrorWithStatusUpdate(
-					logger, authorino, r.setStatusFailed(api.AuthorinoUnableToCreateLeaderElectionRoleBinding),
+					logger, authorino, r.setStatusFailed(statusUnableToCreateLeaderElectionRoleBinding),
 					fmt.Errorf("failed to create %s RoleBinding, err: %v", leRoleBinding.Name, err),
 				)
 			}
 		}
 		return r.wrapErrorWithStatusUpdate(
-			logger, authorino, r.setStatusFailed(api.AuthorinoUnableToGetLeaderElectionRoleBinding),
+			logger, authorino, r.setStatusFailed(statusUnableToGetLeaderElectionRoleBinding),
 			fmt.Errorf("failed to get %s RoleBinding, err: %v", leRoleBinding.Name, err),
 		)
 	}
@@ -820,7 +897,7 @@ func (r *AuthorinoReconciler) installationPreflightCheck(authorino *api.Authorin
 		if tlsEnabled {
 			if tlsCert.CertSecret == nil {
 				return r.wrapErrorWithStatusUpdate(
-					r.Log, authorino, r.setStatusFailed(api.AuthorinoTlsSecretNotProvided),
+					r.Log, authorino, r.setStatusFailed(statusTlsSecretNotProvided),
 					fmt.Errorf("%s secret with tls cert not provided", authServerName),
 				)
 			}
@@ -835,7 +912,7 @@ func (r *AuthorinoReconciler) installationPreflightCheck(authorino *api.Authorin
 						authServerName, secretName, err)
 				}
 				return r.wrapErrorWithStatusUpdate(
-					r.Log, authorino, r.setStatusFailed(api.AuthorinoTlsSecretNotProvided),
+					r.Log, authorino, r.setStatusFailed(statusTlsSecretNotProvided),
 					errorMessage,
 				)
 			}
@@ -882,7 +959,7 @@ func statusReady() api.Condition {
 	return api.Condition{
 		Type:   api.ConditionReady,
 		Status: k8score.ConditionTrue,
-		Reason: api.AuthorinoProvisionedReason,
+		Reason: statusProvisioned,
 	}
 }
 
@@ -907,4 +984,20 @@ func deploymentAvailable(deployment *k8sapps.Deployment) bool {
 		}
 	}
 	return false
+}
+
+// Detects possible old Authorino version (<= v0.10.x) configurable with deprecated environemnt variables (instead of command-line args)
+func detectEnvVarAuthorinoVersion(version string) bool {
+	if match, err := regexp.MatchString(`v0\.(\d)+\..+`, version); err != nil || !match {
+		return false
+	}
+
+	parts := strings.Split(version, ".")
+	minor, err := strconv.Atoi(parts[1])
+	return err == nil && minor <= 10
+}
+
+func authorinoVersionFromImageTag(image string) string {
+	parts := strings.Split(image, ":")
+	return parts[len(parts)-1]
 }
