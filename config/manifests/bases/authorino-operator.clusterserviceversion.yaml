@@ -49,6 +49,8 @@ spec:
   - Authorino
   - Authorino Operator
   - Kuadrant
+  - Authorization
+  - Authentication
   links:
   - name: Authorino Operator
     url: https://github.com/Kuadrant/authorino-operator
@@ -64,5 +66,5 @@ spec:
   maturity: alpha
   minKubeVersion: 1.8.0
   provider:
-    name: Authorino
+    name: Red Hat
   version: 0.0.0
