@@ -136,6 +136,17 @@ spec:
                 type: integer
               secretLabelSelectors:
                 type: string
+              tracing:
+                properties:
+                  endpoint:
+                    type: string
+                  tags:
+                    additionalProperties:
+                      type: string
+                    type: object
+                required:
+                - endpoint
+                type: object
               volumes:
                 properties:
                   defaultMode:
