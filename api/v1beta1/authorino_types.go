@@ -72,6 +72,7 @@ type AuthorinoSpec struct {
 	AuthConfigLabelSelectors string      `json:"authConfigLabelSelectors,omitempty"`
 	SecretLabelSelectors     string      `json:"secretLabelSelectors,omitempty"`
 	EvaluatorCacheSize       *int        `json:"evaluatorCacheSize,omitempty"`
+	Tracing                  Tracing     `json:"tracing,omitempty"`
 	Metrics                  Metrics     `json:"metrics,omitempty"`
 	Healthz                  Healthz     `json:"healthz,omitempty"`
 }
@@ -98,6 +99,11 @@ type OIDCServer struct {
 type Ports struct {
 	GRPC *int32 `json:"grpc,omitempty"`
 	HTTP *int32 `json:"http,omitempty"`
+}
+
+type Tracing struct {
+	Endpoint string            `json:"endpoint"`
+	Tags     map[string]string `json:"tags,omitempty"`
 }
 
 type Metrics struct {

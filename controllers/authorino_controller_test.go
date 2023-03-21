@@ -296,6 +296,13 @@ func newFullAuthorinoInstance() *api.Authorino {
 					},
 				},
 			},
+			Tracing: api.Tracing{
+				Endpoint: "http://tracing/authorino",
+				Tags: map[string]string{
+					"env":     "test",
+					"version": "1.0.0",
+				},
+			},
 		},
 	}
 }
@@ -308,7 +315,7 @@ func checkAuthorinoArgs(authorinoInstance *api.Authorino, args []string) {
 		flag := flagAndValue[0]
 		var value string
 		if len(flagAndValue) > 1 {
-			value = flagAndValue[1]
+			value = strings.Join(flagAndValue[1:], "=")
 		}
 
 		switch flag {
@@ -339,6 +346,12 @@ func checkAuthorinoArgs(authorinoInstance *api.Authorino, args []string) {
 			Expect(value).Should(SatisfyAny(Equal(defaultOidcTlsCertPath), Equal(defaultOidcTlsCertKeyPath)))
 		case flagEvaluatorCacheSize:
 			Expect(value).Should(Equal(fmt.Sprintf("%v", *authorinoInstance.Spec.EvaluatorCacheSize)))
+		case flagTracingServiceEndpoint:
+			Expect(value).Should(Equal(authorinoInstance.Spec.Tracing.Endpoint))
+		case flagTracingServiceTag:
+			kv := strings.Split(strings.TrimPrefix(strings.TrimSuffix(value, `"`), `"`), "=")
+			Expect(len(kv)).Should(Equal(2))
+			Expect(kv[1]).Should(Equal(authorinoInstance.Spec.Tracing.Tags[kv[0]]))
 		case flagDeepMetricsEnabled:
 			Expect(authorinoInstance.Spec.Metrics.DeepMetricsEnabled).ShouldNot(BeNil())
 			Expect(*authorinoInstance.Spec.Metrics.DeepMetricsEnabled).Should(BeTrue())

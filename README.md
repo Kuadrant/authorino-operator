@@ -127,6 +127,7 @@ Each [`Authorino`](https://github.com/Kuadrant/authorino-operator/tree/main/conf
 | logMode                  | String                      | Defines the log mode in Authorino (`development` or `production`). | Default: `production` |
 | listener                 | [Listener](#listener)       | Specification of the authorization service (gRPC interface). | Required |
 | oidcServer               | [OIDCServer](#oidcserver)   | Specification of the OIDC service. | Required |
+| tracing                  | [Tracing](#tracing)         | Configuration of the OpenTelemetry tracing exporter. | Optional |
 | metrics                  | [Metrics](#metrics)         | Configuration of the metrics server (port, level). | Optional |
 | healthz                  | [Healthz](#healthz)         | Configuration of the health/readiness probe (port). | Optional |
 | volumes                  | [VolumesSpec](#volumesspec) | Additional volumes to be mounted in the Authorino pods. | Optional |
@@ -168,6 +169,15 @@ Port numbers of the authorization server.
 |-------|:-------:|-------------|------------------|
 | grpc  | Integer | Port number of the gRPC interface of the authorization server. Set to 0 to disable this interface. | Default: `50001` |
 | http  | Integer | Port number of the raw HTTP interface of the authorization server. Set to 0 to disable this interface. | Default: `5001` |
+
+#### Tracing
+
+Configuration of the OpenTelemetry tracing exporter.
+
+| Field    | Type   | Description | Required/Default |
+|----------|:------:|-------------|------------------|
+| endpoint | String | Full endpoint of the OpenTelemetry tracing collector service (e.g. http://jaeger:14268/api/traces). | Required |
+| tags     | Map    | Key-value map of fixed tags to add to all OpenTelemetry traces emitted by Authorino. | Optional |
 
 #### Metrics
 

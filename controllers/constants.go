@@ -44,6 +44,8 @@ const (
 	flagOidcTLSCertPath                string = "oidc-tls-cert"
 	flagOidcTLSCertKeyPath             string = "oidc-tls-cert-key"
 	flagEvaluatorCacheSize             string = "evaluator-cache-size"
+	flagTracingServiceEndpoint         string = "tracing-service-endpoint"
+	flagTracingServiceTag              string = "tracing-service-tag"
 	flagDeepMetricsEnabled             string = "deep-metrics-enabled"
 	flagMetricsAddr                    string = "metrics-addr"
 	flagHealthProbeAddr                string = "health-probe-addr"

@@ -375,6 +375,14 @@ func (r *AuthorinoReconciler) buildAuthorinoArgs(authorino *api.Authorino) []str
 		args = append(args, fmt.Sprintf("--%s=%d", flagEvaluatorCacheSize, *evaluatorCacheSize))
 	}
 
+	// tracing-service-endpoint and tracing-service-tag
+	if tracingServiceEndpoint := authorino.Spec.Tracing.Endpoint; tracingServiceEndpoint != "" {
+		args = append(args, fmt.Sprintf("--%s=%s", flagTracingServiceEndpoint, tracingServiceEndpoint))
+		for key, value := range authorino.Spec.Tracing.Tags {
+			args = append(args, fmt.Sprintf(`--%s="%s=%s"`, flagTracingServiceTag, key, value))
+		}
+	}
+
 	// deep-metrics-enabled
 	if enabled := authorino.Spec.Metrics.DeepMetricsEnabled; enabled != nil && *enabled {
 		args = append(args, fmt.Sprintf("--%s", flagDeepMetricsEnabled))
