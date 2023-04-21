@@ -93,17 +93,17 @@ func subjectIncluded(subjects []k8srbac.Subject, subject k8srbac.Subject) bool {
 func GetLeaderElectionRules() []k8srbac.PolicyRule {
 	return []k8srbac.PolicyRule{
 		{
-			APIGroups: []string{"*"},
+			APIGroups: []string{""},
 			Resources: []string{"configmaps"},
 			Verbs:     []string{"get", "list", "watch", "create", "update", "patch", "delete"},
 		},
 		{
-			APIGroups: []string{"*"},
+			APIGroups: []string{""},
 			Resources: []string{"configmaps/status"},
 			Verbs:     []string{"get", "update", "patch"},
 		},
 		{
-			APIGroups: []string{"*"},
+			APIGroups: []string{""},
 			Resources: []string{"events"},
 			Verbs:     []string{"create", "patch"},
 		},
