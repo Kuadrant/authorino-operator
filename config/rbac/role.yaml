@@ -7,27 +7,7 @@ metadata:
   name: authorino-operator-manager
 rules:
 - apiGroups:
-  - '*'
-  resources:
-  - clusterrolebindings
-  verbs:
-  - create
-  - get
-  - list
-  - update
-  - watch
-- apiGroups:
-  - '*'
-  resources:
-  - clusterroles
-  verbs:
-  - create
-  - get
-  - list
-  - update
-  - watch
-- apiGroups:
-  - '*'
+  - ""
   resources:
   - configmaps
   verbs:
@@ -39,7 +19,7 @@ rules:
   - update
   - watch
 - apiGroups:
-  - '*'
+  - ""
   resources:
   - configmaps/status
   verbs:
@@ -48,34 +28,14 @@ rules:
   - patch
   - update
 - apiGroups:
-  - '*'
+  - ""
   resources:
   - events
   verbs:
   - create
   - patch
 - apiGroups:
-  - '*'
-  resources:
-  - rolebindings
-  verbs:
-  - create
-  - get
-  - list
-  - update
-  - watch
-- apiGroups:
-  - '*'
-  resources:
-  - roles
-  verbs:
-  - create
-  - get
-  - list
-  - update
-  - watch
-- apiGroups:
-  - '*'
+  - ""
   resources:
   - secrets
   verbs:
@@ -83,7 +43,7 @@ rules:
   - list
   - watch
 - apiGroups:
-  - '*'
+  - ""
   resources:
   - serviceaccounts
   verbs:
@@ -93,7 +53,7 @@ rules:
   - update
   - watch
 - apiGroups:
-  - '*'
+  - ""
   resources:
   - services
   verbs:
@@ -102,18 +62,6 @@ rules:
   - list
   - update
   - watch
-- apiGroups:
-  - '*'
-  resources:
-  - subjectaccessreviews
-  verbs:
-  - create
-- apiGroups:
-  - '*'
-  resources:
-  - tokenreviews
-  verbs:
-  - create
 - apiGroups:
   - apps
   resources:
@@ -126,6 +74,12 @@ rules:
   - patch
   - update
   - watch
+- apiGroups:
+  - authentication.k8s.io
+  resources:
+  - tokenreviews
+  verbs:
+  - create
 - apiGroups:
   - authorino.kuadrant.io
   resources:
@@ -146,6 +100,12 @@ rules:
   - get
   - patch
   - update
+- apiGroups:
+  - authorization.k8s.io
+  resources:
+  - subjectaccessreviews
+  verbs:
+  - create
 - apiGroups:
   - coordination.k8s.io
   resources:
@@ -181,3 +141,43 @@ rules:
   - get
   - patch
   - update
+- apiGroups:
+  - rbac.authorization.k8s.io
+  resources:
+  - clusterrolebindings
+  verbs:
+  - create
+  - get
+  - list
+  - update
+  - watch
+- apiGroups:
+  - rbac.authorization.k8s.io
+  resources:
+  - clusterroles
+  verbs:
+  - create
+  - get
+  - list
+  - update
+  - watch
+- apiGroups:
+  - rbac.authorization.k8s.io
+  resources:
+  - rolebindings
+  verbs:
+  - create
+  - get
+  - list
+  - update
+  - watch
+- apiGroups:
+  - rbac.authorization.k8s.io
+  resources:
+  - roles
+  verbs:
+  - create
+  - get
+  - list
+  - update
+  - watch
