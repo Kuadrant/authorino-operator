@@ -2,8 +2,9 @@ package resources
 
 import (
 	k8sapps "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	k8score "k8s.io/api/core/v1"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func GetDeployment(name, namespace, saName string, replicas *int32, containers []k8score.Container, vol []k8score.Volume, labels map[string]string) *k8sapps.Deployment {
@@ -14,17 +15,20 @@ func GetDeployment(name, namespace, saName string, replicas *int32, containers [
 		ObjectMeta: objMeta,
 		Spec: k8sapps.DeploymentSpec{
 			Replicas: replicas,
-			Selector: &v1.LabelSelector{
+			Selector: &metav1.LabelSelector{
 				MatchLabels: authorinoLabels,
 			},
 			Template: k8score.PodTemplateSpec{
-				ObjectMeta: v1.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Labels: authorinoLabels,
 				},
 				Spec: k8score.PodSpec{
 					ServiceAccountName: saName,
 					Containers:         containers,
 					Volumes:            vol,
+					SecurityContext: &corev1.PodSecurityContext{
+						SupplementalGroups: []int64{1000},
+					},
 				},
 			},
 		},

@@ -136,6 +136,9 @@ var _ = Describe("Authorino controller", func() {
 				}
 			}
 			Expect(existContainer).To(BeTrue())
+			Expect(deployment.Spec.Template.Spec.SecurityContext.SupplementalGroups).Should(
+				ContainElement(int64(1000)),
+			)
 		})
 	})
 
