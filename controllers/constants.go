@@ -53,7 +53,7 @@ const (
 	flagMaxHttpRequestBodySize         string = "max-http-request-body-size"
 
 	// defaults
-	defaultAuthorinoImage      string = "quay.io/kuadrant/authorino:latest"
+	defaultAuthorinoImage      string = "quay.io/kuadrant/authorino:v0.14.0"
 	defaultTlsCertPath         string = "/etc/ssl/certs/tls.crt"
 	defaultTlsCertKeyPath      string = "/etc/ssl/private/tls.key"
 	defaultOidcTlsCertPath     string = "/etc/ssl/certs/oidc.crt"

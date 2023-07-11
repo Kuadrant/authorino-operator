@@ -3139,7 +3139,7 @@ spec:
         - --leader-elect
         command:
         - /manager
-        image: quay.io/kuadrant/authorino-operator:latest
+        image: quay.io/kuadrant/authorino-operator:v0.8.0
         livenessProbe:
           httpGet:
             path: /healthz
