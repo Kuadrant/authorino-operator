@@ -1,0 +1,53 @@
+name: Release operator
+
+on:
+  workflow_dispatch:
+    inputs:
+      commitSha:
+        description: Commit SHA
+        required: true
+      operatorVersion:
+        description: Operator version
+        required: true
+      authorinoVersion:
+        description: Authorino version
+        required: true
+        default: latest
+
+jobs:
+  build:
+    name: Release operator
+    runs-on: ubuntu-20.04
+    steps:
+    - name: Install gettext-base
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y gettext-base
+    - name: Set up Go 1.19.x
+      uses: actions/setup-go@v2
+      with:
+        go-version: 1.19.x
+      id: go
+    - name: Checkout code at commit SHA
+      uses: actions/checkout@v3
+      with:
+        ref: ${{ github.event.inputs.commitSha }}
+    - name: Create release branch
+      run: |
+        git checkout -b release-v${{ github.event.inputs.operatorVersion }}
+    - name: Prepare release
+      run: VERSION=${{ github.event.inputs.operatorVersion }} AUTHORINO_VERSION=${{ github.event.inputs.authorinoVersion }} GH_TOKEN=${{ secrets.GITHUB_TOKEN }} make prepare-release
+    - name: Commit and push
+      run: |
+        git config --global user.name "github-actions[bot]"
+        git config --global user.email "github-actions[bot]@users.noreply.github.com"
+        git commit -m "Prepared release v${{ github.event.inputs.operatorVersion }}" -a
+        git push origin release-v${{ github.event.inputs.operatorVersion }}
+    - name: Create release
+      uses: softprops/action-gh-release@v1
+      with:
+        name: v${{ github.event.inputs.operatorVersion }}
+        tag_name: v${{ github.event.inputs.operatorVersion }}
+        body: "**This release enables installations of Authorino v${{ github.event.inputs.authorinoVersion }}**"
+        generate_release_notes: true
+        target_commitish: release-v${{ github.event.inputs.operatorVersion }}
