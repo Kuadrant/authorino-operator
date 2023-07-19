@@ -85,6 +85,46 @@ all: build
 help: ## Display this help.
 	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n"} /^[a-zA-Z_0-9-]+:.*?##/ { printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
 
+
+##@ Tools
+
+OPERATOR_SDK = $(shell pwd)/bin/operator-sdk
+OPERATOR_SDK_VERSION = v1.22.0
+operator-sdk: ## Download operator-sdk locally if necessary.
+	./utils/install-operator-sdk.sh $(OPERATOR_SDK) $(OPERATOR_SDK_VERSION)
+
+CONTROLLER_GEN = $(shell pwd)/bin/controller-gen
+controller-gen: ## Download controller-gen locally if necessary.
+	$(call go-get-tool,$(CONTROLLER_GEN),sigs.k8s.io/controller-tools/cmd/controller-gen@v0.6.1)
+
+KUSTOMIZE = $(shell pwd)/bin/kustomize
+kustomize: ## Download kustomize locally if necessary.
+	$(call go-get-tool,$(KUSTOMIZE),sigs.k8s.io/kustomize/kustomize/v4@v4.5.5)
+
+YQ = $(shell pwd)/bin/yq
+$(YQ):
+	$(call go-get-tool,$(YQ),github.com/mikefarah/yq/v4@latest)
+
+.PHONY: yq
+yq: $(YQ) ## Download yq locally if necessary.
+
+.PHONY: opm
+OPM = ./bin/opm
+opm: ## Download opm locally if necessary.
+ifeq (,$(wildcard $(OPM)))
+ifeq (,$(shell which opm 2>/dev/null))
+	@{ \
+	set -e ;\
+	mkdir -p $(dir $(OPM)) ;\
+	OS=$(shell go env GOOS) && ARCH=$(shell go env GOARCH) && \
+	curl -sSLo $(OPM) https://github.com/operator-framework/operator-registry/releases/download/v1.15.1/$${OS}-$${ARCH}-opm ;\
+	chmod +x $(OPM) ;\
+	}
+else
+OPM = $(shell which opm)
+endif
+endif
+
 ##@ Development
 
 manifests: controller-gen kustomize authorino-manifests ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
@@ -155,14 +195,6 @@ undeploy: ## Undeploy controller from the K8s cluster specified in ~/.kube/confi
 install-authorino: ## install RBAC and CRD for authorino
 	$(KUSTOMIZE) build config/authorino | kubectl apply -f -
 
-CONTROLLER_GEN = $(shell pwd)/bin/controller-gen
-controller-gen: ## Download controller-gen locally if necessary.
-	$(call go-get-tool,$(CONTROLLER_GEN),sigs.k8s.io/controller-tools/cmd/controller-gen@v0.6.1)
-
-KUSTOMIZE = $(shell pwd)/bin/kustomize
-kustomize: ## Download kustomize locally if necessary.
-	$(call go-get-tool,$(KUSTOMIZE),sigs.k8s.io/kustomize/kustomize/v4@v4.5.5)
-
 # go-get-tool will 'go install' any package $2 and install it to $1.
 PROJECT_DIR := $(shell dirname $(abspath $(lastword $(MAKEFILE_LIST))))
 define go-get-tool
@@ -187,11 +219,6 @@ deploy-manifest:
 	# clean up
 	cd $(PROJECT_DIR)/config/manager && $(KUSTOMIZE) edit set image controller=${DEFAULT_OPERATOR_IMAGE}
 
-OPERATOR_SDK = $(shell pwd)/bin/operator-sdk
-OPERATOR_SDK_VERSION = v1.22.0
-operator-sdk: ## Download operator-sdk locally if necessary.
-	./utils/install-operator-sdk.sh $(OPERATOR_SDK) $(OPERATOR_SDK_VERSION)
-
 .PHONY: bundle
 bundle: export IMAGE_TAG := $(IMAGE_TAG)
 bundle: export BUNDLE_VERSION := $(BUNDLE_VERSION)
@@ -214,22 +241,22 @@ bundle-build: ## Build the bundle image.
 bundle-push: ## Push the bundle image.
 	$(MAKE) docker-push OPERATOR_IMAGE=$(BUNDLE_IMG)
 
-.PHONY: opm
-OPM = ./bin/opm
-opm: ## Download opm locally if necessary.
-ifeq (,$(wildcard $(OPM)))
-ifeq (,$(shell which opm 2>/dev/null))
-	@{ \
-	set -e ;\
-	mkdir -p $(dir $(OPM)) ;\
-	OS=$(shell go env GOOS) && ARCH=$(shell go env GOARCH) && \
-	curl -sSLo $(OPM) https://github.com/operator-framework/operator-registry/releases/download/v1.15.1/$${OS}-$${ARCH}-opm ;\
-	chmod +x $(OPM) ;\
-	}
-else
-OPM = $(shell which opm)
-endif
-endif
+.PHONY: fix-csv-replaces
+fix-csv-replaces: $(YQ)
+	$(eval REPLACES_VERSION=$(shell curl -sSL -H "Accept: application/vnd.github+json" \
+               -H "Authorization: Bearer ${GH_TOKEN}" \
+               -H "X-GitHub-Api-Version: 2022-11-28" \
+               https://api.github.com/repos/Kuadrant/authorino-operator/releases/latest | \
+               jq -r '.name'))
+
+	@echo $(REPLACES_VERSION)
+	V="authorino-operator.$(REPLACES_VERSION)" $(YQ) eval '.spec.replaces = strenv(V)' -i bundle/manifests/authorino-operator.clusterserviceversion.yaml
+
+.PHONY: prepare-release
+prepare-release: 
+	$(MAKE) manifests bundle VERSION=$(VERSION) AUTHORINO_VERSION=$(AUTHORINO_VERSION)
+	sed -i 's|\(defaultAuthorinoImage\s\+string = "quay.io/kuadrant/authorino:\).*"|\1v'$(AUTHORINO_VERSION)'"|' controllers/constants.go
+	GH_TOKEN=$(GH_TOKEN) $(MAKE) fix-csv-replaces
 
 # A comma-separated list of bundle images (e.g. make catalog-build BUNDLE_IMGS=example.com/operator-bundle:v0.1.0,example.com/operator-bundle:v0.2.0).
 # These images MUST exist in a registry and be pull-able.
