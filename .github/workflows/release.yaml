@@ -3,8 +3,8 @@ name: Release operator
 on:
   workflow_dispatch:
     inputs:
-      commitSha:
-        description: Commit SHA
+      gitRef:
+        description: Commit SHA or branch name
         required: true
       operatorVersion:
         description: Operator version
@@ -13,6 +13,10 @@ on:
         description: Authorino version
         required: true
         default: latest
+      prerelease:
+        description: Is the release a prerelease
+        required: false
+        type: boolean
 
 jobs:
   build:
@@ -28,11 +32,12 @@ jobs:
       with:
         go-version: 1.19.x
       id: go
-    - name: Checkout code at commit SHA
+    - name: Checkout code at git ref
       uses: actions/checkout@v3
       with:
-        ref: ${{ github.event.inputs.commitSha }}
+        ref: ${{ github.event.inputs.gitRef }}
     - name: Create release branch
+      if: ${{ !startsWith(github.event.inputs.gitRef, 'release-v') }}
       run: |
         git checkout -b release-v${{ github.event.inputs.operatorVersion }}
     - name: Prepare release
@@ -51,3 +56,4 @@ jobs:
         body: "**This release enables installations of Authorino v${{ github.event.inputs.authorinoVersion }}**"
         generate_release_notes: true
         target_commitish: release-v${{ github.event.inputs.operatorVersion }}
+        prerelease: ${{ github.event.inputs.prerelease }}

@@ -78,6 +78,9 @@ else
 AUTHORINO_BRANCH = v$(AUTHORINO_VERSION)
 endif
 
+AUTHORINO_IMAGE_FILE ?= authorino_image
+DEFAULT_AUTHORINO_IMAGE ?= $(shell cat $(AUTHORINO_IMAGE_FILE) || echo $(DEFAULT_REGISTRY)/$(DEFAULT_ORG)/authorino:latest)
+
 all: build
 
 ##@ General
@@ -164,13 +167,13 @@ test: manifests generate fmt vet setup-envtest
 ##@ Build
 
 build: generate fmt vet ## Build manager binary.
-	go build -ldflags "-X main.version=$(VERSION)" -o bin/manager main.go
+	go build -ldflags "-X main.version=$(VERSION) -X controllers.defaultAuthorinoImage=$(DEFAULT_AUTHORINO_IMAGE)" -o bin/manager main.go
 
 run: manifests generate fmt vet ## Run a controller from your host.
-	go run -ldflags "-X main.version=$(VERSION)" ./main.go
+	go run -ldflags "-X main.version=$(VERSION) -X controllers.defaultAuthorinoImage=$(DEFAULT_AUTHORINO_IMAGE)" ./main.go
 
 docker-build:  ## Build docker image with the manager.
-	docker build --build-arg version=$(VERSION) -t $(OPERATOR_IMAGE) .
+	docker build --build-arg VERSION=$(VERSION) --build-arg DEFAULT_AUTHORINO_IMAGE=${DEFAULT_AUTHORINO_IMAGE} -t $(OPERATOR_IMAGE) .
 
 docker-push: ## Push docker image with the manager.
 	docker push ${OPERATOR_IMAGE}
@@ -248,14 +251,16 @@ fix-csv-replaces: $(YQ)
                -H "X-GitHub-Api-Version: 2022-11-28" \
                https://api.github.com/repos/Kuadrant/authorino-operator/releases/latest | \
                jq -r '.name'))
-
-	@echo $(REPLACES_VERSION)
 	V="authorino-operator.$(REPLACES_VERSION)" $(YQ) eval '.spec.replaces = strenv(V)' -i bundle/manifests/authorino-operator.clusterserviceversion.yaml
 
 .PHONY: prepare-release
 prepare-release: 
 	$(MAKE) manifests bundle VERSION=$(VERSION) AUTHORINO_VERSION=$(AUTHORINO_VERSION)
-	sed -i 's|\(defaultAuthorinoImage\s\+string = "quay.io/kuadrant/authorino:\).*"|\1v'$(AUTHORINO_VERSION)'"|' controllers/constants.go
+	@if [ "$(AUTHORINO_VERSION)" = "latest" ]; then\
+		[ -e "$(AUTHORINO_IMAGE_FILE)" ] && rm $(AUTHORINO_IMAGE_FILE); \
+	else \
+	    echo quay.io/kuadrant/authorino:v$(AUTHORINO_VERSION) > $(AUTHORINO_IMAGE_FILE); \
+	fi
 	GH_TOKEN=$(GH_TOKEN) $(MAKE) fix-csv-replaces
 
 # A comma-separated list of bundle images (e.g. make catalog-build BUNDLE_IMGS=example.com/operator-bundle:v0.1.0,example.com/operator-bundle:v0.2.0).
