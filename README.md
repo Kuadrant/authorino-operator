@@ -3,6 +3,7 @@
 A Kubernetes Operator to manage [Authorino](https://github.com/Kuadrant/authorino) instances.
 
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](http://www.apache.org/licenses/LICENSE-2.0)
+[![codecov](https://codecov.io/gh/Kuadrant/authorino-operator/branch/main/graph/badge.svg?token=3O9IUKS642)](https://codecov.io/gh/Kuadrant/authorino-operator)
 
 ## Installation
 
