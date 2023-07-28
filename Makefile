@@ -167,10 +167,10 @@ test: manifests generate fmt vet setup-envtest
 ##@ Build
 
 build: generate fmt vet ## Build manager binary.
-	go build -ldflags "-X main.version=$(VERSION) -X github.com/kuadrant/authorino-operator/controllers.defaultAuthorinoImage=$(DEFAULT_AUTHORINO_IMAGE)" -o bin/manager main.go
+	go build -ldflags "-X main.version=$(VERSION) -X github.com/kuadrant/authorino-operator/controllers.DefaultAuthorinoImage=$(DEFAULT_AUTHORINO_IMAGE)" -o bin/manager main.go
 
 run: manifests generate fmt vet ## Run a controller from your host.
-	go run -ldflags "-X main.version=$(VERSION) -X github.com/kuadrant/authorino-operator/controllers.defaultAuthorinoImage=$(DEFAULT_AUTHORINO_IMAGE)" ./main.go
+	go run -ldflags "-X main.version=$(VERSION) -X github.com/kuadrant/authorino-operator/controllers.DefaultAuthorinoImage=$(DEFAULT_AUTHORINO_IMAGE)" ./main.go
 
 docker-build:  ## Build docker image with the manager.
 	docker build --build-arg VERSION=$(VERSION) --build-arg DEFAULT_AUTHORINO_IMAGE=$(DEFAULT_AUTHORINO_IMAGE) -t $(OPERATOR_IMAGE) .
@@ -252,7 +252,7 @@ fix-csv-replaces: $(YQ)
 	V="authorino-operator.$(REPLACES_VERSION)" $(YQ) eval '.spec.replaces = strenv(V)' -i bundle/manifests/authorino-operator.clusterserviceversion.yaml
 
 .PHONY: prepare-release
-prepare-release: 
+prepare-release:
 	$(MAKE) manifests bundle VERSION=$(VERSION) AUTHORINO_VERSION=$(AUTHORINO_VERSION)
 	@if [ "$(AUTHORINO_VERSION)" = "latest" ]; then\
 		[ -e "$(AUTHORINO_IMAGE_FILE)" ] && rm $(AUTHORINO_IMAGE_FILE); \

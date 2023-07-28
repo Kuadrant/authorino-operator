@@ -90,4 +90,4 @@ const (
 )
 
 // ldflags
-var defaultAuthorinoImage string
+var DefaultAuthorinoImage string

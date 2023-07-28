@@ -121,7 +121,7 @@ var _ = Describe("Authorino controller", func() {
 			}, testTimeout, testInterval).Should(BeTrue())
 
 			replicas := int32(testAuthorinoReplicas)
-			image := defaultAuthorinoImage
+			image := DefaultAuthorinoImage
 			existContainer := false
 
 			Expect(deployment.Spec.Replicas).Should(Equal(&replicas))
@@ -238,7 +238,7 @@ func newExtServerConfigMap() *k8score.ConfigMap {
 
 func newFullAuthorinoInstance() *api.Authorino {
 	name := "a" + string(uuid.NewUUID())
-	image := defaultAuthorinoImage
+	image := DefaultAuthorinoImage
 	replicas := int32(testAuthorinoReplicas)
 	tslEnable := true
 	tlsDisabled := false
