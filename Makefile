@@ -162,7 +162,7 @@ endif
 # Run the tests
 test: manifests generate fmt vet setup-envtest
 	echo $(SETUP_ENVTEST)
-	KUBEBUILDER_ASSETS='$(strip $(shell $(SETUP_ENVTEST) --arch=amd64 use -p path 1.22.x))'  go test ./... -coverprofile cover.out
+	KUBEBUILDER_ASSETS='$(strip $(shell $(SETUP_ENVTEST) --arch=amd64 use -p path 1.22.x))'  go test -ldflags="-X github.com/kuadrant/authorino-operator/controllers.DefaultAuthorinoImage=$(DEFAULT_AUTHORINO_IMAGE)" ./... -coverprofile cover.out
 
 ##@ Build
 
