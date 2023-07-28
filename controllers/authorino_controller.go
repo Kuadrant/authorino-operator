@@ -192,7 +192,7 @@ func (r *AuthorinoReconciler) buildAuthorinoDeployment(authorino *api.Authorino)
 	var saName = authorino.Name + "-authorino"
 
 	if authorino.Spec.Image == "" {
-		authorino.Spec.Image = defaultAuthorinoImage
+		authorino.Spec.Image = DefaultAuthorinoImage
 	}
 
 	var volumes []k8score.Volume

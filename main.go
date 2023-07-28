@@ -67,7 +67,7 @@ func main() {
 
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 
-	setupLog.Info("botting up authorino operator", "version", version)
+	setupLog.Info("botting up authorino operator", "version", version, "default authorino image", controllers.DefaultAuthorinoImage)
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                 scheme,
