@@ -53,7 +53,6 @@ const (
 	flagMaxHttpRequestBodySize         string = "max-http-request-body-size"
 
 	// defaults
-	defaultAuthorinoImage      string = "quay.io/kuadrant/authorino:latest"
 	defaultTlsCertPath         string = "/etc/ssl/certs/tls.crt"
 	defaultTlsCertKeyPath      string = "/etc/ssl/private/tls.key"
 	defaultOidcTlsCertPath     string = "/etc/ssl/certs/oidc.crt"
@@ -89,3 +88,6 @@ const (
 	statusUnableToUpdateDeployment                = "UnableToUpdateDeployment"
 	statusDeploymentNotReady                      = "DeploymentNotReady"
 )
+
+// ldflags
+var defaultAuthorinoImage string

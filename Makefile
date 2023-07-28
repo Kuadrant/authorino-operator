@@ -167,13 +167,13 @@ test: manifests generate fmt vet setup-envtest
 ##@ Build
 
 build: generate fmt vet ## Build manager binary.
-	go build -ldflags "-X main.version=$(VERSION) -X controllers.defaultAuthorinoImage=$(DEFAULT_AUTHORINO_IMAGE)" -o bin/manager main.go
+	go build -ldflags "-X main.version=$(VERSION) -X github.com/kuadrant/authorino-operator/controllers.defaultAuthorinoImage=$(DEFAULT_AUTHORINO_IMAGE)" -o bin/manager main.go
 
 run: manifests generate fmt vet ## Run a controller from your host.
-	go run -ldflags "-X main.version=$(VERSION) -X controllers.defaultAuthorinoImage=$(DEFAULT_AUTHORINO_IMAGE)" ./main.go
+	go run -ldflags "-X main.version=$(VERSION) -X github.com/kuadrant/authorino-operator/controllers.defaultAuthorinoImage=$(DEFAULT_AUTHORINO_IMAGE)" ./main.go
 
 docker-build:  ## Build docker image with the manager.
-	docker build --build-arg VERSION=$(VERSION) --build-arg DEFAULT_AUTHORINO_IMAGE=${DEFAULT_AUTHORINO_IMAGE} -t $(OPERATOR_IMAGE) .
+	docker build --build-arg VERSION=$(VERSION) --build-arg DEFAULT_AUTHORINO_IMAGE=$(DEFAULT_AUTHORINO_IMAGE) -t $(OPERATOR_IMAGE) .
 
 docker-push: ## Push docker image with the manager.
 	docker push ${OPERATOR_IMAGE}
@@ -247,8 +247,6 @@ bundle-push: ## Push the bundle image.
 .PHONY: fix-csv-replaces
 fix-csv-replaces: $(YQ)
 	$(eval REPLACES_VERSION=$(shell curl -sSL -H "Accept: application/vnd.github+json" \
-               -H "Authorization: Bearer ${GH_TOKEN}" \
-               -H "X-GitHub-Api-Version: 2022-11-28" \
                https://api.github.com/repos/Kuadrant/authorino-operator/releases/latest | \
                jq -r '.name'))
 	V="authorino-operator.$(REPLACES_VERSION)" $(YQ) eval '.spec.replaces = strenv(V)' -i bundle/manifests/authorino-operator.clusterserviceversion.yaml
@@ -261,7 +259,7 @@ prepare-release:
 	else \
 	    echo quay.io/kuadrant/authorino:v$(AUTHORINO_VERSION) > $(AUTHORINO_IMAGE_FILE); \
 	fi
-	GH_TOKEN=$(GH_TOKEN) $(MAKE) fix-csv-replaces
+	$(MAKE) fix-csv-replaces
 
 # A comma-separated list of bundle images (e.g. make catalog-build BUNDLE_IMGS=example.com/operator-bundle:v0.1.0,example.com/operator-bundle:v0.2.0).
 # These images MUST exist in a registry and be pull-able.

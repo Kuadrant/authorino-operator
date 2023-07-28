@@ -41,7 +41,7 @@ jobs:
       run: |
         git checkout -b release-v${{ github.event.inputs.operatorVersion }}
     - name: Prepare release
-      run: VERSION=${{ github.event.inputs.operatorVersion }} AUTHORINO_VERSION=${{ github.event.inputs.authorinoVersion }} GH_TOKEN=${{ secrets.GITHUB_TOKEN }} make prepare-release
+      run: VERSION=${{ github.event.inputs.operatorVersion }} AUTHORINO_VERSION=${{ github.event.inputs.authorinoVersion }} make prepare-release
     - name: Commit and push
       run: |
         git config --global user.name "github-actions[bot]"
