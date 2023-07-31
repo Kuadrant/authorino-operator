@@ -255,7 +255,7 @@ fix-csv-replaces: $(YQ)
 prepare-release:
 	$(MAKE) manifests bundle VERSION=$(VERSION) AUTHORINO_VERSION=$(AUTHORINO_VERSION)
 	@if [ "$(AUTHORINO_VERSION)" = "latest" ]; then\
-		[ -e "$(AUTHORINO_IMAGE_FILE)" ] && rm $(AUTHORINO_IMAGE_FILE); \
+		[ ! -e "$(AUTHORINO_IMAGE_FILE)" ] || rm $(AUTHORINO_IMAGE_FILE); \
 	else \
 	    echo quay.io/kuadrant/authorino:v$(AUTHORINO_VERSION) > $(AUTHORINO_IMAGE_FILE); \
 	fi
