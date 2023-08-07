@@ -540,10 +540,6 @@ func (r *AuthorinoReconciler) authorinoDeploymentChanges(existingDeployment, des
 		return true
 	}
 
-	if len(desiredDeployment.Spec.Template.Spec.Containers) != 1 {
-		// error
-	}
-
 	existingContainer := existingDeployment.Spec.Template.Spec.Containers[0]
 	desiredContainer := desiredDeployment.Spec.Template.Spec.Containers[0]
 
