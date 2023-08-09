@@ -296,12 +296,12 @@ catalog-push: ## Push a catalog image.
 
 .PHONY: verify-manifests
 verify-manifests: manifests ## Verify manifests update.
-	git diff --exit-code ./config
+	git diff -I'^    containerImage:' -I'^        image:' --exit-code ./config
 	[ -z "$$(git ls-files --other --exclude-standard --directory --no-empty-directory ./config)" ]
 
 .PHONY: verify-bundle
 verify-bundle: bundle ## Verify bundle update.
-	git diff --exit-code ./bundle
+	git diff -I'^    containerImage:' -I'^                image:' --exit-code ./bundle
 	[ -z "$$(git ls-files --other --exclude-standard --directory --no-empty-directory ./bundle)" ]
 
 .PHONY: verify-fmt

@@ -115,7 +115,7 @@ jobs:
           sudo apt-get install -y qemu-user-static
       - name: Run make bundle (main)
         if: ${{ github.ref_name == env.MAIN_BRANCH_NAME }}
-        run: make bundle REGISTRY=${{ env.IMG_REGISTRY_HOST }} ORG=${{ env.IMG_REGISTRY_ORG }}
+        run: make bundle REGISTRY=${{ env.IMG_REGISTRY_HOST }} ORG=${{ env.IMG_REGISTRY_ORG }} IMAGE_TAG=${{ github.sha }}
       - name: Run make bundle (release)
         if: ${{ github.ref_name != env.MAIN_BRANCH_NAME }}
         run: make bundle REGISTRY=${{ env.IMG_REGISTRY_HOST }} ORG=${{ env.IMG_REGISTRY_ORG }} VERSION=${TAG_NAME/v/} AUTHORINO_VERSION=${{ github.event.inputs.authorinoVersion }}
@@ -123,7 +123,7 @@ jobs:
         run: git diff
       - name: Verify manifests and bundle (main)
         if: github.ref_name == env.MAIN_BRANCH_NAME
-        run: make verify-manifests verify-bundle REGISTRY=${{ env.IMG_REGISTRY_HOST }} ORG=${{ env.IMG_REGISTRY_ORG }}
+        run: make verify-manifests verify-bundle REGISTRY=${{ env.IMG_REGISTRY_HOST }} ORG=${{ env.IMG_REGISTRY_ORG }} IMAGE_TAG=${{ github.sha }}
       - name: Verify manifests and bundle (release)
         if: ${{ github.ref_name != env.MAIN_BRANCH_NAME }}
         run: make verify-manifests verify-bundle REGISTRY=${{ env.IMG_REGISTRY_HOST }} ORG=${{ env.IMG_REGISTRY_ORG }} VERSION=${TAG_NAME/v/} AUTHORINO_VERSION=${{ github.event.inputs.authorinoVersion }}
@@ -190,7 +190,7 @@ jobs:
           sudo apt-get install -y qemu-user-static
       - name: Run make catalog-generate (main)
         if: ${{ github.ref_name == env.MAIN_BRANCH_NAME }}
-        run: make catalog-generate REGISTRY=${{ env.IMG_REGISTRY_HOST }} ORG=${{ env.IMG_REGISTRY_ORG }}
+        run: make catalog-generate REGISTRY=${{ env.IMG_REGISTRY_HOST }} ORG=${{ env.IMG_REGISTRY_ORG }} IMAGE_TAG=${{ github.sha }}
       - name: Run make catalog-generate (release)
         if: ${{ github.ref_name != env.MAIN_BRANCH_NAME }}
         run: make catalog-generate REGISTRY=${{ env.IMG_REGISTRY_HOST }} ORG=${{ env.IMG_REGISTRY_ORG }} IMAGE_TAG=${{ env.TAG_NAME }}
