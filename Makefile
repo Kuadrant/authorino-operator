@@ -105,8 +105,9 @@ kustomize: ## Download kustomize locally if necessary.
 	$(call go-get-tool,$(KUSTOMIZE),sigs.k8s.io/kustomize/kustomize/v4@v4.5.5)
 
 YQ = $(shell pwd)/bin/yq
+YQ_VERSION := v4.34.2
 $(YQ):
-	$(call go-get-tool,$(YQ),github.com/mikefarah/yq/v4@latest)
+	$(call go-get-tool,$(YQ),github.com/mikefarah/yq/v4@$(YQ_VERSION))
 
 .PHONY: yq
 yq: $(YQ) ## Download yq locally if necessary.
