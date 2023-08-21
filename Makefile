@@ -104,6 +104,10 @@ KUSTOMIZE = $(shell pwd)/bin/kustomize
 kustomize: ## Download kustomize locally if necessary.
 	$(call go-get-tool,$(KUSTOMIZE),sigs.k8s.io/kustomize/kustomize/v4@v4.5.5)
 
+KIND = $(shell pwd)/bin/kind
+kind:
+	$(call go-get-tool,$(KIND),sigs.k8s.io/kind@v0.20.0)
+
 YQ = $(shell pwd)/bin/yq
 YQ_VERSION := v4.34.2
 $(YQ):
@@ -182,16 +186,40 @@ docker-push: ## Push docker image with the manager.
 ##@ Deployment
 
 install: manifests kustomize install-authorino ## Install CRDs into the K8s cluster specified in ~/.kube/config.
+	@if [ $(NAMESPACE) != '' ];then \
+		echo "Setting Custom Namespace: $(NAMESPACE)"; \
+		cd $(PROJECT_DIR)/config/install && $(KUSTOMIZE) edit set namespace $(NAMESPACE); \
+		kubectl create namespace $(NAMESPACE); \
+		else \
+		kubectl create namespace $(DEFAULT_REPO); \
+	fi
+	cd $(PROJECT_DIR) && $(KUSTOMIZE) build config/install > $(OPERATOR_MANIFESTS)
 	kubectl apply -f $(OPERATOR_MANIFESTS)
+
+	# clean up
+	@if [ $(NAMESPACE) != '' ];then \
+		echo "Removing Custom Namespace: $(NAMESPACE)"; \
+		cd $(PROJECT_DIR)/config/install && $(KUSTOMIZE) edit set namespace $(DEFAULT_REPO); \
+	fi
+
 
 uninstall: manifests kustomize ## Uninstall CRDs from the K8s cluster specified in ~/.kube/config.
 	kubectl delete -f $(OPERATOR_MANIFESTS)
 
 deploy: manifests kustomize ## Deploy controller to the K8s cluster specified in ~/.kube/config.
 	cd config/manager && $(KUSTOMIZE) edit set image controller=${OPERATOR_IMAGE}
+	@if [ $(NAMESPACE) != '' ];then \
+		echo "Setting Custom Namespace: $(NAMESPACE)"; \
+		cd $(PROJECT_DIR)/config/default && $(KUSTOMIZE) edit set namespace $(NAMESPACE); \
+	fi
+
 	$(KUSTOMIZE) build config/default | kubectl apply -f -
 	# rollback kustomize edit
 	cd config/manager && $(KUSTOMIZE) edit set image controller=${DEFAULT_OPERATOR_IMAGE}
+	@if [ $(NAMESPACE) != '' ];then \
+		echo "Removing Custom Namespace: $(NAMESPACE)"; \
+		cd $(PROJECT_DIR)/config/default && $(KUSTOMIZE) edit set namespace $(DEFAULT_REPO); \
+	fi
 
 undeploy: ## Undeploy controller from the K8s cluster specified in ~/.kube/config.
 	$(KUSTOMIZE) build config/default | kubectl delete -f -
@@ -216,12 +244,22 @@ endef
 DEPLOYMENT_DIR = $(PROJECT_DIR)/config/deploy
 DEPLOYMENT_FILE = $(DEPLOYMENT_DIR)/manifests.yaml
 .PHONY: deploy-manifest
-deploy-manifest:
+deploy-manifest: kustomize
 	mkdir -p $(DEPLOYMENT_DIR)
-	cd $(PROJECT_DIR)/config/manager && $(KUSTOMIZE) edit set image controller=$(OPERATOR_IMAGE) ;\
+	cd $(PROJECT_DIR)/config/manager && $(KUSTOMIZE) edit set image controller=$(OPERATOR_IMAGE)
+
+	@if [ $(NAMESPACE) != '' ];then \
+		echo "Setting Custom Namespace: $(NAMESPACE)"; \
+		cd $(PROJECT_DIR)/config/deploy && $(KUSTOMIZE) edit set namespace $(NAMESPACE); \
+	fi
+
 	cd $(PROJECT_DIR) && $(KUSTOMIZE) build config/deploy > $(DEPLOYMENT_FILE)
 	# clean up
 	cd $(PROJECT_DIR)/config/manager && $(KUSTOMIZE) edit set image controller=${DEFAULT_OPERATOR_IMAGE}
+	@if [ $(NAMESPACE) != '' ];then \
+		echo "Removing Custom Namespace: $(NAMESPACE)"; \
+		cd $(PROJECT_DIR)/config/deploy && $(KUSTOMIZE) edit set namespace $(DEFAULT_REPO); \
+	fi
 
 .PHONY: bundle
 bundle: export IMAGE_TAG := $(IMAGE_TAG)
@@ -307,3 +345,72 @@ verify-bundle: bundle ## Verify bundle update.
 .PHONY: verify-fmt
 verify-fmt: fmt ## Verify fmt update.
 	git diff --exit-code ./api ./controllers
+
+## local configurations
+
+deploy-develmode: manifests kustomize ## Deploy controller in debug mode to the K8s cluster specified in ~/.kube/config.
+	cd config/manager && $(KUSTOMIZE) edit set image controller=${OPERATOR_IMAGE}
+	@if [ $(NAMESPACE) != '' ];then \
+		echo "Setting Custom Namespace: $(NAMESPACE)"; \
+		cd $(PROJECT_DIR)/config/default && $(KUSTOMIZE) edit set namespace $(NAMESPACE); \
+	fi
+
+	cd $(PROJECT_DIR) && $(KUSTOMIZE) build config/deploy > $(DEPLOYMENT_FILE)
+
+	$(KUSTOMIZE) build config/default | kubectl apply -f -
+
+# clean up
+	cd config/manager && $(KUSTOMIZE) edit set image controller=${DEFAULT_OPERATOR_IMAGE}
+	@if [ $(NAMESPACE) != '' ];then \
+		echo "Removing Custom Namespace: $(NAMESPACE)"; \
+		cd $(PROJECT_DIR)/config/default && $(KUSTOMIZE) edit set namespace $(DEFAULT_REPO); \
+	fi
+
+.PHONY: local-cleanup
+local-cleanup:
+	$(MAKE) kind-delete-cluster
+
+.PHONY: local-env-setup
+local-env-setup:
+	$(MAKE) kind-delete-cluster
+	$(MAKE) kind-create-cluster
+	$(KUSTOMIZE) build config/crd | kubectl apply -f -
+
+.PHONY: local-setup
+local-setup: export OPERATOR_IMAGE := authorino-operator:dev
+local-setup:
+	$(MAKE) local-env-setup
+	$(MAKE) docker-build
+	echo "Deploying Authorino control plane"
+	$(KIND) load docker-image ${OPERATOR_IMAGE} --name ${KIND_CLUSTER_NAME}
+	$(MAKE) install
+	$(MAKE) deploy
+
+.PHONY: local-redeploy
+local-redeploy: export OPERATOR_IMAGE := authorino-operator:dev
+local-redeploy:
+	$(MAKE) docker-build
+	echo "Deploying Authorino control plane"
+	$(KIND) load docker-image ${OPERATOR_IMAGE} --name ${KIND_CLUSTER_NAME}
+
+	@if [ $(NAMESPACE) != '' ];then \
+		kubectl rollout restart deployment -n $(NAMESPACE) authorino-operator; \
+		echo "Wait for all deployments to be up"; \
+		kubectl -n $(NAMESPACE) wait --timeout=300s --for=condition=Available deployments --all; \
+		else \
+		kubectl rollout restart deployment -n $(DEFAULT_REPO) authorino-operator; \
+		echo  "Wait for all deployments to be up"; \
+		kubectl -n $(DEFAULT_REPO) wait --timeout=300s --for=condition=Available deployments --all; \
+	fi
+
+## kind configuration
+
+KIND_CLUSTER_NAME ?= authorino-local
+
+.PHONY: kind-create-cluster
+kind-create-cluster: kind ## Create the "authorino-local" kind cluster.
+	$(KIND) create cluster --name $(KIND_CLUSTER_NAME) --config utils/kind-cluster.yaml
+
+.PHONY: kind-delete-cluster
+kind-delete-cluster: kind ## Delete the "authorino-local" kind cluster.
+	$(KIND) delete cluster --name $(KIND_CLUSTER_NAME)

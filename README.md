@@ -82,6 +82,23 @@ spec:
 EOF
 ```
 
+### Installing via kind for local development
+
+1. Create the kind cluster, build the operator image and deploy the operator.
+```shell
+make local-setup
+```
+
+2. Rebuild and Redeploy the operator image
+```shell
+make local-redeploy
+```
+
+3. Remove the kind cluster
+```shell
+make local-cleanup
+```
+
 ## Requesting an Authorino instance
 
 Once the Operator is up and running, you can request instances of Authorino by creating `Authorino` CRs. E.g.:
