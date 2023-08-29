@@ -137,6 +137,7 @@ manifests: controller-gen kustomize authorino-manifests ## Generate WebhookConfi
 
 .PHONY: authorino-manifests
 authorino-manifests: export AUTHORINO_GITREF := $(AUTHORINO_BRANCH)
+authorino-manifests: export AUTHORINO_VERSION := $(AUTHORINO_VERSION)
 authorino-manifests: ## Update authorino manifests.
 	envsubst \
         < config/authorino/kustomization.template.yaml \

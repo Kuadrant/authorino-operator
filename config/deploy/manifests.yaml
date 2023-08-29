@@ -9,10 +9,21 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
+    cert-manager.io/inject-ca-from: authorino-operator/authorino-webhook-server-cert
     controller-gen.kubebuilder.io/version: v0.9.0
-  creationTimestamp: null
   name: authconfigs.authorino.kuadrant.io
 spec:
+  conversion:
+    strategy: Webhook
+    webhook:
+      clientConfig:
+        service:
+          name: authorino-webhooks
+          namespace: authorino-operator
+          path: /convert
+      conversionReviewVersions:
+      - v1beta1
+      - v1beta2
   group: authorino.kuadrant.io
   names:
     kind: AuthConfig
@@ -3072,6 +3083,54 @@ rules:
   - watch
 ---
 apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app: authorino
+    authorino-component: authorino-webhooks
+  name: authorino-webhooks-manager-role
+rules:
+- apiGroups:
+  - authorino.kuadrant.io
+  resources:
+  - authconfigs
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - authorino.kuadrant.io
+  resources:
+  - authconfigs/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - create
+  - get
+  - list
+  - update
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  - events
+  verbs:
+  - create
+  - get
+  - list
+  - update
+---
+apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   name: authorino-operator-leader-election
@@ -3083,6 +3142,23 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: authorino-operator
+  namespace: authorino-operator
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  labels:
+    app: authorino
+    authorino-component: authorino-webhooks
+  name: authorino-webhooks-manager
+  namespace: authorino-operator
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: authorino-webhooks-manager-role
+subjects:
+- kind: ServiceAccount
+  name: default
   namespace: authorino-operator
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -3116,6 +3192,23 @@ kind: ConfigMap
 metadata:
   name: manager-config
   namespace: authorino-operator
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: authorino
+    authorino-component: authorino-webhooks
+  name: authorino-webhooks
+  namespace: authorino-operator
+spec:
+  ports:
+  - port: 443
+    protocol: TCP
+    targetPort: 9443
+  selector:
+    app: authorino
+    authorino-component: authorino-webhooks
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -3166,3 +3259,74 @@ spec:
         runAsNonRoot: true
       serviceAccountName: authorino-operator
       terminationGracePeriodSeconds: 10
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: authorino
+    authorino-component: authorino-webhooks
+  name: authorino-webhooks
+  namespace: authorino-operator
+spec:
+  selector:
+    matchLabels:
+      app: authorino
+      authorino-component: authorino-webhooks
+  template:
+    metadata:
+      labels:
+        app: authorino
+        authorino-component: authorino-webhooks
+    spec:
+      containers:
+      - command:
+        - authorino
+        - webhooks
+        image: quay.io/kuadrant/authorino:latest
+        name: webhooks
+        ports:
+        - containerPort: 9443
+          name: webhooks
+        - containerPort: 8080
+          name: metrics
+        - containerPort: 8081
+          name: healthz
+        resources: {}
+        volumeMounts:
+        - mountPath: /tmp/k8s-webhook-server/serving-certs
+          name: cert
+          readOnly: true
+      volumes:
+      - name: cert
+        secret:
+          defaultMode: 420
+          secretName: authorino-webhook-server-cert
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  labels:
+    app: authorino
+    authorino-component: authorino-webhooks
+  name: authorino-webhook-server-cert
+  namespace: authorino-operator
+spec:
+  dnsNames:
+  - authorino-webhooks.authorino-operator.svc
+  - authorino-webhooks.authorino-operator.svc.cluster.local
+  issuerRef:
+    kind: Issuer
+    name: authorino-webhooks-ca
+  secretName: authorino-webhook-server-cert
+---
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  labels:
+    app: authorino
+    authorino-component: authorino-webhooks
+  name: authorino-webhooks-ca
+  namespace: authorino-operator
+spec:
+  selfSigned: {}
