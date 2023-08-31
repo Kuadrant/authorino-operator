@@ -347,25 +347,6 @@ verify-fmt: fmt ## Verify fmt update.
 	git diff --exit-code ./api ./controllers
 
 ## local configurations
-
-deploy-develmode: manifests kustomize ## Deploy controller in debug mode to the K8s cluster specified in ~/.kube/config.
-	cd config/manager && $(KUSTOMIZE) edit set image controller=${OPERATOR_IMAGE}
-	@if [ $(NAMESPACE) != '' ];then \
-		echo "Setting Custom Namespace: $(NAMESPACE)"; \
-		cd $(PROJECT_DIR)/config/default && $(KUSTOMIZE) edit set namespace $(NAMESPACE); \
-	fi
-
-	cd $(PROJECT_DIR) && $(KUSTOMIZE) build config/deploy > $(DEPLOYMENT_FILE)
-
-	$(KUSTOMIZE) build config/default | kubectl apply -f -
-
-# clean up
-	cd config/manager && $(KUSTOMIZE) edit set image controller=${DEFAULT_OPERATOR_IMAGE}
-	@if [ $(NAMESPACE) != '' ];then \
-		echo "Removing Custom Namespace: $(NAMESPACE)"; \
-		cd $(PROJECT_DIR)/config/default && $(KUSTOMIZE) edit set namespace $(DEFAULT_REPO); \
-	fi
-
 .PHONY: local-cleanup
 local-cleanup:
 	$(MAKE) kind-delete-cluster
@@ -386,9 +367,9 @@ local-setup:
 	$(MAKE) install
 	$(MAKE) deploy
 
-.PHONY: local-redeploy
-local-redeploy: export OPERATOR_IMAGE := authorino-operator:dev
-local-redeploy:
+.PHONY: local-rollout
+local-rollout: export OPERATOR_IMAGE := authorino-operator:dev
+local-rollout:
 	$(MAKE) docker-build
 	echo "Deploying Authorino control plane"
 	$(KIND) load docker-image ${OPERATOR_IMAGE} --name ${KIND_CLUSTER_NAME}
