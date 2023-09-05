@@ -2257,6 +2257,8 @@ spec:
                       description: The name of key used in the wrapped response (name
                         of the HTTP header or property of the Envoy Dynamic Metadata
                         JSON). If omitted, it will be set to the name of the configuration.
+                        [DEPRECATED] Starting in v1beta2, use the name of the response
+                        config instead.
                       type: string
                     wristband:
                       properties:
@@ -2692,8 +2694,6 @@ spec:
                           properties:
                             name:
                               type: string
-                            prefix:
-                              type: string
                           required:
                           - name
                           type: object
@@ -2741,11 +2741,6 @@ spec:
                             to obtain the "jkws_uri" claim from. The value must coincide
                             with the value of  the "iss" (issuer) claim of the discovered
                             OpenID Connect configuration.
-                          type: string
-                        jwksUrl:
-                          description: URL of the JSON Web Ket Set (JWKS) endpoint.
-                            Use this if the issuer of the JWT tokens is not an OIDC
-                            provider or does not implement OIDC Discovery.
                           type: string
                         ttl:
                           description: Decides how long to wait before refreshing
@@ -3173,7 +3168,12 @@ spec:
                             precompile) and at runtime.
                           type: boolean
                         externalPolicy:
-                          description: External registry of OPA policies.
+                          description: 'Settings for fetching the OPA policy from
+                            an external registry. Use it alternatively to ''inlineRego''.
+                            For the configurations of the HTTP request, the following
+                            options are not implemented: ''method'', ''body'', ''bodyParameters'',
+                            ''contentType'', ''headers'', ''oauth2''. Use it only
+                            with: ''url'', ''sharedSecret'', ''credentials''.'
                           properties:
                             body:
                               description: Raw body of the HTTP request. Supersedes
@@ -3253,8 +3253,6 @@ spec:
                                   properties:
                                     name:
                                       type: string
-                                    prefix:
-                                      type: string
                                   required:
                                   - name
                                   type: object
@@ -3286,10 +3284,6 @@ spec:
                                 type: object
                               description: Custom headers in the HTTP request.
                               type: object
-                            insecure:
-                              description: Insecure HTTP connection (i.e. disables
-                                TLS verification)
-                              type: boolean
                             method:
                               default: GET
                               description: 'HTTP verb used in the request to the service.
@@ -3748,8 +3742,6 @@ spec:
                               properties:
                                 name:
                                   type: string
-                                prefix:
-                                  type: string
                               required:
                               - name
                               type: object
@@ -3780,10 +3772,6 @@ spec:
                             type: object
                           description: Custom headers in the HTTP request.
                           type: object
-                        insecure:
-                          description: Insecure HTTP connection (i.e. disables TLS
-                            verification)
-                          type: boolean
                         method:
                           default: GET
                           description: 'HTTP verb used in the request to the service.
@@ -4068,8 +4056,6 @@ spec:
                               properties:
                                 name:
                                   type: string
-                                prefix:
-                                  type: string
                               required:
                               - name
                               type: object
@@ -4100,10 +4086,6 @@ spec:
                             type: object
                           description: Custom headers in the HTTP request.
                           type: object
-                        insecure:
-                          description: Insecure HTTP connection (i.e. disables TLS
-                            verification)
-                          type: boolean
                         method:
                           default: GET
                           description: 'HTTP verb used in the request to the service.
