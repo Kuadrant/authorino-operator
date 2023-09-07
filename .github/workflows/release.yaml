@@ -17,6 +17,10 @@ on:
         description: Is the release a prerelease
         required: false
         type: boolean
+      channels:
+        description: Bundle and catalog channels, comma separated
+        default: preview
+        type: string
 
 jobs:
   build:
@@ -41,7 +45,11 @@ jobs:
       run: |
         git checkout -b release-v${{ github.event.inputs.operatorVersion }}
     - name: Prepare release
-      run: VERSION=${{ github.event.inputs.operatorVersion }} AUTHORINO_VERSION=${{ github.event.inputs.authorinoVersion }} make prepare-release
+      run: |
+        VERSION=${{ github.event.inputs.operatorVersion }} \
+        AUTHORINO_VERSION=${{ github.event.inputs.authorinoVersion }} \
+        CHANNELS=${{ github.event.inputs.channels }} \
+        make prepare-release
     - name: Commit and push
       run: |
         git config --global user.name "github-actions[bot]"
