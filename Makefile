@@ -295,14 +295,18 @@ catalog-push: ## Push a catalog image.
 ## Targets to verify actions that generate/modify code have been executed and output committed
 
 .PHONY: verify-manifests
-verify-manifests: manifests ## Verify manifests update.
-	git diff --exit-code ./config
+verify-manifests: manifests $(YQ) ## Verify manifests update.
+	git diff -I'^    containerImage:' -I'^        image:' --exit-code ./config
 	[ -z "$$(git ls-files --other --exclude-standard --directory --no-empty-directory ./config)" ]
+	yq ea -e 'select([.][].kind == "Deployment").spec.template.spec.containers[0].image | . == "$(OPERATOR_IMAGE)"' config/deploy/manifests.yaml
+	yq e -e '.metadata.annotations.containerImage == "$(OPERATOR_IMAGE)"' config/manifests/bases/authorino-operator.clusterserviceversion.yaml
 
 .PHONY: verify-bundle
-verify-bundle: bundle ## Verify bundle update.
-	git diff --exit-code ./bundle
+verify-bundle: bundle $(YQ) ## Verify bundle update.
+	git diff -I'^    containerImage:' -I'^                image:' --exit-code ./bundle
 	[ -z "$$(git ls-files --other --exclude-standard --directory --no-empty-directory ./bundle)" ]
+	yq e -e '.metadata.annotations.containerImage == "$(OPERATOR_IMAGE)"' bundle/manifests/authorino-operator.clusterserviceversion.yaml
+	yq e -e '.spec.install.spec.deployments[0].spec.template.spec.containers[0].image == "$(OPERATOR_IMAGE)"' bundle/manifests/authorino-operator.clusterserviceversion.yaml
 
 .PHONY: verify-fmt
 verify-fmt: fmt ## Verify fmt update.
