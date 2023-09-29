@@ -33,6 +33,7 @@ const (
 	flagWatchNamespace                 string = "watch-namespace"
 	flagWatchedAuthConfigLabelSelector string = "auth-config-label-selector"
 	flagWatchedSecretLabelSelector     string = "secret-label-selector"
+	flagSupersedingHostSubsets         string = "allow-superseding-host-subsets"
 	flagLogLevel                       string = "log-level"
 	flagLogMode                        string = "log-mode"
 	flagTimeout                        string = "timeout"

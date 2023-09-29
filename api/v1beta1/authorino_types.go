@@ -71,6 +71,7 @@ type AuthorinoSpec struct {
 	OIDCServer               OIDCServer  `json:"oidcServer"`
 	AuthConfigLabelSelectors string      `json:"authConfigLabelSelectors,omitempty"`
 	SecretLabelSelectors     string      `json:"secretLabelSelectors,omitempty"`
+	SupersedingHostSubsets   bool        `json:"supersedingHostSubsets,omitempty"`
 	EvaluatorCacheSize       *int        `json:"evaluatorCacheSize,omitempty"`
 	Tracing                  Tracing     `json:"tracing,omitempty"`
 	Metrics                  Metrics     `json:"metrics,omitempty"`
