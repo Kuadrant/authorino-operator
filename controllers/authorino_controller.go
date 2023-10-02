@@ -324,6 +324,11 @@ func (r *AuthorinoReconciler) buildAuthorinoArgs(authorino *api.Authorino) []str
 		args = append(args, fmt.Sprintf("--%s=%s", flagWatchedSecretLabelSelector, selectors))
 	}
 
+	// allow-superseding-host-subsets
+	if authorino.Spec.SupersedingHostSubsets {
+		args = append(args, fmt.Sprintf("--%s", flagSupersedingHostSubsets))
+	}
+
 	// log-level
 	if logLevel := authorino.Spec.LogLevel; logLevel != "" {
 		args = append(args, fmt.Sprintf("--%s=%s", flagLogLevel, logLevel))

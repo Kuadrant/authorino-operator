@@ -326,6 +326,8 @@ func checkAuthorinoArgs(authorinoInstance *api.Authorino, args []string) {
 			Expect(value).Should(Equal(authorinoInstance.Spec.AuthConfigLabelSelectors))
 		case flagWatchedSecretLabelSelector:
 			Expect(value).Should(Equal(authorinoInstance.Spec.SecretLabelSelectors))
+		case flagSupersedingHostSubsets:
+			Expect(authorinoInstance.Spec.SupersedingHostSubsets).Should(BeTrue())
 		case flagLogLevel:
 			Expect(value).Should(Equal(authorinoInstance.Spec.LogLevel))
 		case flagLogMode:

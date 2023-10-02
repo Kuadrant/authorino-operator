@@ -5537,6 +5537,8 @@ spec:
                 type: integer
               secretLabelSelectors:
                 type: string
+              supersedingHostSubsets:
+                type: boolean
               tracing:
                 properties:
                   endpoint:
