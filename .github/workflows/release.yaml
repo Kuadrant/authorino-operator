@@ -19,7 +19,7 @@ on:
         type: boolean
       channels:
         description: Bundle and catalog channels, comma separated
-        default: preview
+        default: stable
         type: string
 
 jobs:
