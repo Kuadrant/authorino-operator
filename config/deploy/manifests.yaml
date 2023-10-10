@@ -6148,7 +6148,7 @@ spec:
         - --leader-elect
         command:
         - /manager
-        image: quay.io/kuadrant/authorino-operator:latest
+        image: quay.io/kuadrant/authorino-operator:v0.9.0
         livenessProbe:
           httpGet:
             path: /healthz
@@ -6199,7 +6199,7 @@ spec:
       - command:
         - authorino
         - webhooks
-        image: quay.io/kuadrant/authorino:latest
+        image: quay.io/kuadrant/authorino:0.15.0
         name: webhooks
         ports:
         - containerPort: 9443
