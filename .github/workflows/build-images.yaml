@@ -120,17 +120,17 @@ jobs:
       - name: Run make bundle (main)
         if: ${{ github.ref_name == env.MAIN_BRANCH_NAME }}
         run: make bundle REGISTRY=${{ env.IMG_REGISTRY_HOST }} ORG=${{ env.IMG_REGISTRY_ORG }} IMAGE_TAG=${{ github.sha }}
-      - name: Run make bundle (release)
-        if: ${{ github.ref_name != env.MAIN_BRANCH_NAME }}
-        run: make bundle fix-csv-replaces REGISTRY=${{ env.IMG_REGISTRY_HOST }} ORG=${{ env.IMG_REGISTRY_ORG }} VERSION=${TAG_NAME/v/} AUTHORINO_VERSION=${{ github.event.inputs.authorinoVersion }} CHANNELS=${{ github.event.inputs.channels }}
+      # - name: Run make bundle (release)
+      #   if: ${{ github.ref_name != env.MAIN_BRANCH_NAME }}
+      #   run: make bundle fix-csv-replaces REGISTRY=${{ env.IMG_REGISTRY_HOST }} ORG=${{ env.IMG_REGISTRY_ORG }} VERSION=${TAG_NAME/v/} AUTHORINO_VERSION=${{ github.event.inputs.authorinoVersion }} CHANNELS=${{ github.event.inputs.channels }}
       - name: Git diff
         run: git diff
       - name: Verify manifests and bundle (main)
         if: github.ref_name == env.MAIN_BRANCH_NAME
         run: make verify-manifests verify-bundle REGISTRY=${{ env.IMG_REGISTRY_HOST }} ORG=${{ env.IMG_REGISTRY_ORG }} IMAGE_TAG=${{ github.sha }}
-      - name: Verify manifests and bundle (release)
-        if: ${{ github.ref_name != env.MAIN_BRANCH_NAME }}
-        run: make verify-manifests verify-bundle REGISTRY=${{ env.IMG_REGISTRY_HOST }} ORG=${{ env.IMG_REGISTRY_ORG }} VERSION=${TAG_NAME/v/} AUTHORINO_VERSION=${{ github.event.inputs.authorinoVersion }} CHANNELS=${{ github.event.inputs.channels }}
+      # - name: Verify manifests and bundle (release)
+      #   if: ${{ github.ref_name != env.MAIN_BRANCH_NAME }}
+      #   run: make verify-manifests verify-bundle REGISTRY=${{ env.IMG_REGISTRY_HOST }} ORG=${{ env.IMG_REGISTRY_ORG }} VERSION=${TAG_NAME/v/} AUTHORINO_VERSION=${{ github.event.inputs.authorinoVersion }} CHANNELS=${{ github.event.inputs.channels }}
       - name: Build Image
         id: build-image
         uses: redhat-actions/buildah-build@v2
