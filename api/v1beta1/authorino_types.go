@@ -60,22 +60,22 @@ type AuthorinoSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	Image                    string      `json:"image,omitempty"`
-	ImagePullPolicy          string      `json:"imagePullPolicy,omitempty"`
-	Replicas                 *int32      `json:"replicas,omitempty"`
-	Volumes                  VolumesSpec `json:"volumes,omitempty"`
-	LogLevel                 string      `json:"logLevel,omitempty"`
-	LogMode                  string      `json:"logMode,omitempty"`
-	ClusterWide              bool        `json:"clusterWide,omitempty"`
-	Listener                 Listener    `json:"listener"`
-	OIDCServer               OIDCServer  `json:"oidcServer"`
-	AuthConfigLabelSelectors string      `json:"authConfigLabelSelectors,omitempty"`
-	SecretLabelSelectors     string      `json:"secretLabelSelectors,omitempty"`
-	SupersedingHostSubsets   bool        `json:"supersedingHostSubsets,omitempty"`
-	EvaluatorCacheSize       *int        `json:"evaluatorCacheSize,omitempty"`
-	Tracing                  Tracing     `json:"tracing,omitempty"`
-	Metrics                  Metrics     `json:"metrics,omitempty"`
-	Healthz                  Healthz     `json:"healthz,omitempty"`
+	Image                    string             `json:"image,omitempty"`
+	ImagePullPolicy          k8score.PullPolicy `json:"imagePullPolicy,omitempty"`
+	Replicas                 *int32             `json:"replicas,omitempty"`
+	Volumes                  VolumesSpec        `json:"volumes,omitempty"`
+	LogLevel                 string             `json:"logLevel,omitempty"`
+	LogMode                  string             `json:"logMode,omitempty"`
+	ClusterWide              bool               `json:"clusterWide,omitempty"`
+	Listener                 Listener           `json:"listener"`
+	OIDCServer               OIDCServer         `json:"oidcServer"`
+	AuthConfigLabelSelectors string             `json:"authConfigLabelSelectors,omitempty"`
+	SecretLabelSelectors     string             `json:"secretLabelSelectors,omitempty"`
+	SupersedingHostSubsets   bool               `json:"supersedingHostSubsets,omitempty"`
+	EvaluatorCacheSize       *int               `json:"evaluatorCacheSize,omitempty"`
+	Tracing                  Tracing            `json:"tracing,omitempty"`
+	Metrics                  Metrics            `json:"metrics,omitempty"`
+	Healthz                  Healthz            `json:"healthz,omitempty"`
 }
 
 type Listener struct {
