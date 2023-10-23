@@ -55,7 +55,7 @@ jobs:
       run: |
         git config --global user.name "github-actions[bot]"
         git config --global user.email "github-actions[bot]@users.noreply.github.com"
-        git commit -m "Prepared release v${{ github.event.inputs.operatorVersion }}" -a
+        git add -A && git commit -m "Prepared release v${{ github.event.inputs.operatorVersion }}"
         git push origin release-v${{ github.event.inputs.operatorVersion }}
     - name: Create release
       uses: softprops/action-gh-release@v1
