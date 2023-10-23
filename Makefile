@@ -77,8 +77,10 @@ SHELL = /usr/bin/env bash -o pipefail
 AUTHORINO_VERSION ?= latest
 ifeq (latest,$(AUTHORINO_VERSION))
 AUTHORINO_BRANCH = main
+AUTHORINO_IMAGE_TAG = latest
 else
 AUTHORINO_BRANCH = v$(AUTHORINO_VERSION)
+AUTHORINO_IMAGE_TAG = v$(AUTHORINO_VERSION)
 endif
 
 AUTHORINO_IMAGE_FILE ?= authorino_image
@@ -140,7 +142,7 @@ manifests: controller-gen kustomize authorino-manifests ## Generate WebhookConfi
 
 .PHONY: authorino-manifests
 authorino-manifests: export AUTHORINO_GITREF := $(AUTHORINO_BRANCH)
-authorino-manifests: export AUTHORINO_VERSION := $(AUTHORINO_VERSION)
+authorino-manifests: export AUTHORINO_IMAGE_TAG := $(AUTHORINO_IMAGE_TAG)
 authorino-manifests: ## Update authorino manifests.
 	envsubst \
         < config/authorino/kustomization.template.yaml \
@@ -266,7 +268,7 @@ prepare-release:
 	@if [ "$(AUTHORINO_VERSION)" = "latest" ]; then\
 		[ ! -e "$(AUTHORINO_IMAGE_FILE)" ] || rm $(AUTHORINO_IMAGE_FILE); \
 	else \
-	    echo quay.io/kuadrant/authorino:v$(AUTHORINO_VERSION) > $(AUTHORINO_IMAGE_FILE); \
+	    echo quay.io/kuadrant/authorino:$(AUTHORINO_IMAGE_TAG) > $(AUTHORINO_IMAGE_FILE); \
 	fi
 	$(MAKE) fix-csv-replaces
 

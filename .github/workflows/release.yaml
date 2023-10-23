@@ -49,6 +49,7 @@ jobs:
         VERSION=${{ github.event.inputs.operatorVersion }} \
         AUTHORINO_VERSION=${{ github.event.inputs.authorinoVersion }} \
         CHANNELS=${{ github.event.inputs.channels }} \
+        DEFAULT_CHANNEL=${{ github.event.inputs.channels }} \
         make prepare-release
     - name: Commit and push
       run: |
