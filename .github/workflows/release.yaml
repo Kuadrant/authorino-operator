@@ -49,12 +49,13 @@ jobs:
         VERSION=${{ github.event.inputs.operatorVersion }} \
         AUTHORINO_VERSION=${{ github.event.inputs.authorinoVersion }} \
         CHANNELS=${{ github.event.inputs.channels }} \
+        DEFAULT_CHANNEL=${{ github.event.inputs.channels }} \
         make prepare-release
     - name: Commit and push
       run: |
         git config --global user.name "github-actions[bot]"
         git config --global user.email "github-actions[bot]@users.noreply.github.com"
-        git commit -m "Prepared release v${{ github.event.inputs.operatorVersion }}" -a
+        git add -A && git commit -m "Prepared release v${{ github.event.inputs.operatorVersion }}"
         git push origin release-v${{ github.event.inputs.operatorVersion }}
     - name: Create release
       uses: softprops/action-gh-release@v1

@@ -9,7 +9,7 @@ resources:
 images:
 - name: AUTHORINO_IMAGE
   newName: quay.io/kuadrant/authorino
-  newTag: ${AUTHORINO_VERSION}
+  newTag: ${AUTHORINO_IMAGE_TAG}
 
 patchesStrategicMerge:
 - webhook/patches/webhook_in_authconfigs.yaml
