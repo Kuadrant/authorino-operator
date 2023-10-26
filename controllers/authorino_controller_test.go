@@ -256,7 +256,7 @@ func newFullAuthorinoInstance() *api.Authorino {
 		Spec: api.AuthorinoSpec{
 			Image:           image,
 			Replicas:        &replicas,
-			ImagePullPolicy: string(k8score.PullAlways),
+			ImagePullPolicy: k8score.PullAlways,
 			Volumes: api.VolumesSpec{
 				Items: []api.VolumeSpec{
 					{
