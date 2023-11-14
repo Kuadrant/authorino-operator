@@ -152,7 +152,7 @@ interfaces
 
 #### OIDCServer
 
-Configuration of the OIDC Discovery server for [Festival Wristband](https://docs.kuadrant.io/authorino/docs/features/#festival-wristband-authentication)
+Configuration of the OIDC Discovery server for [Festival Wristband](https://docs.kuadrant.io/authorino/docs/features/#festival-wristband-tokens-responsesuccessheadersdynamicmetadatawristband)
 tokens.
 
 | Field |    Type     | Description                                                                  | Required/Default |
@@ -194,7 +194,7 @@ Configuration of the metrics server.
 | Field |  Type   | Description                                                                                                                                                                                                    | Required/Default |
 |-------|:-------:|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------|
 | port  | Integer | Port number of the metrics server.                                                                                                                                                                             | Default: `8080`  |
-| deep  | Boolean | Enable/disable metrics at the level of each evaluator config (if requested in the [`AuthConfig`](https://docs.kuadrant.io/authorino/docs/user-guides/observability/#metrics)) exported by the metrics server. | Default: `false` |
+| deep  | Boolean | Enable/disable metrics at the level of each evaluator config (if requested in the [`AuthConfig`](https://docs.kuadrant.io/authorino/docs/features/#common-feature-metrics-metrics)) exported by the metrics server. | Default: `false` |
 
 #### Healthz
 
