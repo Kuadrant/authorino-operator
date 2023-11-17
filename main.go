@@ -33,6 +33,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
+	"github.com/kuadrant/authorino-operator/pkg/log"
+
 	authorinooperatorv1beta1 "github.com/kuadrant/authorino-operator/api/v1beta1"
 	"github.com/kuadrant/authorino-operator/controllers"
 	//+kubebuilder:scaffold:imports
@@ -41,8 +43,8 @@ import (
 var (
 	scheme   = runtime.NewScheme()
 	setupLog = ctrl.Log.WithName("setup")
-
-	version string // value injected in compilation-time
+	logger   log.Logger
+	version  string // value injected in compilation-time
 )
 
 func init() {
@@ -52,24 +54,42 @@ func init() {
 	//+kubebuilder:scaffold:scheme
 }
 
+type logOptions struct {
+	level string
+	mode  string
+}
+
+func setupLogger(opts logOptions) {
+	logOpts := log.Options{Level: log.ToLogLevel(opts.level), Mode: log.ToLogMode(opts.mode)}
+	logger = log.NewLogger(logOpts).WithName("authorino-operator").WithName("controller").WithName("Authorino")
+	log.SetLogger(logger)
+}
+
 func main() {
 	var metricsAddr string
 	var enableLeaderElection bool
 	var probeAddr string
+	logOpts := logOptions{}
+
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
 		"Enable leader election for controller manager. "+
 			"Enabling this will ensure there is only one active controller manager.")
+	flag.StringVar(&logOpts.level, "log-level", "info", "Log level (info, debug, error, etc.)")
+	flag.StringVar(&logOpts.mode, "log-mode", "production", "Log mode (development or production)")
+
 	opts := zap.Options{
 		Development: true,
 	}
 	opts.BindFlags(flag.CommandLine)
 	flag.Parse()
 
+	setupLogger(logOpts)
+
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 
-	setupLog.Info("botting up authorino operator", "version", version, "default authorino image", controllers.DefaultAuthorinoImage)
+	setupLog.Info("booting up authorino operator", "version", version, "default authorino image", controllers.DefaultAuthorinoImage)
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                 scheme,
@@ -86,7 +106,7 @@ func main() {
 
 	if err = (&controllers.AuthorinoReconciler{
 		Client: mgr.GetClient(),
-		Log:    ctrl.Log.WithName("authorino-operator").WithName("controller").WithName("Authorino"),
+		Log:    logger,
 		Scheme: mgr.GetScheme(),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Authorino")
