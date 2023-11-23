@@ -312,7 +312,7 @@ verify-manifests: manifests $(YQ) ## Verify manifests update.
 	yq e -e '.metadata.annotations.containerImage == "$(OPERATOR_IMAGE)"' config/manifests/bases/authorino-operator.clusterserviceversion.yaml
 
 .PHONY: verify-bundle
-verify-bundle: bundle $(YQ) ## Verify bundle update.
+verify-bundle: $(YQ) ## Verify bundle update.
 	git diff -I'^    containerImage:' -I'^                image:' --exit-code ./bundle
 	[ -z "$$(git ls-files --other --exclude-standard --directory --no-empty-directory ./bundle)" ]
 	yq e -e '.metadata.annotations.containerImage == "$(OPERATOR_IMAGE)"' bundle/manifests/authorino-operator.clusterserviceversion.yaml

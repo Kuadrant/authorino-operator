@@ -34,9 +34,9 @@ jobs:
         id: go
       - name: Check out code
         uses: actions/checkout@v3
-      - name: Run make verify-bundle
+      - name: Verify the bundle
         run: |
-          make verify-bundle
+          make bundle verify-bundle
 
   verify-fmt:
     name: Verify fmt
