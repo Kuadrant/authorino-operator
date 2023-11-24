@@ -52,6 +52,9 @@ BUNDLE_METADATA_OPTS ?= $(BUNDLE_CHANNELS) $(BUNDLE_DEFAULT_CHANNEL)
 # Operator manifests (RBAC & CRD)
 OPERATOR_MANIFESTS ?= $(PROJECT_DIR)/config/install/manifests.yaml
 
+# Bundle CSV
+BUNDLE_CSV = bundle/manifests/authorino-operator.clusterserviceversion.yaml
+
 # Produce CRDs that work back to Kubernetes 1.11 (no version conversion)
 CRD_OPTIONS ?= "crd:trivialVersions=true,preserveUnknownFields=false"
 
@@ -83,8 +86,10 @@ AUTHORINO_BRANCH = v$(AUTHORINO_VERSION)
 AUTHORINO_IMAGE_TAG = v$(AUTHORINO_VERSION)
 endif
 
-AUTHORINO_IMAGE_FILE ?= authorino_image
-DEFAULT_AUTHORINO_IMAGE ?= $(shell cat $(AUTHORINO_IMAGE_FILE) || echo $(DEFAULT_REGISTRY)/$(DEFAULT_ORG)/authorino:latest)
+# Build file used to store replaces/authorinoImage options.
+BUILD_CONFIG_FILE ?= build.yaml
+DEFAULT_AUTHORINO_IMAGE ?= $(shell $(YQ) e -e '.config.authorinoImage' $(BUILD_CONFIG_FILE) || echo $(DEFAULT_REGISTRY)/$(DEFAULT_ORG)/authorino:latest)
+EXPECTED_DEFAULT_AUTHORINO_IMAGE = $(DEFAULT_REGISTRY)/$(DEFAULT_ORG)/authorino:$(AUTHORINO_IMAGE_TAG)
 
 all: build
 
@@ -236,13 +241,16 @@ deploy-manifest:
 .PHONY: bundle
 bundle: export IMAGE_TAG := $(IMAGE_TAG)
 bundle: export BUNDLE_VERSION := $(BUNDLE_VERSION)
-bundle: manifests kustomize operator-sdk ## Generate bundle manifests and metadata, then validate generated files.
+bundle: manifests kustomize operator-sdk $(YQ) ## Generate bundle manifests and metadata, then validate generated files.
 	$(OPERATOR_SDK) generate kustomize manifests -q
 	cd config/manager && $(KUSTOMIZE) edit set image controller=$(OPERATOR_IMAGE)
 	envsubst \
         < config/manifests/bases/authorino-operator.clusterserviceversion.template.yaml \
         > config/manifests/bases/authorino-operator.clusterserviceversion.yaml
 	$(KUSTOMIZE) build config/manifests | $(OPERATOR_SDK) generate bundle -q --overwrite --version $(BUNDLE_VERSION) $(BUNDLE_METADATA_OPTS) --package authorino-operator
+	($(YQ) e -e '.config.replaces' $(BUILD_CONFIG_FILE) && \
+		V="$(shell $(YQ) e -e '.config.replaces' $(BUILD_CONFIG_FILE))" $(YQ) eval '.spec.replaces = strenv(V)' -i $(BUNDLE_CSV)) || \
+		($(YQ) eval '.' -i $(BUNDLE_CSV) && echo "no replaces added")
 	$(OPERATOR_SDK) bundle validate ./bundle
 	# Roll back edit
 	cd config/manager && $(KUSTOMIZE) edit set image controller=${DEFAULT_OPERATOR_IMAGE}
@@ -255,22 +263,29 @@ bundle-build: ## Build the bundle image.
 bundle-push: ## Push the bundle image.
 	$(MAKE) docker-push OPERATOR_IMAGE=$(BUNDLE_IMG)
 
-.PHONY: fix-csv-replaces
-fix-csv-replaces: $(YQ)
+.PHONY: create-build-file
+create-build-file: $(YQ)
+	$(YQ) -n '.config' > $(BUILD_CONFIG_FILE)
+
+.PHONY: set-authorino-default-image
+set-authorino-default-image: $(YQ)
+	@if [ "$(AUTHORINO_VERSION)" != "latest" ]; then\
+		V="$(DEFAULT_REGISTRY)/$(DEFAULT_ORG)/authorino:$(AUTHORINO_IMAGE_TAG)" $(YQ) eval '.config.authorinoImage = strenv(V)' -i $(BUILD_CONFIG_FILE); \
+	fi
+
+.PHONY: set-replaces-directive
+set-replaces-directive: $(YQ)
 	$(eval REPLACES_VERSION=$(shell curl -sSL -H "Accept: application/vnd.github+json" \
                https://api.github.com/repos/Kuadrant/authorino-operator/releases/latest | \
                jq -r '.name'))
-	V="authorino-operator.$(REPLACES_VERSION)" $(YQ) eval '.spec.replaces = strenv(V)' -i bundle/manifests/authorino-operator.clusterserviceversion.yaml
+	V="authorino-operator.$(REPLACES_VERSION)" $(YQ) e -i '.config.replaces = strenv(V)' $(BUILD_CONFIG_FILE)
 
 .PHONY: prepare-release
 prepare-release:
+	$(MAKE) create-build-file
+	$(MAKE) set-authorino-default-image
+	$(MAKE) set-replaces-directive
 	$(MAKE) manifests bundle VERSION=$(VERSION) AUTHORINO_VERSION=$(AUTHORINO_VERSION)
-	@if [ "$(AUTHORINO_VERSION)" = "latest" ]; then\
-		[ ! -e "$(AUTHORINO_IMAGE_FILE)" ] || rm $(AUTHORINO_IMAGE_FILE); \
-	else \
-	    echo quay.io/kuadrant/authorino:$(AUTHORINO_IMAGE_TAG) > $(AUTHORINO_IMAGE_FILE); \
-	fi
-	$(MAKE) fix-csv-replaces
 
 # A comma-separated list of bundle images (e.g. make catalog-build BUNDLE_IMGS=example.com/operator-bundle:v0.1.0,example.com/operator-bundle:v0.2.0).
 # These images MUST exist in a registry and be pull-able.
@@ -306,17 +321,19 @@ catalog-push: ## Push a catalog image.
 
 .PHONY: verify-manifests
 verify-manifests: manifests $(YQ) ## Verify manifests update.
-	git diff -I'^    containerImage:' -I'^        image:' --exit-code ./config
+	git diff -I' containerImage:' -I' image:' --exit-code ./config
 	[ -z "$$(git ls-files --other --exclude-standard --directory --no-empty-directory ./config)" ]
-	yq ea -e 'select([.][].kind == "Deployment").spec.template.spec.containers[0].image | . == "$(OPERATOR_IMAGE)"' config/deploy/manifests.yaml
-	yq e -e '.metadata.annotations.containerImage == "$(OPERATOR_IMAGE)"' config/manifests/bases/authorino-operator.clusterserviceversion.yaml
+	$(YQ) ea -e 'select([.][].kind == "Deployment") | select([.][].metadata.name == "authorino-operator").spec.template.spec.containers[0].image | . == "$(OPERATOR_IMAGE)"' config/deploy/manifests.yaml
+	$(YQ) ea -e 'select([.][].kind == "Deployment") | select([.][].metadata.name == "authorino-webhooks").spec.template.spec.containers[0].image | . == "$(EXPECTED_DEFAULT_AUTHORINO_IMAGE)"' config/deploy/manifests.yaml
+	$(YQ) e -e '.metadata.annotations.containerImage == "$(OPERATOR_IMAGE)"' config/manifests/bases/authorino-operator.clusterserviceversion.yaml
 
 .PHONY: verify-bundle
 verify-bundle: bundle $(YQ) ## Verify bundle update.
-	git diff -I'^    containerImage:' -I'^                image:' --exit-code ./bundle
+	git diff -I' containerImage:' -I' image:' --exit-code ./bundle
 	[ -z "$$(git ls-files --other --exclude-standard --directory --no-empty-directory ./bundle)" ]
-	yq e -e '.metadata.annotations.containerImage == "$(OPERATOR_IMAGE)"' bundle/manifests/authorino-operator.clusterserviceversion.yaml
-	yq e -e '.spec.install.spec.deployments[0].spec.template.spec.containers[0].image == "$(OPERATOR_IMAGE)"' bundle/manifests/authorino-operator.clusterserviceversion.yaml
+	$(YQ) e -e '.metadata.annotations.containerImage == "$(OPERATOR_IMAGE)"' $(BUNDLE_CSV)
+	$(YQ) e -e '.spec.install.spec.deployments[0].spec.template.spec.containers[0].image == "$(OPERATOR_IMAGE)"' $(BUNDLE_CSV)
+	$(YQ) e -e '.spec.install.spec.deployments[1].spec.template.spec.containers[0].image == "$(EXPECTED_DEFAULT_AUTHORINO_IMAGE)"' $(BUNDLE_CSV)
 
 .PHONY: verify-fmt
 verify-fmt: fmt ## Verify fmt update.

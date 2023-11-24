@@ -22,6 +22,7 @@ env:
   IMG_REGISTRY_ORG: kuadrant
   MAIN_BRANCH_NAME: main
   OPERATOR_NAME: authorino-operator
+  BUILD_CONFIG_FILE: build.yaml
 
 jobs:
   build:
@@ -52,9 +53,11 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y qemu-user-static
+      - name: Install yq dependency
+        run: make yq
       - name: Set default authorino image
         run: |
-          echo "DEFAULT_AUTHORINO_IMAGE=$(cat authorino_image || echo ${{ env.IMG_REGISTRY_HOST }}/${{ env.IMG_REGISTRY_ORG }}/authorino:latest)" >> $GITHUB_ENV
+          echo "DEFAULT_AUTHORINO_IMAGE=$(./bin/yq e -e '.config.authorinoImage' ${{ env.BUILD_CONFIG_FILE }} || echo ${{ env.IMG_REGISTRY_HOST }}/${{ env.IMG_REGISTRY_ORG }}/authorino:latest)" >> $GITHUB_ENV
       - name: Build Image
         id: build-image
         uses: redhat-actions/buildah-build@v2
@@ -122,7 +125,7 @@ jobs:
         run: make bundle REGISTRY=${{ env.IMG_REGISTRY_HOST }} ORG=${{ env.IMG_REGISTRY_ORG }} IMAGE_TAG=${{ github.sha }}
       - name: Run make bundle (release)
         if: ${{ github.ref_name != env.MAIN_BRANCH_NAME }}
-        run: make bundle fix-csv-replaces REGISTRY=${{ env.IMG_REGISTRY_HOST }} ORG=${{ env.IMG_REGISTRY_ORG }} VERSION=${TAG_NAME/v/} AUTHORINO_VERSION=${{ github.event.inputs.authorinoVersion }} CHANNELS=${{ github.event.inputs.channels }}
+        run: make bundle REGISTRY=${{ env.IMG_REGISTRY_HOST }} ORG=${{ env.IMG_REGISTRY_ORG }} VERSION=${TAG_NAME/v/} AUTHORINO_VERSION=${{ github.event.inputs.authorinoVersion }} CHANNELS=${{ github.event.inputs.channels }} DEFAULT_CHANNEL=stable
       - name: Git diff
         run: git diff
       - name: Verify manifests and bundle (main)
@@ -130,7 +133,7 @@ jobs:
         run: make verify-manifests verify-bundle REGISTRY=${{ env.IMG_REGISTRY_HOST }} ORG=${{ env.IMG_REGISTRY_ORG }} IMAGE_TAG=${{ github.sha }}
       - name: Verify manifests and bundle (release)
         if: ${{ github.ref_name != env.MAIN_BRANCH_NAME }}
-        run: make verify-manifests verify-bundle REGISTRY=${{ env.IMG_REGISTRY_HOST }} ORG=${{ env.IMG_REGISTRY_ORG }} VERSION=${TAG_NAME/v/} AUTHORINO_VERSION=${{ github.event.inputs.authorinoVersion }} CHANNELS=${{ github.event.inputs.channels }}
+        run: make verify-manifests verify-bundle REGISTRY=${{ env.IMG_REGISTRY_HOST }} ORG=${{ env.IMG_REGISTRY_ORG }} VERSION=${TAG_NAME/v/} AUTHORINO_VERSION=${{ github.event.inputs.authorinoVersion }} CHANNELS=${{ github.event.inputs.channels }} DEFAULT_CHANNEL=stable
       - name: Build Image
         id: build-image
         uses: redhat-actions/buildah-build@v2
