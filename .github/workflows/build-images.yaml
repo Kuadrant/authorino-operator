@@ -22,6 +22,7 @@ env:
   IMG_REGISTRY_ORG: kuadrant
   MAIN_BRANCH_NAME: main
   OPERATOR_NAME: authorino-operator
+  BUILD_CONFIG_FILE: build.yaml
 
 jobs:
   build:
@@ -52,9 +53,11 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y qemu-user-static
+      - name: Install yq dependency
+        run: make yq
       - name: Set default authorino image
         run: |
-          echo "DEFAULT_AUTHORINO_IMAGE=$(cat authorino_image || echo ${{ env.IMG_REGISTRY_HOST }}/${{ env.IMG_REGISTRY_ORG }}/authorino:latest)" >> $GITHUB_ENV
+          echo "DEFAULT_AUTHORINO_IMAGE=$(./bin/yq e -e '.config.authorinoImage' ${{ env.BUILD_CONFIG_FILE }} || echo ${{ env.IMG_REGISTRY_HOST }}/${{ env.IMG_REGISTRY_ORG }}/authorino:latest)" >> $GITHUB_ENV
       - name: Build Image
         id: build-image
         uses: redhat-actions/buildah-build@v2
