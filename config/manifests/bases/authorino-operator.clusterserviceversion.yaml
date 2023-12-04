@@ -21,6 +21,11 @@ spec:
       displayName: AuthConfig
       kind: AuthConfig
       name: authconfigs.authorino.kuadrant.io
+      version: v1beta2
+    - description: API to describe the desired protection for a service
+      displayName: AuthConfig
+      kind: AuthConfig
+      name: authconfigs.authorino.kuadrant.io
       version: v1beta1
     - description: API to create instances of authorino
       displayName: Authorino
