@@ -120,12 +120,12 @@ the state of the Kubernetes Deployment and associated resources, based on the st
 
 | Field                    |            Type             | Description                                                                                                                                                                                                                             | Required/Default                                      |
 |--------------------------|:---------------------------:|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------|
-| clusterWide              |           Boolean           | Sets the Authorino instance's [watching scope](https://github.com/Kuadrant/authorino/blob/main/docs/architecture.md#cluster-wide-vs-namespaced-instances) – cluster-wide or namespaced.                                                 | Default: `true` (cluster-wide)                        |
+| clusterWide              |           Boolean           | Sets the Authorino instance's [watching scope](https://docs.kuadrant.io/authorino/docs/architecture/#cluster-wide-vs-namespaced-instances) – cluster-wide or namespaced.                                                 | Default: `true` (cluster-wide)                        |
 | authConfigLabelSelectors |           String            | [Label selectors](https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#label-selectors) used by the Authorino instance to filter `AuthConfig`-related reconciliation events.                                       | Default: empty (all AuthConfigs are watched)          |
 | secretLabelSelectors     |           String            | [Label selectors](https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#label-selectors) used by the Authorino instance to filter `Secret`-related reconciliation events (API key and mTLS authentication methods). | Default: `authorino.kuadrant.io/managed-by=authorino` |
 | supersedingHostSubsets   |           Boolean           | Enable/disable allowing AuthConfigs to supersede strict subsets of hosts already taken.                                                                                                                                                 | Default: `false`                                      |
 | replicas                 |           Integer           | Number of replicas desired for the Authorino instance. Values greater than 1 enable leader election in the Authorino service, where the leader updates the statuses of the `AuthConfig` CRs).                                           | Default: 1                                            |
-| evaluatorCacheSize       |           Integer           | Cache size (in megabytes) of each Authorino evaluator (when enabled in an [`AuthConfig`](https://github.com/Kuadrant/authorino/blob/main/docs/features.md#common-feature-caching-cache)).                                               | Default: 1                                            |
+| evaluatorCacheSize       |           Integer           | Cache size (in megabytes) of each Authorino evaluator (when enabled in an [`AuthConfig`](https://docs.kuadrant.io/authorino/docs/features/#common-feature-caching-cache)).                                               | Default: 1                                            |
 | image                    |           String            | Authorino image to be deployed (for dev/testing purpose only).                                                                                                                                                                          | Default: `quay.io/kuadrant/authorino:latest`          |
 | imagePullPolicy          |           String            | Sets the [imagePullPolicy](https://kubernetes.io/docs/concepts/containers/images) of the Authorino Deployment (for dev/testing purpose only).                                                                                           | Default: k8s default                                  |
 | logLevel                 |           String            | Defines the level of log you want to enable in Authorino (`debug`, `info` and `error`).                                                                                                                                                 | Default: `info`                                       |
@@ -139,8 +139,8 @@ the state of the Kubernetes Deployment and associated resources, based on the st
 
 #### Listener
 
-Configuration of the authorization server – [gRPC](https://github.com/Kuadrant/authorino/blob/main/docs/architecture.md#overview)
-and [raw HTTP](https://github.com/Kuadrant/authorino/blob/main/docs/architecture.md#raw-http-authorization-interface)
+Configuration of the authorization server – [gRPC](https://docs.kuadrant.io/authorino/docs/architecture/#overview)
+and [raw HTTP](https://docs.kuadrant.io/authorino/docs/architecture/#raw-http-authorization-interface)
 interfaces
 
 | Field   |      Type       | Description                                                                                                     | Required/Default                         |
@@ -152,7 +152,7 @@ interfaces
 
 #### OIDCServer
 
-Configuration of the OIDC Discovery server for [Festival Wristband](https://github.com/Kuadrant/authorino/blob/main/docs/features.md#festival-wristband-tokens-responsewristband)
+Configuration of the OIDC Discovery server for [Festival Wristband](https://docs.kuadrant.io/authorino/docs/features/#festival-wristband-tokens-responsesuccessheadersdynamicmetadatawristband)
 tokens.
 
 | Field |    Type     | Description                                                                  | Required/Default |
@@ -194,7 +194,7 @@ Configuration of the metrics server.
 | Field |  Type   | Description                                                                                                                                                                                                    | Required/Default |
 |-------|:-------:|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------|
 | port  | Integer | Port number of the metrics server.                                                                                                                                                                             | Default: `8080`  |
-| deep  | Boolean | Enable/disable metrics at the level of each evaluator config (if requested in the [`AuthConfig`](https://github.com/Kuadrant/authorino/blob/main/docs/user-guides/metrics.md)) exported by the metrics server. | Default: `false` |
+| deep  | Boolean | Enable/disable metrics at the level of each evaluator config (if requested in the [`AuthConfig`](https://docs.kuadrant.io/authorino/docs/features/#common-feature-metrics-metrics)) exported by the metrics server. | Default: `false` |
 
 #### Healthz
 
