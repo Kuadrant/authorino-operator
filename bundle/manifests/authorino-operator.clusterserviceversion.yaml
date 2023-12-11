@@ -5,6 +5,34 @@ metadata:
     alm-examples: |-
       [
         {
+          "apiVersion": "authorino.kuadrant.io/v1beta2",
+          "kind": "AuthConfig",
+          "metadata": {
+            "name": "talker-api-protection"
+          },
+          "spec": {
+            "authentication": {
+              "api-key-users": {
+                "apiKey": {
+                  "selector": {
+                    "matchLabels": {
+                      "group": "friends"
+                    }
+                  }
+                },
+                "credentials": {
+                  "authorizationHeader": {
+                    "prefix": "APIKEY"
+                  }
+                }
+              }
+            },
+            "hosts": [
+              "talker-api.io"
+            ]
+          }
+        },
+        {
           "apiVersion": "operator.authorino.kuadrant.io/v1beta1",
           "kind": "Authorino",
           "metadata": {
@@ -43,7 +71,9 @@ spec:
         kind: AuthConfig
         name: authconfigs.authorino.kuadrant.io
         version: v1beta1
-      - kind: AuthConfig
+      - description: API to describe the desired protection for a service
+        displayName: AuthConfig
+        kind: AuthConfig
         name: authconfigs.authorino.kuadrant.io
         version: v1beta2
       - description: API to create instances of authorino

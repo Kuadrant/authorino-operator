@@ -1,0 +1,16 @@
+apiVersion: authorino.kuadrant.io/v1beta2
+kind: AuthConfig
+metadata:
+  name: talker-api-protection
+spec:
+  hosts:
+  - talker-api.io
+  authentication:
+    "api-key-users":
+      apiKey:
+        selector:
+          matchLabels:
+            group: friends
+      credentials:
+        authorizationHeader:
+          prefix: APIKEY
