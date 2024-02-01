@@ -105,6 +105,7 @@ type Ports struct {
 type Tracing struct {
 	Endpoint string            `json:"endpoint"`
 	Tags     map[string]string `json:"tags,omitempty"`
+	Insecure bool              `json:"insecure,omitempty"`
 }
 
 type Metrics struct {
