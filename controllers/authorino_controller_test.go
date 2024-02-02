@@ -302,6 +302,7 @@ func newFullAuthorinoInstance() *api.Authorino {
 					"env":     "test",
 					"version": "1.0.0",
 				},
+				Insecure: true,
 			},
 		},
 	}
@@ -354,6 +355,8 @@ func checkAuthorinoArgs(authorinoInstance *api.Authorino, args []string) {
 			kv := strings.Split(strings.TrimPrefix(strings.TrimSuffix(value, `"`), `"`), "=")
 			Expect(len(kv)).Should(Equal(2))
 			Expect(kv[1]).Should(Equal(authorinoInstance.Spec.Tracing.Tags[kv[0]]))
+		case flagTracingServiceInsecure:
+			Expect(authorinoInstance.Spec.Tracing.Insecure).Should(BeTrue())
 		case flagDeepMetricsEnabled:
 			Expect(authorinoInstance.Spec.Metrics.DeepMetricsEnabled).ShouldNot(BeNil())
 			Expect(*authorinoInstance.Spec.Metrics.DeepMetricsEnabled).Should(BeTrue())

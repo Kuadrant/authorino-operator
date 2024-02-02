@@ -182,10 +182,11 @@ Port numbers of the authorization server.
 
 Configuration of the OpenTelemetry tracing exporter.
 
-| Field    |  Type  | Description                                                                                         | Required/Default |
-|----------|:------:|-----------------------------------------------------------------------------------------------------|------------------|
-| endpoint | String | Full endpoint of the OpenTelemetry tracing collector service (e.g. http://jaeger:14268/api/traces). | Required         |
-| tags     |  Map   | Key-value map of fixed tags to add to all OpenTelemetry traces emitted by Authorino.                | Optional         |
+| Field    |  Type   | Description                                                                                         | Required/Default |
+|----------|:-------:|-----------------------------------------------------------------------------------------------------|------------------|
+| endpoint | String  | Full endpoint of the OpenTelemetry tracing collector service (e.g. http://jaeger:14268/api/traces). | Required         |
+| tags     |  Map    | Key-value map of fixed tags to add to all OpenTelemetry traces emitted by Authorino.                | Optional         |
+| insecure | Boolean | Enable/disable insecure connection to the tracing endpoint                                          | Default: `false` |
 
 #### Metrics
 

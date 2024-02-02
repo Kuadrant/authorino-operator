@@ -5545,6 +5545,8 @@ spec:
                 properties:
                   endpoint:
                     type: string
+                  insecure:
+                    type: boolean
                   tags:
                     additionalProperties:
                       type: string
