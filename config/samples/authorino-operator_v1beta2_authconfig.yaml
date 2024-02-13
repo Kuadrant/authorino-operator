@@ -1,10 +1,10 @@
 apiVersion: authorino.kuadrant.io/v1beta2
 kind: AuthConfig
 metadata:
-  name: talker-api-protection
+  name: my-api-protection
 spec:
   hosts:
-  - talker-api.io
+  - my-api.io
   authentication:
     "api-key-users":
       apiKey:
