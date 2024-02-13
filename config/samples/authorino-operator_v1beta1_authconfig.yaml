@@ -1,0 +1,16 @@
+apiVersion: authorino.kuadrant.io/v1beta1
+kind: AuthConfig
+metadata:
+  name: my-api-protection
+spec:
+  hosts:
+  - my-api.io
+  identity:
+  - name: api-key-users
+    apiKey:
+      selector:
+        matchLabels:
+          group: friends
+    credentials:
+      in: authorization_header
+      keySelector: APIKEY

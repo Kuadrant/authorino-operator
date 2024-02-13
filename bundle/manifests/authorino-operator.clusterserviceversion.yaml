@@ -5,10 +5,38 @@ metadata:
     alm-examples: |-
       [
         {
+          "apiVersion": "authorino.kuadrant.io/v1beta1",
+          "kind": "AuthConfig",
+          "metadata": {
+            "name": "my-api-protection"
+          },
+          "spec": {
+            "hosts": [
+              "my-api.io"
+            ],
+            "identity": [
+              {
+                "apiKey": {
+                  "selector": {
+                    "matchLabels": {
+                      "group": "friends"
+                    }
+                  }
+                },
+                "credentials": {
+                  "in": "authorization_header",
+                  "keySelector": "APIKEY"
+                },
+                "name": "api-key-users"
+              }
+            ]
+          }
+        },
+        {
           "apiVersion": "authorino.kuadrant.io/v1beta2",
           "kind": "AuthConfig",
           "metadata": {
-            "name": "talker-api-protection"
+            "name": "my-api-protection"
           },
           "spec": {
             "authentication": {
@@ -28,7 +56,7 @@ metadata:
               }
             },
             "hosts": [
-              "talker-api.io"
+              "my-api.io"
             ]
           }
         },
