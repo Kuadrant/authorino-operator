@@ -352,7 +352,7 @@ func checkAuthorinoArgs(authorinoInstance *api.Authorino, args []string) {
 		case flagTracingServiceEndpoint:
 			Expect(value).Should(Equal(authorinoInstance.Spec.Tracing.Endpoint))
 		case flagTracingServiceTag:
-			kv := strings.Split(strings.TrimPrefix(strings.TrimSuffix(value, `"`), `"`), "=")
+			kv := strings.Split(value, "=")
 			Expect(len(kv)).Should(Equal(2))
 			Expect(kv[1]).Should(Equal(authorinoInstance.Spec.Tracing.Tags[kv[0]]))
 		case flagTracingServiceInsecure:
