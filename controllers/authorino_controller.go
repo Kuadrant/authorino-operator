@@ -384,7 +384,7 @@ func (r *AuthorinoReconciler) buildAuthorinoArgs(authorino *api.Authorino) []str
 	if tracingServiceEndpoint := authorino.Spec.Tracing.Endpoint; tracingServiceEndpoint != "" {
 		args = append(args, fmt.Sprintf("--%s=%s", flagTracingServiceEndpoint, tracingServiceEndpoint))
 		for key, value := range authorino.Spec.Tracing.Tags {
-			args = append(args, fmt.Sprintf(`--%s="%s=%s"`, flagTracingServiceTag, key, value))
+			args = append(args, fmt.Sprintf(`--%s=%s=%s`, flagTracingServiceTag, key, value))
 		}
 		if authorino.Spec.Tracing.Insecure {
 			args = append(args, fmt.Sprintf(`--%s`, flagTracingServiceInsecure))
