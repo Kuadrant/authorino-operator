@@ -88,9 +88,10 @@ var _ = BeforeSuite(func() {
 	Expect(k8sClient.Create(context.TODO(), newCertSecret())).Should(Succeed())
 
 	err = (&AuthorinoReconciler{
-		Client: k8sClient,
-		Log:    ctrl.Log.WithName("authorino-operator").WithName("controller").WithName("Authorino"),
-		Scheme: mgr.GetScheme(),
+		Client:                k8sClient,
+		Log:                   ctrl.Log.WithName("authorino-operator").WithName("controller").WithName("Authorino"),
+		Scheme:                mgr.GetScheme(),
+		DefaultAuthorinoImage: "authorino:latest",
 	}).SetupWithManager(mgr)
 	Expect(err).ToNot(HaveOccurred())
 

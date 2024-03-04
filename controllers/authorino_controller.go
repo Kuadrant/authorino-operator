@@ -45,6 +45,8 @@ type AuthorinoReconciler struct {
 	client.Client
 	Log    logr.Logger
 	Scheme *runtime.Scheme
+
+	DefaultAuthorinoImage string
 }
 
 //+kubebuilder:rbac:groups=operator.authorino.kuadrant.io,resources=authorinos,verbs=get;list;watch;create;update;patch;delete
@@ -192,7 +194,7 @@ func (r *AuthorinoReconciler) buildAuthorinoDeployment(authorino *api.Authorino)
 	var saName = authorino.Name + "-authorino"
 
 	if authorino.Spec.Image == "" {
-		authorino.Spec.Image = DefaultAuthorinoImage
+		authorino.Spec.Image = r.DefaultAuthorinoImage
 	}
 
 	var volumes []k8score.Volume

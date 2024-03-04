@@ -121,14 +121,13 @@ var _ = Describe("Authorino controller", func() {
 			}, testTimeout, testInterval).Should(BeTrue())
 
 			replicas := int32(testAuthorinoReplicas)
-			image := DefaultAuthorinoImage
 			existContainer := false
 
 			Expect(deployment.Spec.Replicas).Should(Equal(&replicas))
 			Expect(deployment.Labels).Should(Equal(map[string]string{"thisLabel": "willPropagate"}))
 			for _, container := range deployment.Spec.Template.Spec.Containers {
 				if container.Name == authorinoContainerName {
-					Expect(container.Image).Should(Equal(image))
+					Expect(container.Image).Should(Equal("authorino:latest"))
 					Expect(container.ImagePullPolicy).Should(Equal(k8score.PullAlways))
 					checkAuthorinoArgs(authorinoInstance, container.Args)
 					Expect(len(container.Env)).Should(Equal(0))
@@ -238,7 +237,6 @@ func newExtServerConfigMap() *k8score.ConfigMap {
 
 func newFullAuthorinoInstance() *api.Authorino {
 	name := "a" + string(uuid.NewUUID())
-	image := DefaultAuthorinoImage
 	replicas := int32(testAuthorinoReplicas)
 	tslEnable := true
 	tlsDisabled := false
@@ -254,7 +252,7 @@ func newFullAuthorinoInstance() *api.Authorino {
 			Labels:    map[string]string{"thisLabel": "willPropagate"},
 		},
 		Spec: api.AuthorinoSpec{
-			Image:           image,
+			Image:           "authorino:latest",
 			Replicas:        &replicas,
 			ImagePullPolicy: k8score.PullAlways,
 			Volumes: api.VolumesSpec{

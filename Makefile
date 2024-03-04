@@ -174,18 +174,19 @@ endif
 # Run the tests
 test: manifests generate fmt vet setup-envtest
 	echo $(SETUP_ENVTEST)
-	KUBEBUILDER_ASSETS='$(strip $(shell $(SETUP_ENVTEST) --arch=amd64 use -p path 1.22.x))'  go test -ldflags="-X github.com/kuadrant/authorino-operator/controllers.DefaultAuthorinoImage=$(DEFAULT_AUTHORINO_IMAGE)" ./... -coverprofile cover.out
+	KUBEBUILDER_ASSETS='$(strip $(shell $(SETUP_ENVTEST) --arch=amd64 use -p path 1.22.x))' go test ./... -coverprofile cover.out
 
 ##@ Build
 
 build: generate fmt vet ## Build manager binary.
-	go build -ldflags "-X main.version=$(VERSION) -X github.com/kuadrant/authorino-operator/controllers.DefaultAuthorinoImage=$(DEFAULT_AUTHORINO_IMAGE)" -o bin/manager main.go
+	go build -ldflags "-X main.version=$(VERSION)" -o bin/manager main.go
 
+run: export DEFAULT_AUTHORINO_IMAGE := $(DEFAULT_AUTHORINO_IMAGE)
 run: manifests generate fmt vet ## Run a controller from your host.
-	go run -ldflags "-X main.version=$(VERSION) -X github.com/kuadrant/authorino-operator/controllers.DefaultAuthorinoImage=$(DEFAULT_AUTHORINO_IMAGE)" ./main.go
+	go run -ldflags "-X main.version=$(VERSION)" ./main.go
 
 docker-build:  ## Build docker image with the manager.
-	docker build --build-arg VERSION=$(VERSION) --build-arg DEFAULT_AUTHORINO_IMAGE=$(DEFAULT_AUTHORINO_IMAGE) -t $(OPERATOR_IMAGE) .
+	docker build --build-arg VERSION=$(VERSION) -t $(OPERATOR_IMAGE) .
 
 docker-push: ## Push docker image with the manager.
 	docker push ${OPERATOR_IMAGE}
@@ -234,6 +235,7 @@ DEPLOYMENT_FILE = $(DEPLOYMENT_DIR)/manifests.yaml
 deploy-manifest:
 	mkdir -p $(DEPLOYMENT_DIR)
 	cd $(PROJECT_DIR)/config/manager && $(KUSTOMIZE) edit set image controller=$(OPERATOR_IMAGE) ;\
+	echo "DEFAULT_AUTHORINO_IMAGE=$(DEFAULT_AUTHORINO_IMAGE)" > $(PROJECT_DIR)/config/manager/env-vars.env
 	cd $(PROJECT_DIR) && $(KUSTOMIZE) build config/deploy > $(DEPLOYMENT_FILE)
 	# clean up
 	cd $(PROJECT_DIR)/config/manager && $(KUSTOMIZE) edit set image controller=${DEFAULT_OPERATOR_IMAGE}
@@ -325,6 +327,7 @@ verify-manifests: manifests $(YQ) ## Verify manifests update.
 	[ -z "$$(git ls-files --other --exclude-standard --directory --no-empty-directory ./config)" ]
 	$(YQ) ea -e 'select([.][].kind == "Deployment") | select([.][].metadata.name == "authorino-operator").spec.template.spec.containers[0].image | . == "$(OPERATOR_IMAGE)"' config/deploy/manifests.yaml
 	$(YQ) ea -e 'select([.][].kind == "Deployment") | select([.][].metadata.name == "authorino-webhooks").spec.template.spec.containers[0].image | . == "$(EXPECTED_DEFAULT_AUTHORINO_IMAGE)"' config/deploy/manifests.yaml
+	$(YQ) ea -e 'select([.][].kind == "ConfigMap") | select([.][].metadata.name == "authorino-operator-env").data.DEFAULT_AUTHORINO_IMAGE | . == "$(EXPECTED_DEFAULT_AUTHORINO_IMAGE)"' config/deploy/manifests.yaml
 	$(YQ) e -e '.metadata.annotations.containerImage == "$(OPERATOR_IMAGE)"' config/manifests/bases/authorino-operator.clusterserviceversion.yaml
 
 .PHONY: verify-bundle
@@ -334,6 +337,7 @@ verify-bundle: bundle $(YQ) ## Verify bundle update.
 	$(YQ) e -e '.metadata.annotations.containerImage == "$(OPERATOR_IMAGE)"' $(BUNDLE_CSV)
 	$(YQ) e -e '.spec.install.spec.deployments[0].spec.template.spec.containers[0].image == "$(OPERATOR_IMAGE)"' $(BUNDLE_CSV)
 	$(YQ) e -e '.spec.install.spec.deployments[1].spec.template.spec.containers[0].image == "$(EXPECTED_DEFAULT_AUTHORINO_IMAGE)"' $(BUNDLE_CSV)
+	$(YQ) e -e '.data.DEFAULT_AUTHORINO_IMAGE == "$(EXPECTED_DEFAULT_AUTHORINO_IMAGE)"' ./bundle/manifests/authorino-operator-env_v1_configmap.yaml
 
 .PHONY: verify-fmt
 verify-fmt: fmt ## Verify fmt update.
