@@ -252,8 +252,13 @@ bundle: manifests kustomize operator-sdk $(YQ) ## Generate bundle manifests and 
 		V="$(shell $(YQ) e -e '.config.replaces' $(BUILD_CONFIG_FILE))" $(YQ) eval '.spec.replaces = strenv(V)' -i $(BUNDLE_CSV)) || \
 		($(YQ) eval '.' -i $(BUNDLE_CSV) && echo "no replaces added")
 	$(OPERATOR_SDK) bundle validate ./bundle
+	$(MAKE) bundle-ignore-created-at
 	# Roll back edit
 	cd config/manager && $(KUSTOMIZE) edit set image controller=${DEFAULT_OPERATOR_IMAGE}
+
+.PHONY: bundle-ignore-created-at
+bundle-ignore-created-at:
+	git diff --quiet -I'^    createdAt: ' ./bundle && git checkout ./bundle || true
 
 .PHONY: bundle-build
 bundle-build: ## Build the bundle image.
