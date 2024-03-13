@@ -102,7 +102,7 @@ help: ## Display this help.
 ##@ Tools
 
 OPERATOR_SDK = $(shell pwd)/bin/operator-sdk
-OPERATOR_SDK_VERSION = v1.22.0
+OPERATOR_SDK_VERSION = v1.32.0
 operator-sdk: ## Download operator-sdk locally if necessary.
 	./utils/install-operator-sdk.sh $(OPERATOR_SDK) $(OPERATOR_SDK_VERSION)
 
