@@ -90,6 +90,3 @@ const (
 	statusUnableToUpdateDeployment                = "UnableToUpdateDeployment"
 	statusDeploymentNotReady                      = "DeploymentNotReady"
 )
-
-// ldflags
-var DefaultAuthorinoImage string

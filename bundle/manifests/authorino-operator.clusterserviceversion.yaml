@@ -314,6 +314,12 @@ spec:
                       - --leader-elect
                     command:
                       - /manager
+                    env:
+                      - name: DEFAULT_AUTHORINO_IMAGE
+                        valueFrom:
+                          configMapKeyRef:
+                            key: DEFAULT_AUTHORINO_IMAGE
+                            name: authorino-operator-env
                     image: quay.io/kuadrant/authorino-operator:latest
                     livenessProbe:
                       httpGet:
