@@ -165,7 +165,7 @@ vet: ## Run go vet against code.
 
 setup-envtest:
 ifeq (, $(shell which setup-envtest))
-	go install sigs.k8s.io/controller-runtime/tools/setup-envtest@latest
+	go install sigs.k8s.io/controller-runtime/tools/setup-envtest@release-0.16
 SETUP_ENVTEST=$(GOBIN)/setup-envtest
 else
 SETUP_ENVTEST=$(shell which setup-envtest)
