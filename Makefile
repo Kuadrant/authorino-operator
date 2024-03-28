@@ -252,13 +252,8 @@ bundle: manifests kustomize operator-sdk $(YQ) ## Generate bundle manifests and 
 		V="$(shell $(YQ) e -e '.config.replaces' $(BUILD_CONFIG_FILE))" $(YQ) eval '.spec.replaces = strenv(V)' -i $(BUNDLE_CSV)) || \
 		($(YQ) eval '.' -i $(BUNDLE_CSV) && echo "no replaces added")
 	$(OPERATOR_SDK) bundle validate ./bundle
-	$(MAKE) bundle-ignore-created-at
 	# Roll back edit
 	cd config/manager && $(KUSTOMIZE) edit set image controller=${DEFAULT_OPERATOR_IMAGE}
-
-.PHONY: bundle-ignore-created-at
-bundle-ignore-created-at:
-	git diff --quiet -I'^    createdAt: ' ./bundle && git checkout ./bundle || true
 
 .PHONY: bundle-build
 bundle-build: ## Build the bundle image.
@@ -326,7 +321,7 @@ catalog-push: ## Push a catalog image.
 
 .PHONY: verify-manifests
 verify-manifests: manifests $(YQ) ## Verify manifests update.
-	git diff -I' containerImage:' -I' image:' --exit-code ./config
+	git diff -I' containerImage:' -I' image:' -I'^    createdAt: ' --exit-code ./config
 	[ -z "$$(git ls-files --other --exclude-standard --directory --no-empty-directory ./config)" ]
 	$(YQ) ea -e 'select([.][].kind == "Deployment") | select([.][].metadata.name == "authorino-operator").spec.template.spec.containers[0].image | . == "$(OPERATOR_IMAGE)"' config/deploy/manifests.yaml
 	$(YQ) ea -e 'select([.][].kind == "Deployment") | select([.][].metadata.name == "authorino-webhooks").spec.template.spec.containers[0].image | . == "$(EXPECTED_DEFAULT_AUTHORINO_IMAGE)"' config/deploy/manifests.yaml
@@ -334,7 +329,7 @@ verify-manifests: manifests $(YQ) ## Verify manifests update.
 
 .PHONY: verify-bundle
 verify-bundle: bundle $(YQ) ## Verify bundle update.
-	git diff -I' containerImage:' -I' image:' --exit-code ./bundle
+	git diff -I' containerImage:' -I' image:' -I'^    createdAt: ' --exit-code ./bundle
 	[ -z "$$(git ls-files --other --exclude-standard --directory --no-empty-directory ./bundle)" ]
 	$(YQ) e -e '.metadata.annotations.containerImage == "$(OPERATOR_IMAGE)"' $(BUNDLE_CSV)
 	$(YQ) e -e '.spec.install.spec.deployments[0].spec.template.spec.containers[0].image == "$(OPERATOR_IMAGE)"' $(BUNDLE_CSV)
