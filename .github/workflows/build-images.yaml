@@ -49,10 +49,8 @@ jobs:
           else
           echo "VERSION=${{ github.sha }}" >> $GITHUB_ENV
           fi
-      - name: Install qemu dependency
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y qemu-user-static
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
       - name: Install yq dependency
         run: make yq
       - name: Set default authorino image
@@ -64,7 +62,7 @@ jobs:
         with:
           image: ${{ env.OPERATOR_NAME }}
           tags: ${{ env.IMG_TAGS }}
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64,linux/arm64,linux/s390x,linux/ppc64le
           build-args: |
             VERSION=${{ env.VERSION }}
             DEFAULT_AUTHORINO_IMAGE=${{ env.DEFAULT_AUTHORINO_IMAGE }}
@@ -116,10 +114,8 @@ jobs:
           else
           echo "VERSION=${{ github.sha }}" >> $GITHUB_ENV
           fi
-      - name: Install qemu dependency
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y qemu-user-static
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
       - name: Run make bundle (main)
         if: ${{ github.ref_name == env.MAIN_BRANCH_NAME }}
         run: make bundle REGISTRY=${{ env.IMG_REGISTRY_HOST }} ORG=${{ env.IMG_REGISTRY_ORG }} IMAGE_TAG=${{ github.sha }}
@@ -140,7 +136,7 @@ jobs:
         with:
           image: ${{ env.OPERATOR_NAME }}-bundle
           tags: ${{ env.IMG_TAGS }}
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64,linux/arm64,linux/s390x,linux/ppc64le
           build-args: |
             version=${{ env.VERSION }}
           containerfiles: |
@@ -191,10 +187,8 @@ jobs:
           else
           echo "VERSION=${{ github.sha }}" >> $GITHUB_ENV
           fi
-      - name: Install qemu dependency
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y qemu-user-static
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
       - name: Run make catalog-generate (main)
         if: ${{ github.ref_name == env.MAIN_BRANCH_NAME }}
         run: make catalog-generate REGISTRY=${{ env.IMG_REGISTRY_HOST }} ORG=${{ env.IMG_REGISTRY_ORG }} IMAGE_TAG=${{ github.sha }}
@@ -209,7 +203,7 @@ jobs:
         with:
           image: ${{ env.OPERATOR_NAME }}-catalog
           tags: ${{ env.IMG_TAGS }}
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64,linux/arm64,linux/s390x,linux/ppc64le
           build-args: |
             version=${{ env.VERSION }}
           containerfiles: |
