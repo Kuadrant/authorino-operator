@@ -11,6 +11,10 @@ metadata:
     operators.operatorframework.io/project_layout: unknown
     repository: https://github.com/Kuadrant/authorino-operator
     support: kuadrant
+  labels:
+    operatorframework.io/arch.amd64: supported
+    operatorframework.io/arch.ppc64le: supported
+    operatorframework.io/arch.s390x: supported
   name: authorino-operator.v${BUNDLE_VERSION}
   namespace: placeholder
 spec:
