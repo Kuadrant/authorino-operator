@@ -41,10 +41,11 @@ import (
 )
 
 var (
-	scheme   = runtime.NewScheme()
-	setupLog = ctrl.Log.WithName("setup")
-	logger   log.Logger
-	version  string // value injected in compilation-time
+	scheme                = runtime.NewScheme()
+	setupLog              = ctrl.Log.WithName("setup")
+	logger                log.Logger
+	version               string // value injected at compilation-time
+	defaultAuthorinoImage = os.Getenv("DEFAULT_AUTHORINO_IMAGE")
 )
 
 func init() {
@@ -89,7 +90,7 @@ func main() {
 
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 
-	setupLog.Info("booting up authorino operator", "version", version, "default authorino image", controllers.DefaultAuthorinoImage)
+	setupLog.Info("booting up authorino operator", "version", version, "default authorino image", defaultAuthorinoImage)
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                 scheme,
@@ -105,9 +106,10 @@ func main() {
 	}
 
 	if err = (&controllers.AuthorinoReconciler{
-		Client: mgr.GetClient(),
-		Log:    logger,
-		Scheme: mgr.GetScheme(),
+		Client:                mgr.GetClient(),
+		Log:                   logger,
+		Scheme:                mgr.GetScheme(),
+		DefaultAuthorinoImage: defaultAuthorinoImage,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Authorino")
 		os.Exit(1)

@@ -29,6 +29,12 @@ spec:
         - /manager
         args:
         - --leader-elect
+        env:
+        - name: DEFAULT_AUTHORINO_IMAGE
+          valueFrom:
+            configMapKeyRef:
+              name: authorino-operator-env
+              key: DEFAULT_AUTHORINO_IMAGE
         image: controller:latest
         name: manager
         securityContext:
