@@ -136,6 +136,23 @@ OPM = $(shell which opm)
 endif
 endif
 
+HELM = ./bin/helm
+HELM_VERSION = v3.15.0
+$(HELM):
+	@{ \
+	set -e ;\
+	mkdir -p $(dir $(HELM)) ;\
+	OS=$(shell go env GOOS) && ARCH=$(shell go env GOARCH) && \
+	wget -O helm.tar.gz https://get.helm.sh/helm-$(HELM_VERSION)-$${OS}-$${ARCH}.tar.gz ;\
+	tar -zxvf helm.tar.gz ;\
+	mv $${OS}-$${ARCH}/helm $(HELM) ;\
+	chmod +x $(HELM) ;\
+	rm -rf $${OS}-$${ARCH} helm.tar.gz ;\
+	}
+
+.PHONY: helm
+helm: $(HELM) ## Download helm locally if necessary.
+
 ##@ Development
 
 manifests: controller-gen kustomize authorino-manifests ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
@@ -335,3 +352,6 @@ verify-bundle: bundle $(YQ) ## Verify bundle update.
 .PHONY: verify-fmt
 verify-fmt: fmt ## Verify fmt update.
 	git diff --exit-code ./api ./controllers
+
+# Include last to avoid changing MAKEFILE_LIST used above
+include ./make/*.mk
