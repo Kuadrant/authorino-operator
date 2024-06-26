@@ -6,7 +6,9 @@ helm-build: $(YQ) kustomize manifests ## Build the helm chart from kustomize man
 	cd config/manager && $(KUSTOMIZE) edit set image controller=$(OPERATOR_IMAGE)
 	# Build the helm chart templates from kustomize manifests
 	$(KUSTOMIZE) build config/helm > charts/authorino-operator/templates/manifests.yaml
-	V="$(BUNDLE_VERSION)" $(YQ) eval '.version = strenv(V)' -i charts/authorino-operator/Chart.yaml
+	V="$(BUNDLE_VERSION)" $(YQ) -i e '.version = strenv(V)' charts/authorino-operator/Chart.yaml
+	V="$(CERT_MANAGER_VERSION)" $(YQ) -i e '(.dependencies[] | select(.name == "cert-manager").version) = strenv(V)' -i charts/authorino-operator/Chart.yaml
+	wget -O charts/authorino-operator/crds/cert-manager-manifests.yaml https://github.com/cert-manager/cert-manager/releases/download/v${CERT_MANAGER_VERSION}/cert-manager.yaml
 
 .PHONY: helm-install
 helm-install: $(HELM) ## Install the helm chart
