@@ -665,7 +665,7 @@ func (r *AuthorinoReconciler) createAuthorinoServices(authorino *api.Authorino) 
 	} else {
 		httpPort = defaultMetricsServicePort
 	}
-	
+
 	// operator metrics service
 	desiredServices = append(desiredServices, authorinoResources.NewOperatorMetricsService(
 		authorinoInstanceName,

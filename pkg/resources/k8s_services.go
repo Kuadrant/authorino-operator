@@ -32,8 +32,8 @@ func NewOperandMetricsService(authorinoName, serviceNamespace string, port int32
 	if port != 0 {
 		ports = append(ports, newServicePort("http", port))
 	}
-	
-	return newService("-metrics", serviceNamespace, authorinoName, labels, ports...)
+
+	return newService("metrics", serviceNamespace, authorinoName, labels, ports...)
 }
 
 func NewOperatorMetricsService(authorinoName, serviceNamespace string, port int32, labels map[string]string) *k8score.Service {
