@@ -53,7 +53,8 @@ var _ = Describe("Authorino controller", func() {
 		It("Should create authorino required services", func() {
 			desiredServices := []*k8score.Service{
 				authorinoResources.NewOIDCService(authorinoInstance.Name, authorinoInstance.Namespace, defaultOIDCServicePort, authorinoInstance.Labels),
-				authorinoResources.NewMetricsService(authorinoInstance.Name, authorinoInstance.Namespace, defaultMetricsServicePort, authorinoInstance.Labels),
+				authorinoResources.NewOperandMetricsService(authorinoInstance.Name, authorinoInstance.Namespace, defaultMetricsServicePort, authorinoInstance.Labels),
+				authorinoResources.NewOperatorMetricsService(authorinoInstance.Name, authorinoInstance.Namespace, defaultMetricsServicePort, authorinoInstance.Labels),
 				authorinoResources.NewAuthService(authorinoInstance.Name, authorinoInstance.Namespace, defaultAuthGRPCServicePort, defaultAuthHTTPServicePort, authorinoInstance.Labels),
 			}
 

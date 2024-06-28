@@ -619,6 +619,9 @@ func (r *AuthorinoReconciler) createAuthorinoServices(authorino *api.Authorino) 
 
 	authorinoInstanceName := authorino.Name
 	authorinoInstanceNamespace := authorino.Namespace
+	authorinoOperatorLabels := map[string]string{
+		"app": "authorino-operator",
+	}
 
 	var desiredServices []*k8score.Service
 	var grpcPort, httpPort int32
@@ -657,13 +660,22 @@ func (r *AuthorinoReconciler) createAuthorinoServices(authorino *api.Authorino) 
 		authorino.Labels,
 	))
 
-	// metrics service
 	if p := authorino.Spec.Metrics.Port; p != nil {
 		httpPort = *p
 	} else {
 		httpPort = defaultMetricsServicePort
 	}
-	desiredServices = append(desiredServices, authorinoResources.NewMetricsService(
+	
+	// operator metrics service
+	desiredServices = append(desiredServices, authorinoResources.NewOperatorMetricsService(
+		authorinoInstanceName,
+		authorinoInstanceNamespace,
+		httpPort,
+		authorinoOperatorLabels,
+	))
+
+	// operand metrics service
+	desiredServices = append(desiredServices, authorinoResources.NewOperandMetricsService(
 		authorinoInstanceName,
 		authorinoInstanceNamespace,
 		httpPort,

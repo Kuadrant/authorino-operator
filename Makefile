@@ -142,7 +142,7 @@ endif
 ##@ Development
 
 manifests: controller-gen kustomize authorino-manifests ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
-	$(CONTROLLER_GEN) $(CRD_OPTIONS) rbac:roleName=authorino-operator-manager webhook paths="./..." output:crd:artifacts:config=config/crd/bases && $(KUSTOMIZE) build config/install > $(OPERATOR_MANIFESTS)
+	$(CONTROLLER_GEN) -h $(CRD_OPTIONS) rbac:roleName=authorino-operator-manager webhook paths="./..." output:crd:artifacts:config=config/crd/bases && $(KUSTOMIZE) build config/install > $(OPERATOR_MANIFESTS)
 	$(MAKE) deploy-manifest OPERATOR_IMAGE=$(OPERATOR_IMAGE)
 
 .PHONY: authorino-manifests

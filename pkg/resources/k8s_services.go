@@ -27,12 +27,21 @@ func NewOIDCService(authorinoName, authorinoNamespace string, port int32, labels
 	return newService("authorino-oidc", authorinoNamespace, authorinoName, labels, ports...)
 }
 
-func NewMetricsService(authorinoName, serviceNamespace string, port int32, labels map[string]string) *k8score.Service {
+func NewOperandMetricsService(authorinoName, serviceNamespace string, port int32, labels map[string]string) *k8score.Service {
 	var ports []k8score.ServicePort
 	if port != 0 {
 		ports = append(ports, newServicePort("http", port))
 	}
-	return newService("controller-metrics", serviceNamespace, authorinoName, labels, ports...)
+	
+	return newService("-metrics", serviceNamespace, authorinoName, labels, ports...)
+}
+
+func NewOperatorMetricsService(authorinoName, serviceNamespace string, port int32, labels map[string]string) *k8score.Service {
+	var ports []k8score.ServicePort
+	if port != 0 {
+		ports = append(ports, newServicePort("http", port))
+	}
+	return newService("operator-controller-manager-metrics-service", serviceNamespace, authorinoName, labels, ports...)
 }
 
 func EqualServices(s1, s2 *k8score.Service) bool {
