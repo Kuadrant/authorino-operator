@@ -83,7 +83,7 @@ metadata:
     capabilities: Basic Install
     categories: Integration & Delivery
     containerImage: quay.io/kuadrant/authorino-operator:latest
-    createdAt: "2024-06-28T16:37:00Z"
+    createdAt: "2024-07-01T08:30:34Z"
     operators.operatorframework.io/builder: operator-sdk-v1.32.0
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
     repository: https://github.com/Kuadrant/authorino-operator
@@ -322,6 +322,9 @@ spec:
                       initialDelaySeconds: 15
                       periodSeconds: 20
                     name: manager
+                    ports:
+                      - containerPort: 8080
+                        name: metrics
                     readinessProbe:
                       httpGet:
                         path: /readyz
