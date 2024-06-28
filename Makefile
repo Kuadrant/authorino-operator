@@ -55,9 +55,6 @@ OPERATOR_MANIFESTS ?= $(PROJECT_DIR)/config/install/manifests.yaml
 # Bundle CSV
 BUNDLE_CSV = bundle/manifests/authorino-operator.clusterserviceversion.yaml
 
-# Produce CRDs that work back to Kubernetes 1.11 (no version conversion)
-CRD_OPTIONS ?= "crd:trivialVersions=true,preserveUnknownFields=false"
-
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.21
 
@@ -108,7 +105,7 @@ operator-sdk: ## Download operator-sdk locally if necessary.
 
 CONTROLLER_GEN = $(shell pwd)/bin/controller-gen
 controller-gen: ## Download controller-gen locally if necessary.
-	$(call go-get-tool,$(CONTROLLER_GEN),sigs.k8s.io/controller-tools/cmd/controller-gen@v0.6.1)
+	$(call go-get-tool,$(CONTROLLER_GEN),sigs.k8s.io/controller-tools/cmd/controller-gen@v0.15.0)
 
 KUSTOMIZE = $(shell pwd)/bin/kustomize
 kustomize: ## Download kustomize locally if necessary.
@@ -142,7 +139,7 @@ endif
 ##@ Development
 
 manifests: controller-gen kustomize authorino-manifests ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
-	$(CONTROLLER_GEN) $(CRD_OPTIONS) rbac:roleName=authorino-operator-manager webhook paths="./..." output:crd:artifacts:config=config/crd/bases && $(KUSTOMIZE) build config/install > $(OPERATOR_MANIFESTS)
+	$(CONTROLLER_GEN) crd rbac:roleName=authorino-operator-manager webhook paths="./..." output:crd:artifacts:config=config/crd/bases && $(KUSTOMIZE) build config/install > $(OPERATOR_MANIFESTS)
 	$(MAKE) deploy-manifest OPERATOR_IMAGE=$(OPERATOR_IMAGE)
 
 .PHONY: authorino-manifests
