@@ -6121,6 +6121,21 @@ apiVersion: v1
 kind: Service
 metadata:
   labels:
+    control-plane: authorino-operator
+  name: authorino-operator-metrics
+  namespace: authorino-operator
+spec:
+  ports:
+  - name: metrics
+    port: 8080
+    targetPort: metrics
+  selector:
+    control-plane: authorino-operator
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
     app: authorino
     authorino-component: authorino-webhooks
   name: authorino-webhooks
@@ -6164,6 +6179,9 @@ spec:
           initialDelaySeconds: 15
           periodSeconds: 20
         name: manager
+        ports:
+        - containerPort: 8080
+          name: metrics
         readinessProbe:
           httpGet:
             path: /readyz
