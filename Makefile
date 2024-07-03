@@ -300,6 +300,7 @@ prepare-release:
 	$(MAKE) set-authorino-default-image
 	$(MAKE) set-replaces-directive
 	$(MAKE) manifests bundle VERSION=$(VERSION) AUTHORINO_VERSION=$(AUTHORINO_VERSION)
+	$(MAKE) helm-build VERSION=$(VERSION) AUTHORINO_VERSION=$(AUTHORINO_VERSION)
 
 # A comma-separated list of bundle images (e.g. make catalog-build BUNDLE_IMGS=example.com/operator-bundle:v0.1.0,example.com/operator-bundle:v0.2.0).
 # These images MUST exist in a registry and be pull-able.
