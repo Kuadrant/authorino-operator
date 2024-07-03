@@ -143,7 +143,7 @@ $(HELM):
 	set -e ;\
 	mkdir -p $(dir $(HELM)) ;\
 	OS=$(shell go env GOOS) && ARCH=$(shell go env GOARCH) && \
-	wget -O helm.tar.gz https://get.helm.sh/helm-$(HELM_VERSION)-$${OS}-$${ARCH}.tar.gz ;\
+	curl -sL -o helm.tar.gz https://get.helm.sh/helm-$(HELM_VERSION)-$${OS}-$${ARCH}.tar.gz ;\
 	tar -zxvf helm.tar.gz ;\
 	mv $${OS}-$${ARCH}/helm $(HELM) ;\
 	chmod +x $(HELM) ;\
