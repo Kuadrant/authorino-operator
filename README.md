@@ -91,7 +91,7 @@ EOF
    ```
    ./bin/operator-sdk run bundle quay.io/kuadrant/authorino-operator-bundle:latest
    ```
-## Note: For s390x & ppc64le , use operator-sdk to install authorino-operator 
+Note: For s390x & ppc64le , use operator-sdk to install authorino-operator 
 
 ## Requesting an Authorino instance
 
