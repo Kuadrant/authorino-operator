@@ -82,6 +82,17 @@ spec:
 EOF
 ```
 
+## Deploy authorino operator using operator-sdk
+1. Install operator-sdk bin
+   ```sh
+   make operator-sdk
+   ```
+2. Run operator-sdk bundle command 
+   ```
+   ./bin/operator-sdk run bundle quay.io/kuadrant/authorino-operator-bundle:latest
+   ```
+## Note: For s390x & ppc64le , use operator-sdk to install authorino-operator 
+
 ## Requesting an Authorino instance
 
 Once the Operator is up and running, you can request instances of Authorino by creating `Authorino` CRs. E.g.:
