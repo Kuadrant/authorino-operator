@@ -13,6 +13,11 @@ metadata:
     support: kuadrant
   name: authorino-operator.v${BUNDLE_VERSION}
   namespace: placeholder
+  labels:
+    operatorframework.io/arch.amd64: supported
+    operatorframework.io/arch.s390x: supported
+    operatorframework.io/arch.ppc64le: supported
+    operatorframework.io/os.linux: supported
 spec:
   apiservicedefinitions: {}
   customresourcedefinitions:
