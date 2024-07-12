@@ -56,7 +56,7 @@ OPERATOR_MANIFESTS ?= $(PROJECT_DIR)/config/install/manifests.yaml
 BUNDLE_CSV = bundle/manifests/authorino-operator.clusterserviceversion.yaml
 
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
-ENVTEST_K8S_VERSION = 1.21
+ENVTEST_K8S_VERSION = 1.29.0
 
 # Cert manager is required for the webhooks.
 CERT_MANAGER_VERSION ?= 1.12.1
@@ -188,7 +188,7 @@ endif
 # Run the tests
 test: manifests generate fmt vet setup-envtest
 	echo $(SETUP_ENVTEST)
-	KUBEBUILDER_ASSETS='$(strip $(shell $(SETUP_ENVTEST) --arch=amd64 use -p path 1.22.x))'  go test -ldflags="-X github.com/kuadrant/authorino-operator/controllers.DefaultAuthorinoImage=$(DEFAULT_AUTHORINO_IMAGE)" ./... -coverprofile cover.out
+	KUBEBUILDER_ASSETS='$(strip $(shell $(SETUP_ENVTEST)  use -p path $(ENVTEST_K8S_VERSION)))'  go test -ldflags="-X github.com/kuadrant/authorino-operator/controllers.DefaultAuthorinoImage=$(DEFAULT_AUTHORINO_IMAGE)" ./... -coverprofile cover.out
 
 ##@ Build
 
