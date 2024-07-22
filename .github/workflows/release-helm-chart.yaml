@@ -39,8 +39,8 @@ jobs:
         id: upload-chart
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: limitador-operator-${{ env.OPERATOR_VERSION }}.tgz
-          asset_name: chart-limitador-operator-${{ env.OPERATOR_VERSION }}.tgz
+          file: authorino-operator-${{ env.OPERATOR_VERSION }}.tgz
+          asset_name: chart-authorino-operator-${{ env.OPERATOR_VERSION }}.tgz
           tag: ${{ github.ref }}
           overwrite: true
 
