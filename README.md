@@ -11,19 +11,13 @@ The Operator can be installed by applying the manifests to the Kubernetes cluste
 
 ### Applying the manifests to the cluster
 
-1. Create the namespace for the Operator
-
-```sh
-kubectl create namespace authorino-operator
-```
-
-2. Install the Operator manifests
+1. Install the Operator manifests
 
 ```sh
 make install
 ```
 
-3. Deploy the Operator
+2. Deploy the Operator
 
 ```sh
 make deploy
@@ -277,4 +271,31 @@ spec:
           - key: keycloak.crt
             path: keycloak.crt
     defaultMode: 420
+```
+## Removal
+
+### Removing the operator installed via manifests
+
+1. Undeploy the Operator
+
+```sh
+make undeploy
+```
+
+2. Remove the Operator manifests
+
+```sh
+make uninstall
+```
+
+#### Remove dependencies (Optional)
+
+1. Remove operator namespace
+```sh
+make delete-namespace
+```
+
+2. Uninstall cert manager
+```sh
+make uninstall-cert-manager
 ```
