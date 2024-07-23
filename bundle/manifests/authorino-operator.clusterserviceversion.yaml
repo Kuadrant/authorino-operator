@@ -82,8 +82,8 @@ metadata:
       ]
     capabilities: Basic Install
     categories: Integration & Delivery
-    containerImage: quay.io/kuadrant/authorino-operator:latest
-    createdAt: "2024-07-11T09:10:47Z"
+    containerImage: quay.io/kuadrant/authorino-operator:v0.12.0-alpha1
+    createdAt: "2024-07-23T16:11:03Z"
     operators.operatorframework.io/builder: operator-sdk-v1.32.0
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
     repository: https://github.com/Kuadrant/authorino-operator
@@ -93,7 +93,7 @@ metadata:
     operatorframework.io/arch.ppc64le: supported
     operatorframework.io/arch.s390x: supported
     operatorframework.io/os.linux: supported
-  name: authorino-operator.v0.0.0
+  name: authorino-operator.v0.12.0-alpha1
   namespace: placeholder
 spec:
   apiservicedefinitions: {}
@@ -319,7 +319,7 @@ spec:
                       - --leader-elect
                     command:
                       - /manager
-                    image: quay.io/kuadrant/authorino-operator:latest
+                    image: quay.io/kuadrant/authorino-operator:v0.12.0-alpha1
                     livenessProbe:
                       httpGet:
                         path: /healthz
@@ -369,7 +369,7 @@ spec:
                   - command:
                       - authorino
                       - webhooks
-                    image: quay.io/kuadrant/authorino:latest
+                    image: quay.io/kuadrant/authorino:v0.17.2
                     name: webhooks
                     ports:
                       - containerPort: 9443
@@ -495,7 +495,7 @@ spec:
   minKubeVersion: 1.8.0
   provider:
     name: Red Hat
-  version: 0.0.0
+  version: 0.12.0-alpha1
   webhookdefinitions:
     - admissionReviewVersions:
         - v1beta1
@@ -509,3 +509,4 @@ spec:
       targetPort: 9443
       type: ConversionWebhook
       webhookPath: /convert
+  replaces: authorino-operator.v0.11.1

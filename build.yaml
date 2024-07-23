@@ -1,0 +1,3 @@
+config:
+  authorinoImage: quay.io/kuadrant/authorino:v0.17.2
+  replaces: authorino-operator.v0.11.1
