@@ -33,6 +33,7 @@ jobs:
         run: |
           tag=${{ github.event.release.tag_name || inputs.operatorTag }}
           echo "OPERATOR_VERSION=${tag#v}" >> $GITHUB_ENV
+          echo "OPERATOR_TAG=${tag}" >> $GITHUB_ENV
 
       - name: Upload package to GitHub Release
         uses: svenstaro/upload-release-action@v2
@@ -41,7 +42,7 @@ jobs:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           file: authorino-operator-${{ env.OPERATOR_VERSION }}.tgz
           asset_name: chart-authorino-operator-${{ env.OPERATOR_VERSION }}.tgz
-          tag: ${{ github.ref }}
+          tag: ${{ env.OPERATOR_TAG }}
           overwrite: true
 
       - name: Sync Helm Chart with repository
