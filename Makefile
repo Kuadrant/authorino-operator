@@ -206,11 +206,9 @@ docker-push: ## Push docker image with the manager.
 
 ##@ Deployment
 
-install: manifests kustomize install-authorino ## Install CRDs into the K8s cluster specified in ~/.kube/config.
-	kubectl apply -f $(OPERATOR_MANIFESTS)
+install: install-authorino install-operator ## Install CRDs into the K8s cluster specified in ~/.kube/config.
 
-uninstall: manifests kustomize ## Uninstall CRDs from the K8s cluster specified in ~/.kube/config.
-	kubectl delete -f $(OPERATOR_MANIFESTS)
+uninstall: uninstall-operator uninstall-authorino ## Uninstall CRDs from the K8s cluster specified in ~/.kube/config.
 
 deploy: manifests kustomize ## Deploy controller to the K8s cluster specified in ~/.kube/config.
 	cd config/manager && $(KUSTOMIZE) edit set image controller=${OPERATOR_IMAGE}
@@ -219,14 +217,32 @@ deploy: manifests kustomize ## Deploy controller to the K8s cluster specified in
 	cd config/manager && $(KUSTOMIZE) edit set image controller=${DEFAULT_OPERATOR_IMAGE}
 
 undeploy: ## Undeploy controller from the K8s cluster specified in ~/.kube/config.
-	$(KUSTOMIZE) build config/default | kubectl delete -f -
+	$(KUSTOMIZE) build config/default | kubectl delete -f - --ignore-not-found
 
-install-authorino: install-cert-manager ## install RBAC and CRD for authorino
+install-operator: manifests kustomize ## Install CRDs into the K8s cluster specified in ~/.kube/config.
+	kubectl apply -f $(OPERATOR_MANIFESTS)
+
+uninstall-operator: manifests kustomize ## Uninstall CRDs from the K8s cluster specified in ~/.kube/config.
+	kubectl delete -f $(OPERATOR_MANIFESTS) --ignore-not-found
+
+install-authorino: create-namespace install-cert-manager ## install RBAC and CRD for authorino
 	$(KUSTOMIZE) build config/authorino | kubectl apply -f -
+
+uninstall-authorino:  ## uninstall RBAC and CRD for authorino
+	$(KUSTOMIZE) build config/authorino | kubectl delete -f - --ignore-not-found
 
 install-cert-manager: ## install the cert manager need for the web hooks
 	kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v${CERT_MANAGER_VERSION}/cert-manager.yaml
 	kubectl -n cert-manager wait --timeout=300s --for=condition=Available deployments --all
+
+uninstall-cert-manager: ## uninstall the cert manager need for the web hooks
+	kubectl delete -f https://github.com/cert-manager/cert-manager/releases/download/v${CERT_MANAGER_VERSION}/cert-manager.yaml --ignore-not-found
+
+create-namespace:
+	kubectl create namespace authorino-operator --dry-run=client -o yaml | kubectl apply -f - ## handle namespace already existing.
+
+delete-namespace:
+	kubectl delete namespace authorino-operator --ignore-not-found
 
 # go-get-tool will 'go install' any package $2 and install it to $1.
 PROJECT_DIR := $(shell dirname $(abspath $(lastword $(MAKEFILE_LIST))))
