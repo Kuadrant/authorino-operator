@@ -60,10 +60,9 @@ var _ = Describe("Authorino controller", func() {
 			for _, service := range desiredServices {
 				nsdName := namespacedName(service.GetNamespace(), service.GetName())
 
-				Eventually(func() bool {
-					err := k8sClient.Get(context.TODO(), nsdName, &k8score.Service{})
-					return err == nil
-				}, testTimeout, testInterval).Should(BeTrue())
+				Eventually(func() error {
+					return k8sClient.Get(context.TODO(), nsdName, &k8score.Service{})
+				}, testTimeout, testInterval).Should(Succeed())
 			}
 		})
 
@@ -87,27 +86,24 @@ var _ = Describe("Authorino controller", func() {
 				bindingNsdName = namespacedName(testAuthorinoNamespace, authorinoInstance.Name+"-authorino")
 			}
 
-			Eventually(func() bool {
-				err := k8sClient.Get(context.TODO(), bindingNsdName, binding)
-				return err == nil
-			}, testTimeout, testInterval).Should(BeTrue())
+			Eventually(func() error {
+				return k8sClient.Get(context.TODO(), bindingNsdName, binding)
+			}, testTimeout, testInterval).Should(Succeed())
 
 			// Authorino Auth ClusterRoleBinding
 			k8sAuthBinding := &k8srbac.ClusterRoleBinding{}
 			k8sAuthBindingNsdName := types.NamespacedName{Name: authorinoK8sAuthClusterRoleBindingName}
 
-			Eventually(func() bool {
-				err := k8sClient.Get(context.TODO(), k8sAuthBindingNsdName, k8sAuthBinding)
-				return err == nil
-			}, testTimeout, testInterval).Should(BeTrue())
+			Eventually(func() error {
+				return k8sClient.Get(context.TODO(), k8sAuthBindingNsdName, k8sAuthBinding)
+			}, testTimeout, testInterval).Should(Succeed())
 
 			// Authorino leaderElection ClusterRoleBinding
 			leaderElectionRole := &k8srbac.Role{}
 			leaderElectionNsdName := namespacedName(testAuthorinoNamespace, authorinoLeaderElectionRoleName)
-			Eventually(func() bool {
-				err := k8sClient.Get(context.TODO(), leaderElectionNsdName, leaderElectionRole)
-				return err == nil
-			}, testTimeout, testInterval).Should(BeTrue())
+			Eventually(func() error {
+				return k8sClient.Get(context.TODO(), leaderElectionNsdName, leaderElectionRole)
+			}, testTimeout, testInterval).Should(Succeed())
 		})
 
 		It("Should create authorino deployment", func() {
@@ -115,10 +111,9 @@ var _ = Describe("Authorino controller", func() {
 
 			nsdName := namespacedName(testAuthorinoNamespace, authorinoInstance.Name)
 
-			Eventually(func() bool {
-				err := k8sClient.Get(context.TODO(), nsdName, deployment)
-				return err == nil
-			}, testTimeout, testInterval).Should(BeTrue())
+			Eventually(func() error {
+				return k8sClient.Get(context.TODO(), nsdName, deployment)
+			}, testTimeout, testInterval).Should(Succeed())
 
 			replicas := int32(testAuthorinoReplicas)
 			image := DefaultAuthorinoImage
@@ -152,10 +147,9 @@ var _ = Describe("Authorino controller", func() {
 
 			nsdName := namespacedName(testAuthorinoNamespace, authorinoInstance.Name)
 
-			Eventually(func() bool {
-				err := k8sClient.Get(context.TODO(), nsdName, existingAuthorinoInstance)
-				return err == nil
-			}, testTimeout, testInterval).Should(BeTrue())
+			Eventually(func() error {
+				return k8sClient.Get(context.TODO(), nsdName, existingAuthorinoInstance)
+			}, testTimeout, testInterval).Should(Succeed())
 
 			replicas := int32(testAuthorinoReplicas + 1)
 			existingAuthorinoInstance.Spec.Replicas = &replicas
@@ -164,18 +158,17 @@ var _ = Describe("Authorino controller", func() {
 
 			desiredDevelopment := &k8sapps.Deployment{}
 
-			Eventually(func() bool {
-				err := k8sClient.Get(context.TODO(),
+			Eventually(func() error {
+				return k8sClient.Get(context.TODO(),
 					nsdName,
 					desiredDevelopment)
-				return err == nil
-			}, testTimeout, testInterval).Should(BeTrue())
+			}, testTimeout, testInterval).Should(Succeed())
 
 			Expect(desiredDevelopment.Spec.Replicas).Should(Equal(&replicas))
 			for _, container := range desiredDevelopment.Spec.Template.Spec.Containers {
 				if container.Name == authorinoContainerName {
 					checkAuthorinoArgs(existingAuthorinoInstance, container.Args)
-					Expect(len(container.Env)).Should(Equal(0))
+					Expect(container.Env).To(BeEmpty())
 				}
 			}
 		})
@@ -194,10 +187,9 @@ var _ = Describe("Authorino controller", func() {
 			deployment := &k8sapps.Deployment{}
 			nsdName := namespacedName(testAuthorinoNamespace, authorinoInstance.Name)
 
-			Eventually(func() bool {
-				err := k8sClient.Get(context.TODO(), nsdName, deployment)
-				return err == nil
-			}, testTimeout, testInterval).Should(BeTrue())
+			Eventually(func() error {
+				return k8sClient.Get(context.TODO(), nsdName, deployment)
+			}, testTimeout, testInterval).Should(Succeed())
 
 			for _, container := range deployment.Spec.Template.Spec.Containers {
 				if container.Name == authorinoContainerName {
@@ -423,24 +415,4 @@ func checkAuthorinoEnvVar(authorinoInstance *api.Authorino, envs []k8score.EnvVa
 			Expect(env.Value).Should(SatisfyAny(Equal(defaultOidcTlsCertPath), Equal(defaultOidcTlsCertKeyPath)))
 		}
 	}
-}
-
-func newAuthorinoClusterRolebinding(roleBindingName string, clusterScoped bool, clusterRoleName string, serviceAccount k8score.ServiceAccount, authorino *api.Authorino) client.Object {
-	var binding client.Object
-	if clusterScoped {
-		binding = authorinoResources.GetAuthorinoClusterRoleBinding(roleBindingName, clusterRoleName, serviceAccount)
-	} else {
-		binding = authorinoResources.GetAuthorinoRoleBinding(
-			authorino.Namespace,
-			authorino.Name,
-			roleBindingName,
-			"ClusterRole",
-			clusterRoleName,
-			serviceAccount,
-			authorino.Labels,
-		)
-		binding.SetNamespace(authorino.Namespace)
-	}
-
-	return binding
 }
