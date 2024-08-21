@@ -109,8 +109,9 @@ jobs:
       - name: Set Operator version
         id: operator-version
         run: |
-          if [[ ${GITHUB_REF_NAME/\//-} =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-.+)?$ ]]; then
-          echo "VERSION=${GITHUB_REF_NAME/\//-}" >> $GITHUB_ENV
+          tag=${{GITHUB_REF_NAME}}
+          if [[ ${tag} =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-.+)?$ ]]; then
+          echo "VERSION=${tag#v}" >> $GITHUB_ENV
           else
           echo "VERSION=${{ github.sha }}" >> $GITHUB_ENV
           fi
@@ -121,7 +122,7 @@ jobs:
         run: make bundle REGISTRY=${{ env.IMG_REGISTRY_HOST }} ORG=${{ env.IMG_REGISTRY_ORG }} IMAGE_TAG=${{ github.sha }}
       - name: Run make bundle (release)
         if: ${{ github.ref_name != env.MAIN_BRANCH_NAME }}
-        run: make bundle REGISTRY=${{ env.IMG_REGISTRY_HOST }} ORG=${{ env.IMG_REGISTRY_ORG }} VERSION=${TAG_NAME/v/} AUTHORINO_VERSION=${{ github.event.inputs.authorinoVersion }} CHANNELS=${{ github.event.inputs.channels }} DEFAULT_CHANNEL=stable
+        run: make bundle REGISTRY=${{ env.IMG_REGISTRY_HOST }} ORG=${{ env.IMG_REGISTRY_ORG }} VERSION=${{env.VERSION}} AUTHORINO_VERSION=${{ github.event.inputs.authorinoVersion }} CHANNELS=${{ github.event.inputs.channels }} DEFAULT_CHANNEL=stable
       - name: Git diff
         run: git diff
       - name: Verify manifests and bundle (main)
@@ -129,7 +130,7 @@ jobs:
         run: make verify-manifests verify-bundle REGISTRY=${{ env.IMG_REGISTRY_HOST }} ORG=${{ env.IMG_REGISTRY_ORG }} IMAGE_TAG=${{ github.sha }}
       - name: Verify manifests and bundle (release)
         if: ${{ github.ref_name != env.MAIN_BRANCH_NAME }}
-        run: make verify-manifests verify-bundle REGISTRY=${{ env.IMG_REGISTRY_HOST }} ORG=${{ env.IMG_REGISTRY_ORG }} VERSION=${TAG_NAME/v/} AUTHORINO_VERSION=${{ github.event.inputs.authorinoVersion }} CHANNELS=${{ github.event.inputs.channels }} DEFAULT_CHANNEL=stable
+        run: make verify-manifests verify-bundle REGISTRY=${{ env.IMG_REGISTRY_HOST }} ORG=${{ env.IMG_REGISTRY_ORG }} VERSION=${{env.VERSION}} AUTHORINO_VERSION=${{ github.event.inputs.authorinoVersion }} CHANNELS=${{ github.event.inputs.channels }} DEFAULT_CHANNEL=stable
       - name: Build Image
         id: build-image
         uses: redhat-actions/buildah-build@v2
@@ -182,8 +183,9 @@ jobs:
       - name: Set Operator version
         id: operator-version
         run: |
-          if [[ ${GITHUB_REF_NAME/\//-} =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-.+)?$ ]]; then
-          echo "VERSION=${GITHUB_REF_NAME/\//-}" >> $GITHUB_ENV
+          tag=${{GITHUB_REF_NAME}}
+          if [[ ${tag} =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-.+)?$ ]]; then
+          echo "VERSION=${tag#v}" >> $GITHUB_ENV
           else
           echo "VERSION=${{ github.sha }}" >> $GITHUB_ENV
           fi
