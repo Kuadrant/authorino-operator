@@ -4,6 +4,7 @@ A Kubernetes Operator to manage [Authorino](https://github.com/Kuadrant/authorin
 
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](http://www.apache.org/licenses/LICENSE-2.0)
 [![codecov](https://codecov.io/gh/Kuadrant/authorino-operator/branch/main/graph/badge.svg?token=3O9IUKS642)](https://codecov.io/gh/Kuadrant/authorino-operator)
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2FKuadrant%2Fauthorino-operator.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2FKuadrant%2Fauthorino-operator?ref=badge_shield)
 
 ## Installation
 
@@ -310,3 +311,7 @@ make delete-namespace
 ```sh
 make uninstall-cert-manager
 ```
+
+
+## License
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2FKuadrant%2Fauthorino-operator.svg?type=large)](https://app.fossa.com/projects/git%2Bgithub.com%2FKuadrant%2Fauthorino-operator?ref=badge_large)
