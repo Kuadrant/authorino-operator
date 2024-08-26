@@ -31,3 +31,7 @@ vendor
 
 # Bundles
 tmp
+
+# Catalogs
+/catalog/authorino-operator-catalog
+/catalog/authorino-operator-catalog.Dockerfile
