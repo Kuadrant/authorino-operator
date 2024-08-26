@@ -1,0 +1,9 @@
+apiVersion: operators.coreos.com/v1alpha1
+kind: CatalogSource
+metadata:
+  name: authorino-operator-catalog
+spec:
+  sourceType: grpc
+  image: quay.io/kuadrant/authorino-operator-catalog:local-testing-dd
+  displayName: Authorino Operator
+  publisher: grpc
