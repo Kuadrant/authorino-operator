@@ -15,8 +15,8 @@ BUNDLE_IMG="${3?:Error \$BUNDLE_IMG not set. Bye}"
 CATALOG_FILE="${4?:Error \$CATALOG_FILE not set. Bye}"
 CHANNELS="${5:-$DEFAULT_CHANNEL}"
 
-CATALOG_FILE_BASEDIR="$( cd "$( dirname "$(realpath ${CATALOG_FILE})" )" && pwd )"
-CATALOG_BASEDIR="$( cd "$( dirname "$(realpath ${CATALOG_FILE_BASEDIR})" )" && pwd )"
+CATALOG_FILE_BASEDIR="$( cd "$( dirname ${CATALOG_FILE} )" && pwd )"
+CATALOG_BASEDIR="$( cd "$( dirname ${CATALOG_FILE_BASEDIR} )" && pwd )"
 
 TMP_DIR=$(mktemp -d)
 
