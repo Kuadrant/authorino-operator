@@ -2,7 +2,6 @@
 SHELL = /bin/bash
 
 MKFILE_PATH := $(abspath $(lastword $(MAKEFILE_LIST)))
-PROJECT_PATH := $(patsubst %/,%,$(dir $(MKFILE_PATH)))
 
 # VERSION defines the project version for the bundle.
 VERSION ?= $(shell git rev-parse HEAD)
@@ -122,7 +121,7 @@ $(YQ):
 .PHONY: yq
 yq: $(YQ) ## Download yq locally if necessary.
 
-OPM = $(PROJECT_PATH)/bin/opm
+OPM = $(PROJECT_DIR)/bin/opm
 OPM_VERSION = v1.26.2
 $(OPM):
 	@{ \
