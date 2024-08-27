@@ -6,7 +6,7 @@ set -euo pipefail
 
 ### CONSTANTS
 # Used as well in the subscription object
-DEFAULT_CHANNEL=preview
+DEFAULT_CHANNEL=stable
 ###
 
 OPM="${1?:Error \$OPM not set. Bye}"
