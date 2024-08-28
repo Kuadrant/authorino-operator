@@ -5,6 +5,6 @@ metadata:
   name: kuadrant
 spec:
   source: authorino-operator-catalog
-  sourceNamespace: authorino-system
+  sourceNamespace: authorino-operator
   name: authorino-operator
-  channel: "preview"
+  channel: "stable"
