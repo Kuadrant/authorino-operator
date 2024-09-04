@@ -3,6 +3,8 @@ SHELL = /bin/bash
 
 MKFILE_PATH := $(abspath $(lastword $(MAKEFILE_LIST)))
 
+PROJECT_DIR := $(shell dirname $(abspath $(lastword $(MAKEFILE_LIST))))
+
 # VERSION defines the project version for the bundle.
 VERSION ?= $(shell git rev-parse HEAD)
 
@@ -97,8 +99,20 @@ all: build
 help: ## Display this help.
 	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n"} /^[a-zA-Z_0-9-]+:.*?##/ { printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
 
-
 ##@ Tools
+
+# go-get-tool will 'go install' any package $2 and install it to $1.
+define go-get-tool
+@[ -f $(1) ] || { \
+set -e ;\
+TMP_DIR=$$(mktemp -d) ;\
+cd $$TMP_DIR ;\
+go mod init tmp ;\
+echo "Downloading $(2)" ;\
+GOBIN=$(PROJECT_DIR)/bin go install $(2) ;\
+rm -rf $$TMP_DIR ;\
+}
+endef
 
 OPERATOR_SDK = $(shell pwd)/bin/operator-sdk
 OPERATOR_SDK_VERSION = v1.32.0
@@ -115,7 +129,6 @@ $(KUSTOMIZE):
 
 .PHONY: kustomize
 kustomize: $(KUSTOMIZE) ## Download kustomize locally if necessary.
-
 
 YQ = $(shell pwd)/bin/yq
 YQ_VERSION := v4.34.2
@@ -139,7 +152,6 @@ $(OPM):
 .PHONY: opm
 opm: $(OPM) ## Download opm locally if necessary.
 
-
 HELM = ./bin/helm
 HELM_VERSION = v3.15.0
 $(HELM):
@@ -156,6 +168,14 @@ $(HELM):
 
 .PHONY: helm
 helm: $(HELM) ## Download helm locally if necessary.
+
+setup-envtest: ## Setup envtest.
+ifeq (, $(shell which setup-envtest))
+	go install sigs.k8s.io/controller-runtime/tools/setup-envtest@release-0.16
+SETUP_ENVTEST=$(GOBIN)/setup-envtest
+else
+SETUP_ENVTEST=$(shell which setup-envtest)
+endif
 
 ##@ Development
 
@@ -180,17 +200,7 @@ fmt: ## Run go fmt against code.
 vet: ## Run go vet against code.
 	go vet ./...
 
-
-setup-envtest:
-ifeq (, $(shell which setup-envtest))
-	go install sigs.k8s.io/controller-runtime/tools/setup-envtest@release-0.16
-SETUP_ENVTEST=$(GOBIN)/setup-envtest
-else
-SETUP_ENVTEST=$(shell which setup-envtest)
-endif
-
-# Run the tests
-test: manifests generate fmt vet setup-envtest
+test: manifests generate fmt vet setup-envtest ## Run the tests.
 	echo $(SETUP_ENVTEST)
 	KUBEBUILDER_ASSETS='$(strip $(shell $(SETUP_ENVTEST)  use -p path $(ENVTEST_K8S_VERSION)))'  go test -ldflags="-X github.com/kuadrant/authorino-operator/controllers.DefaultAuthorinoImage=$(DEFAULT_AUTHORINO_IMAGE)" ./... -coverprofile cover.out
 
@@ -248,20 +258,6 @@ create-namespace:
 delete-namespace:
 	kubectl delete namespace authorino-operator --ignore-not-found
 
-# go-get-tool will 'go install' any package $2 and install it to $1.
-PROJECT_DIR := $(shell dirname $(abspath $(lastword $(MAKEFILE_LIST))))
-define go-get-tool
-@[ -f $(1) ] || { \
-set -e ;\
-TMP_DIR=$$(mktemp -d) ;\
-cd $$TMP_DIR ;\
-go mod init tmp ;\
-echo "Downloading $(2)" ;\
-GOBIN=$(PROJECT_DIR)/bin go install $(2) ;\
-rm -rf $$TMP_DIR ;\
-}
-endef
-
 DEPLOYMENT_DIR = $(PROJECT_DIR)/config/deploy
 DEPLOYMENT_FILE = $(DEPLOYMENT_DIR)/manifests.yaml
 .PHONY: deploy-manifest
@@ -271,6 +267,8 @@ deploy-manifest:
 	cd $(PROJECT_DIR) && $(KUSTOMIZE) build config/deploy > $(DEPLOYMENT_FILE)
 	# clean up
 	cd $(PROJECT_DIR)/config/manager && $(KUSTOMIZE) edit set image controller=${DEFAULT_OPERATOR_IMAGE}
+
+##@ OLM manifest bundle
 
 .PHONY: bundle
 bundle: export IMAGE_TAG := $(IMAGE_TAG)
@@ -297,34 +295,32 @@ bundle-build: ## Build the bundle image.
 bundle-push: ## Push the bundle image.
 	$(MAKE) docker-push OPERATOR_IMAGE=$(BUNDLE_IMG)
 
+##@ Release
+
 .PHONY: create-build-file
-create-build-file: $(YQ)
+create-build-file: $(YQ) ## Creates the build info file.
 	$(YQ) -n '.config' > $(BUILD_CONFIG_FILE)
 
 .PHONY: set-authorino-default-image
-set-authorino-default-image: $(YQ)
+set-authorino-default-image: $(YQ) ## Sets the default Authorino image in the build file.
 	@if [ "$(AUTHORINO_VERSION)" != "latest" ]; then\
 		V="$(DEFAULT_REGISTRY)/$(DEFAULT_ORG)/authorino:$(AUTHORINO_IMAGE_TAG)" $(YQ) eval '.config.authorinoImage = strenv(V)' -i $(BUILD_CONFIG_FILE); \
 	fi
 
 .PHONY: set-replaces-directive
-set-replaces-directive: $(YQ)
+set-replaces-directive: $(YQ) ## Sets the value for the OLM replaces directive in the build file.
 	$(eval REPLACES_VERSION=$(shell curl -sSL -H "Accept: application/vnd.github+json" \
                https://api.github.com/repos/Kuadrant/authorino-operator/releases/latest | \
                jq -r '.name'))
 	V="authorino-operator.$(REPLACES_VERSION)" $(YQ) e -i '.config.replaces = strenv(V)' $(BUILD_CONFIG_FILE)
 
 .PHONY: prepare-release
-prepare-release:
+prepare-release: ## Prepares a release: create build info file, generate manifests, OLM bundle and Helm chart.
 	$(MAKE) create-build-file
 	$(MAKE) set-authorino-default-image
 	$(MAKE) set-replaces-directive
 	$(MAKE) manifests bundle VERSION=$(VERSION) AUTHORINO_VERSION=$(AUTHORINO_VERSION)
 	$(MAKE) helm-build VERSION=$(VERSION) AUTHORINO_VERSION=$(AUTHORINO_VERSION)
-
-# A comma-separated list of bundle images (e.g. make catalog-build BUNDLE_IMGS=example.com/operator-bundle:v0.1.0,example.com/operator-bundle:v0.2.0).
-# These images MUST exist in a registry and be pull-able.
-BUNDLE_IMGS ?= $(BUNDLE_IMG)
 
 ##@ Verify
 
