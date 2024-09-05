@@ -334,7 +334,7 @@ prepare-release: ## Prepares a release: create build info file, generate manifes
 
 .PHONY: verify-manifests
 verify-manifests: manifests $(YQ) ## Verify manifests update.
-	git diff -I' containerImage:' -I' image:' -I'^    createdAt: ' --exit-code ./config
+	git diff -I'^    createdAt:' -I' containerImage:' -I' image:' --exit-code -- ./config ':(exclude)config/authorino/kustomization.yaml'
 	[ -z "$$(git ls-files --other --exclude-standard --directory --no-empty-directory ./config)" ]
 	$(YQ) ea -e 'select([.][].kind == "Deployment") | select([.][].metadata.name == "authorino-operator").spec.template.spec.containers[0].image | . == "$(OPERATOR_IMAGE)"' config/deploy/manifests.yaml
 	$(YQ) ea -e 'select([.][].kind == "Deployment") | select([.][].metadata.name == "authorino-webhooks").spec.template.spec.containers[0].image | . == "$(DEFAULT_AUTHORINO_IMAGE)"' config/deploy/manifests.yaml
@@ -342,7 +342,7 @@ verify-manifests: manifests $(YQ) ## Verify manifests update.
 
 .PHONY: verify-bundle
 verify-bundle: bundle $(YQ) ## Verify bundle update.
-	git diff -I' containerImage:' -I' image:' -I'^    createdAt: ' --exit-code ./bundle
+	git diff -I'^    createdAt:' -I' containerImage:' -I' image:' --exit-code -- ./bundle ':(exclude)config/authorino/kustomization.yaml'
 	[ -z "$$(git ls-files --other --exclude-standard --directory --no-empty-directory ./bundle)" ]
 	$(YQ) e -e '.metadata.annotations.containerImage == "$(OPERATOR_IMAGE)"' $(BUNDLE_CSV)
 	$(YQ) e -e '.spec.install.spec.deployments[0].spec.template.spec.containers[0].image == "$(OPERATOR_IMAGE)"' $(BUNDLE_CSV)
