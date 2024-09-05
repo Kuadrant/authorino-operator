@@ -1,5 +1,16 @@
 # Use bash as shell
-SHELL = /bin/bash
+# Setting SHELL to bash allows bash commands to be executed by recipes.
+# This is a requirement for 'setup-envtest.sh' in the test target.
+# Options are set to exit when a recipe line exits non-zero or a piped command fails.
+SHELL = /usr/bin/env bash -o pipefail
+.SHELLFLAGS = -ec
+
+# Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
+ifeq (,$(shell go env GOBIN))
+GOBIN=$(shell go env GOPATH)/bin
+else
+GOBIN=$(shell go env GOBIN)
+endif
 
 MKFILE_PATH := $(abspath $(lastword $(MAKEFILE_LIST)))
 
@@ -59,38 +70,27 @@ OPERATOR_MANIFESTS ?= $(PROJECT_DIR)/config/install/manifests.yaml
 # Bundle CSV
 BUNDLE_CSV = bundle/manifests/authorino-operator.clusterserviceversion.yaml
 
-# ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
-ENVTEST_K8S_VERSION = 1.29.0
-
-# Cert manager is required for the webhooks.
-CERT_MANAGER_VERSION ?= 1.12.1
-
-# Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
-ifeq (,$(shell go env GOBIN))
-GOBIN=$(shell go env GOPATH)/bin
-else
-GOBIN=$(shell go env GOBIN)
+# Operand version. It can be a semantic version (X.Y.Z), a branch name, git SHA or 'latest'. If not specified, it will default to 'latest'.
+ifeq ($(AUTHORINO_VERSION),)
+AUTHORINO_VERSION = latest
 endif
-
-# Setting SHELL to bash allows bash commands to be executed by recipes.
-# This is a requirement for 'setup-envtest.sh' in the test target.
-# Options are set to exit when a recipe line exits non-zero or a piped command fails.
-SHELL = /usr/bin/env bash -o pipefail
-.SHELLFLAGS = -ec
-
-AUTHORINO_VERSION ?= latest
-ifeq (latest,$(AUTHORINO_VERSION))
-AUTHORINO_BRANCH = main
-AUTHORINO_IMAGE_TAG = latest
-else
-AUTHORINO_BRANCH = v$(AUTHORINO_VERSION)
+operand_using_semantic_version := $(shell [[ $(AUTHORINO_VERSION) =~ ^[0-9]+\.[0-9]+\.[0-9]+(-.+)?$$ ]] && echo "true")
+ifdef operand_using_semantic_version
 AUTHORINO_IMAGE_TAG = v$(AUTHORINO_VERSION)
+AUTHORINO_GITREF = v$(AUTHORINO_VERSION)
+else
+AUTHORINO_IMAGE_TAG = $(AUTHORINO_VERSION)
+ifeq ($(AUTHORINO_VERSION),latest)
+AUTHORINO_GITREF = main
+else
+AUTHORINO_GITREF = $(AUTHORINO_VERSION)
+endif
 endif
 
 # Build file used to store replaces/authorinoImage options.
 BUILD_CONFIG_FILE ?= build.yaml
-DEFAULT_AUTHORINO_IMAGE ?= $(shell $(YQ) e -e '.config.authorinoImage' $(BUILD_CONFIG_FILE) || echo $(DEFAULT_REGISTRY)/$(DEFAULT_ORG)/authorino:latest)
-EXPECTED_DEFAULT_AUTHORINO_IMAGE = $(DEFAULT_REGISTRY)/$(DEFAULT_ORG)/authorino:$(AUTHORINO_IMAGE_TAG)
+DEFAULT_AUTHORINO_IMAGE = $(DEFAULT_REGISTRY)/$(DEFAULT_ORG)/authorino:$(AUTHORINO_IMAGE_TAG)
+ACTUAL_DEFAULT_AUTHORINO_IMAGE ?= $(shell $(YQ) e -e '.config.authorinoImage' $(BUILD_CONFIG_FILE) || echo $(DEFAULT_AUTHORINO_IMAGE))
 
 all: build
 
@@ -177,6 +177,12 @@ else
 SETUP_ENVTEST=$(shell which setup-envtest)
 endif
 
+# ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
+ENVTEST_K8S_VERSION = 1.29.0
+
+# Cert manager is required for the webhooks.
+CERT_MANAGER_VERSION ?= 1.12.1
+
 ##@ Development
 
 manifests: controller-gen kustomize authorino-manifests ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
@@ -184,7 +190,7 @@ manifests: controller-gen kustomize authorino-manifests ## Generate WebhookConfi
 	$(MAKE) deploy-manifest OPERATOR_IMAGE=$(OPERATOR_IMAGE)
 
 .PHONY: authorino-manifests
-authorino-manifests: export AUTHORINO_GITREF := $(AUTHORINO_BRANCH)
+authorino-manifests: export AUTHORINO_GITREF := $(AUTHORINO_GITREF)
 authorino-manifests: export AUTHORINO_IMAGE_TAG := $(AUTHORINO_IMAGE_TAG)
 authorino-manifests: ## Update authorino manifests.
 	envsubst \
@@ -202,18 +208,18 @@ vet: ## Run go vet against code.
 
 test: manifests generate fmt vet setup-envtest ## Run the tests.
 	echo $(SETUP_ENVTEST)
-	KUBEBUILDER_ASSETS='$(strip $(shell $(SETUP_ENVTEST)  use -p path $(ENVTEST_K8S_VERSION)))'  go test -ldflags="-X github.com/kuadrant/authorino-operator/controllers.DefaultAuthorinoImage=$(DEFAULT_AUTHORINO_IMAGE)" ./... -coverprofile cover.out
+	KUBEBUILDER_ASSETS='$(strip $(shell $(SETUP_ENVTEST)  use -p path $(ENVTEST_K8S_VERSION)))'  go test -ldflags="-X github.com/kuadrant/authorino-operator/controllers.DefaultAuthorinoImage=$(ACTUAL_DEFAULT_AUTHORINO_IMAGE)" ./... -coverprofile cover.out
 
 ##@ Build
 
 build: generate fmt vet ## Build manager binary.
-	go build -ldflags "-X main.version=$(VERSION) -X github.com/kuadrant/authorino-operator/controllers.DefaultAuthorinoImage=$(DEFAULT_AUTHORINO_IMAGE)" -o bin/manager main.go
+	go build -ldflags "-X main.version=$(VERSION) -X github.com/kuadrant/authorino-operator/controllers.DefaultAuthorinoImage=$(ACTUAL_DEFAULT_AUTHORINO_IMAGE)" -o bin/manager main.go
 
 run: manifests generate fmt vet ## Run a controller from your host.
-	go run -ldflags "-X main.version=$(VERSION) -X github.com/kuadrant/authorino-operator/controllers.DefaultAuthorinoImage=$(DEFAULT_AUTHORINO_IMAGE)" ./main.go
+	go run -ldflags "-X main.version=$(VERSION) -X github.com/kuadrant/authorino-operator/controllers.DefaultAuthorinoImage=$(ACTUAL_DEFAULT_AUTHORINO_IMAGE)" ./main.go
 
 docker-build:  ## Build docker image with the manager.
-	docker build --build-arg VERSION=$(VERSION) --build-arg DEFAULT_AUTHORINO_IMAGE=$(DEFAULT_AUTHORINO_IMAGE) -t $(OPERATOR_IMAGE) .
+	docker build --build-arg VERSION=$(VERSION) --build-arg ACTUAL_DEFAULT_AUTHORINO_IMAGE=$(ACTUAL_DEFAULT_AUTHORINO_IMAGE) -t $(OPERATOR_IMAGE) .
 
 docker-push: ## Push docker image with the manager.
 	docker push ${OPERATOR_IMAGE}
@@ -331,7 +337,7 @@ verify-manifests: manifests $(YQ) ## Verify manifests update.
 	git diff -I' containerImage:' -I' image:' -I'^    createdAt: ' --exit-code ./config
 	[ -z "$$(git ls-files --other --exclude-standard --directory --no-empty-directory ./config)" ]
 	$(YQ) ea -e 'select([.][].kind == "Deployment") | select([.][].metadata.name == "authorino-operator").spec.template.spec.containers[0].image | . == "$(OPERATOR_IMAGE)"' config/deploy/manifests.yaml
-	$(YQ) ea -e 'select([.][].kind == "Deployment") | select([.][].metadata.name == "authorino-webhooks").spec.template.spec.containers[0].image | . == "$(EXPECTED_DEFAULT_AUTHORINO_IMAGE)"' config/deploy/manifests.yaml
+	$(YQ) ea -e 'select([.][].kind == "Deployment") | select([.][].metadata.name == "authorino-webhooks").spec.template.spec.containers[0].image | . == "$(DEFAULT_AUTHORINO_IMAGE)"' config/deploy/manifests.yaml
 	$(YQ) e -e '.metadata.annotations.containerImage == "$(OPERATOR_IMAGE)"' config/manifests/bases/authorino-operator.clusterserviceversion.yaml
 
 .PHONY: verify-bundle
@@ -340,7 +346,7 @@ verify-bundle: bundle $(YQ) ## Verify bundle update.
 	[ -z "$$(git ls-files --other --exclude-standard --directory --no-empty-directory ./bundle)" ]
 	$(YQ) e -e '.metadata.annotations.containerImage == "$(OPERATOR_IMAGE)"' $(BUNDLE_CSV)
 	$(YQ) e -e '.spec.install.spec.deployments[0].spec.template.spec.containers[0].image == "$(OPERATOR_IMAGE)"' $(BUNDLE_CSV)
-	$(YQ) e -e '.spec.install.spec.deployments[1].spec.template.spec.containers[0].image == "$(EXPECTED_DEFAULT_AUTHORINO_IMAGE)"' $(BUNDLE_CSV)
+	$(YQ) e -e '.spec.install.spec.deployments[1].spec.template.spec.containers[0].image == "$(DEFAULT_AUTHORINO_IMAGE)"' $(BUNDLE_CSV)
 
 .PHONY: verify-fmt
 verify-fmt: fmt ## Verify fmt update.
