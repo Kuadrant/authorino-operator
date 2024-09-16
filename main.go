@@ -45,6 +45,8 @@ var (
 	setupLog = ctrl.Log.WithName("setup")
 	logger   log.Logger
 	version  string // value injected in compilation-time
+	gitSHA   string // value injected in compilation-time
+	dirty    string // value injected in compilation-time
 )
 
 func init() {
@@ -89,7 +91,11 @@ func main() {
 
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 
-	setupLog.Info("booting up authorino operator", "version", version, "default authorino image", controllers.DefaultAuthorinoImage)
+	setupLog.Info("booting up authorino operator",
+		"version", version,
+		"commit", gitSHA,
+		"dirty", dirty,
+		"default authorino image", controllers.DefaultAuthorinoImage)
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                 scheme,
