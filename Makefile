@@ -212,14 +212,20 @@ test: manifests generate fmt vet setup-envtest ## Run the tests.
 
 ##@ Build
 
+build: GIT_SHA=$(shell git rev-parse HEAD || echo "unknown")
+build: DIRTY=$(shell $(PROJECT_DIR)/utils/check-git-dirty.sh || echo "unknown")
 build: generate fmt vet ## Build manager binary.
-	go build -ldflags "-X main.version=$(VERSION) -X github.com/kuadrant/authorino-operator/controllers.DefaultAuthorinoImage=$(ACTUAL_DEFAULT_AUTHORINO_IMAGE)" -o bin/manager main.go
+	go build -ldflags "-X main.version=$(VERSION) -X main.gitSHA=${GIT_SHA} -X main.dirty=${DIRTY} -X github.com/kuadrant/authorino-operator/controllers.DefaultAuthorinoImage=$(ACTUAL_DEFAULT_AUTHORINO_IMAGE)" -o bin/manager main.go
 
+run: GIT_SHA=$(shell git rev-parse HEAD || echo "unknown")
+run: DIRTY=$(shell $(PROJECT_DIR)/utils/check-git-dirty.sh || echo "unknown")
 run: manifests generate fmt vet ## Run a controller from your host.
-	go run -ldflags "-X main.version=$(VERSION) -X github.com/kuadrant/authorino-operator/controllers.DefaultAuthorinoImage=$(ACTUAL_DEFAULT_AUTHORINO_IMAGE)" ./main.go
+	go run -ldflags "-X main.version=$(VERSION) -X main.gitSHA=${GIT_SHA} -X main.dirty=${DIRTY} -X github.com/kuadrant/authorino-operator/controllers.DefaultAuthorinoImage=$(ACTUAL_DEFAULT_AUTHORINO_IMAGE)" ./main.go
 
+docker-build: GIT_SHA=$(shell git rev-parse HEAD || echo "unknown")
+docker-build: DIRTY=$(shell $(PROJECT_DIR)/utils/check-git-dirty.sh || echo "unknown")
 docker-build:  ## Build docker image with the manager.
-	docker build --build-arg VERSION=$(VERSION) --build-arg ACTUAL_DEFAULT_AUTHORINO_IMAGE=$(ACTUAL_DEFAULT_AUTHORINO_IMAGE) -t $(OPERATOR_IMAGE) .
+	docker build --build-arg VERSION=$(VERSION) --build-arg GIT_SHA=$(GIT_SHA) --build-arg DIRTY=$(DIRTY) --build-arg ACTUAL_DEFAULT_AUTHORINO_IMAGE=$(ACTUAL_DEFAULT_AUTHORINO_IMAGE) -t $(OPERATOR_IMAGE) .
 
 docker-push: ## Push docker image with the manager.
 	docker push ${OPERATOR_IMAGE}
@@ -245,10 +251,10 @@ install-operator: manifests kustomize ## Install CRDs into the K8s cluster speci
 uninstall-operator: manifests kustomize ## Uninstall CRDs from the K8s cluster specified in ~/.kube/config.
 	kubectl delete -f $(OPERATOR_MANIFESTS) --ignore-not-found
 
-install-authorino: create-namespace install-cert-manager ## install RBAC and CRD for authorino
+install-authorino: $(KUSTOMIZE) create-namespace install-cert-manager ## install RBAC and CRD for authorino
 	$(KUSTOMIZE) build config/authorino | kubectl apply -f -
 
-uninstall-authorino:  ## uninstall RBAC and CRD for authorino
+uninstall-authorino: $(KUSTOMIZE) ## uninstall RBAC and CRD for authorino
 	$(KUSTOMIZE) build config/authorino | kubectl delete -f - --ignore-not-found
 
 install-cert-manager: ## install the cert manager need for the web hooks
@@ -267,7 +273,7 @@ delete-namespace:
 DEPLOYMENT_DIR = $(PROJECT_DIR)/config/deploy
 DEPLOYMENT_FILE = $(DEPLOYMENT_DIR)/manifests.yaml
 .PHONY: deploy-manifest
-deploy-manifest:
+deploy-manifest: $(KUSTOMIZE)
 	mkdir -p $(DEPLOYMENT_DIR)
 	cd $(PROJECT_DIR)/config/manager && $(KUSTOMIZE) edit set image controller=$(OPERATOR_IMAGE) ;\
 	cd $(PROJECT_DIR) && $(KUSTOMIZE) build config/deploy > $(DEPLOYMENT_FILE)
