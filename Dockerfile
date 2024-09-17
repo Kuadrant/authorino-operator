@@ -30,4 +30,9 @@ WORKDIR /
 COPY --from=builder /workspace/manager .
 USER 1001
 
+# Quay image expiry
+ARG QUAY_IMAGE_EXPIRY
+ENV QUAY_IMAGE_EXPIRY=${QUAY_IMAGE_EXPIRY:-never}
+LABEL quay.expires-after=$QUAY_IMAGE_EXPIRY
+
 ENTRYPOINT ["/manager"]
