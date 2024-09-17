@@ -83,7 +83,7 @@ metadata:
     capabilities: Basic Install
     categories: Integration & Delivery
     containerImage: quay.io/kuadrant/authorino-operator:latest
-    createdAt: "2024-09-03T17:46:45Z"
+    createdAt: "2024-09-12T11:22:55Z"
     operators.operatorframework.io/builder: operator-sdk-v1.32.0
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
     repository: https://github.com/Kuadrant/authorino-operator
@@ -345,6 +345,12 @@ spec:
                         memory: 200Mi
                     securityContext:
                       allowPrivilegeEscalation: false
+                      capabilities:
+                        drop:
+                          - ALL
+                      readOnlyRootFilesystem: true
+                      seccompProfile:
+                        type: RuntimeDefault
                 securityContext:
                   runAsNonRoot: true
                 serviceAccountName: authorino-operator
@@ -492,7 +498,7 @@ spec:
     - email: mcassola@redhat.com
       name: Guilherme Cassolato
   maturity: alpha
-  minKubeVersion: 1.8.0
+  minKubeVersion: 1.25.0
   provider:
     name: Red Hat
   version: 0.0.0

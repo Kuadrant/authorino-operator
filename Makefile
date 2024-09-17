@@ -298,6 +298,20 @@ bundle: manifests kustomize operator-sdk $(YQ) ## Generate bundle manifests and 
 	$(OPERATOR_SDK) bundle validate ./bundle
 	# Roll back edit
 	cd config/manager && $(KUSTOMIZE) edit set image controller=${DEFAULT_OPERATOR_IMAGE}
+	$(MAKE) bundle-custom-modifications
+
+.PHONY: bundle-custom-modifications
+OPENSHIFT_VERSIONS_ANNOTATION_KEY="com.redhat.openshift.versions"
+# Supports Openshift v4.12+ (https://redhat-connect.gitbook.io/certified-operator-guide/ocp-deployment/operator-metadata/bundle-directory/managing-openshift-versions)
+OPENSHIFT_SUPPORTED_VERSIONS="v4.12"
+bundle-custom-modifications:
+	# Set Openshift version in bundle annotations
+	$(YQ) -i '.annotations[$(OPENSHIFT_VERSIONS_ANNOTATION_KEY)] = $(OPENSHIFT_SUPPORTED_VERSIONS)' bundle/metadata/annotations.yaml
+	$(YQ) -i '(.annotations[$(OPENSHIFT_VERSIONS_ANNOTATION_KEY)] | key) headComment = "Custom annotations"' bundle/metadata/annotations.yaml
+	# Set Openshift version in bundle Dockerfile
+	@echo "" >> bundle.Dockerfile
+	@echo "# Custom labels" >> bundle.Dockerfile
+	@echo "LABEL $(OPENSHIFT_VERSIONS_ANNOTATION_KEY)=$(OPENSHIFT_SUPPORTED_VERSIONS)" >> bundle.Dockerfile
 
 .PHONY: bundle-build
 bundle-build: ## Build the bundle image.
