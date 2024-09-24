@@ -192,48 +192,29 @@ jobs:
           else
           echo "VERSION=${{ github.sha }}" >> $GITHUB_ENV
           fi
-      - name: Install qemu dependency
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y qemu-user-static
-      - name: Run make catalog (main)
-        if: ${{ github.ref_name == env.MAIN_BRANCH_NAME }}
-        run: |
-          make catalog \
-            REGISTRY=${{ env.IMG_REGISTRY_HOST }} ORG=${{ env.IMG_REGISTRY_ORG }} \
-            VERSION=${{ env.VERSION }} \
-            IMAGE_TAG=${{ github.sha }} \
-            AUTHORINO_VERSION=${{ env.LATEST_AUTHORINO_GITREF }} \
-            CHANNELS=${{ inputs.channels }}
-      - name: Run make catalog (release)
-        if: ${{ github.ref_name != env.MAIN_BRANCH_NAME }}
-        run: |
-          make catalog \
-            REGISTRY=${{ env.IMG_REGISTRY_HOST }} ORG=${{ env.IMG_REGISTRY_ORG }} \
-            VERSION=${{ env.VERSION }} \
-            AUTHORINO_VERSION=${{ github.event.inputs.authorinoVersion }} \
-            CHANNELS=${{ inputs.channels }}
-      - name: Git diff
-        run: git diff
-      - name: Build Image
-        id: build-image
-        uses: redhat-actions/buildah-build@v2
+      - name: Install opm from OpenShift Mirror
+        uses: redhat-actions/openshift-tools-installer@v1
         with:
-          image: ${{ env.OPERATOR_NAME }}-catalog
-          tags: ${{ env.IMG_TAGS }}
-          platforms: linux/amd64,linux/arm64
-          context: ./catalog
-          dockerfiles: |
-            ./catalog/${{ env.OPERATOR_NAME }}-catalog.Dockerfile
-      - name: Push Image
-        if: ${{ !env.ACT }}
-        id: push-to-quay
-        uses: redhat-actions/push-to-registry@v2
+          opm: "4.14.4"
+      - name: Set permissions for build script
+        run: chmod +x ./script/build_catalog.sh
+      - name: Login to Quay.io
+        uses: docker/login-action@v1
         with:
-          image: ${{ steps.build-image.outputs.image }}
-          tags: ${{ steps.build-image.outputs.tags }}
-          registry: ${{ env.IMG_REGISTRY_HOST }}/${{ env.IMG_REGISTRY_ORG }}
+          registry: ${{ secrets.IMG_REGISTRY_HOST || 'quay.io' }}
           username: ${{ secrets.IMG_REGISTRY_USERNAME }}
           password: ${{ secrets.IMG_REGISTRY_TOKEN }}
-      - name: Print Image URL
-        run: echo "Image pushed to ${{ steps.push-to-quay.outputs.registry-paths }}"
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+      - name: build and push catalog (main)
+        if: ${{ github.ref_name == env.MAIN_BRANCH_NAME }}
+        shell: bash
+        env:
+          TAG: ${{ env.IMG_TAGS }}
+        run: ./script/build_catalog.sh
+      - name: build and push catalog (release)
+        if: ${{ github.ref_name != env.MAIN_BRANCH_NAME }}
+        shell: bash
+        env:
+          TAG: ${{ env.IMG_TAGS }}
+        run: ./script/build_catalog.sh
