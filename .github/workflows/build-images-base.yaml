@@ -1,10 +1,20 @@
 name: Build and push images
 
 on:
-  push:
-    branches:
-      - 'main'
-      - 'master'
+  workflow_call:
+    inputs:
+      authorinoVersion:
+        description: Authorino version
+        required: true
+        default: latest
+      channels:
+        description: Bundle and catalog channels, comma separated
+        required: true
+        default: stable
+      quayImageExpiry:
+        description: When to expire the built quay images. The time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively, from the time the image is built.
+        default: never
+        type: string
   workflow_dispatch:
     inputs:
       authorinoVersion:
@@ -15,15 +25,19 @@ on:
         description: Bundle and catalog channels, comma separated
         required: true
         default: stable
+      quayImageExpiry:
+        description: When to expire the built quay images. The time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively, from the time the image is built.
+        default: never
+        type: string
 
 env:
-  IMG_TAGS: ${{ github.sha }}
+  IMG_TAGS: ${{ inputs.authorinoVersion }}
   IMG_REGISTRY_HOST: quay.io
   IMG_REGISTRY_ORG: kuadrant
-  MAIN_BRANCH_NAME: main
   OPERATOR_NAME: authorino-operator
   BUILD_CONFIG_FILE: build.yaml
   LATEST_AUTHORINO_GITREF: ${{ vars.AUTHORINO_SHA != '' && vars.AUTHORINO_SHA || 'latest' }}
+  QUAY_IMAGE_EXPIRY: ${{ inputs.quayImageExpiry }}
 
 jobs:
   build:
@@ -32,16 +46,6 @@ jobs:
     steps:
       - name: Check out code
         uses: actions/checkout@v3
-      - name: Add latest tag
-        if: ${{ github.ref_name == env.MAIN_BRANCH_NAME }}
-        id: add-latest-tag
-        run: |
-          echo "IMG_TAGS=latest ${{ env.IMG_TAGS }}" >> $GITHUB_ENV
-      - name: Add branch tag
-        if: ${{ github.ref_name != env.MAIN_BRANCH_NAME }}
-        id: add-branch-tag
-        run: |
-          echo "IMG_TAGS=${GITHUB_REF_NAME/\//-} ${{ env.IMG_TAGS }}" >> $GITHUB_ENV
       - name: Set Operator version
         id: operator-version
         run: |
@@ -69,6 +73,7 @@ jobs:
             GIT_SHA=${{ github.sha }}
             DIRTY=false
             DEFAULT_AUTHORINO_IMAGE=${{ env.DEFAULT_AUTHORINO_IMAGE }}
+            QUAY_IMAGE_EXPIRY=${{ inputs.quayImageExpiry }}
           containerfiles: |
             ./Dockerfile
       - name: Push Image
@@ -143,6 +148,7 @@ jobs:
           platforms: linux/amd64,linux/arm64,linux/s390x,linux/ppc64le
           build-args: |
             version=${{ env.VERSION }}
+            QUAY_IMAGE_EXPIRY=${{ inputs.quayImageExpiry }}
           containerfiles: |
             ./bundle.Dockerfile
       - name: Push Image
@@ -225,6 +231,7 @@ jobs:
           context: ./catalog
           dockerfiles: |
             ./catalog/${{ env.OPERATOR_NAME }}-catalog.Dockerfile
+          # The Quay image expiry label for the generated catalog Dockerfile is set via opm, using the value set in the QUAY_IMAGE_EXPIRY environment variable
       - name: Push Image
         if: ${{ !env.ACT }}
         id: push-to-quay

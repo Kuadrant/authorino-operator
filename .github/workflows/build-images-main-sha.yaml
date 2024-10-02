@@ -1,0 +1,14 @@
+name: Build SHA image for main branch
+
+on:
+  push:
+    branches: ['main']
+
+jobs:
+  workflow-build:
+    name: Calls build-images-base workflow
+    uses: ./.github/workflows/build-images-base.yaml
+    secrets: inherit
+    with:
+      authorinoVersion: ${{ github.sha }}
+      quayImageExpiry: 2w
