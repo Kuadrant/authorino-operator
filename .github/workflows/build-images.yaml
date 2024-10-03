@@ -65,7 +65,7 @@ jobs:
           tags: ${{ env.IMG_TAGS }}
           platforms: linux/amd64,linux/arm64,linux/s390x,linux/ppc64le
           build-args: |
-            VERSION=${{ env.VERSION }}
+            OPERATOR_VERSION=${{ env.VERSION }}
             GIT_SHA=${{ github.sha }}
             DIRTY=false
             DEFAULT_AUTHORINO_IMAGE=${{ env.DEFAULT_AUTHORINO_IMAGE }}

@@ -16,12 +16,12 @@ COPY api/ api/
 COPY controllers/ controllers/
 COPY pkg/ pkg/
 
-ARG VERSION=latest
+ARG OPERATOR_VERSION=latest
 ARG DEFAULT_AUTHORINO_IMAGE=quay.io/kuadrant/authorino:latest
 ARG GIT_SHA=unknown
 ARG DIRTY=unknown
 
-RUN CGO_ENABLED=0 GO111MODULE=on go build -a -ldflags "-X main.version=${VERSION} -X main.gitSHA=${GIT_SHA} -X main.dirty=${DIRTY} -X github.com/kuadrant/authorino-operator/controllers.DefaultAuthorinoImage=${DEFAULT_AUTHORINO_IMAGE}" -o manager main.go
+RUN CGO_ENABLED=0 GO111MODULE=on go build -a -ldflags "-X main.version=${OPERATOR_VERSION} -X main.gitSHA=${GIT_SHA} -X main.dirty=${DIRTY} -X github.com/kuadrant/authorino-operator/controllers.DefaultAuthorinoImage=${DEFAULT_AUTHORINO_IMAGE}" -o manager main.go
 
 # Use Red Hat minimal base image to package the binary
 # https://catalog.redhat.com/software/containers/ubi9-minimal
