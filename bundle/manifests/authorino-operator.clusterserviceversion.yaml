@@ -5,34 +5,6 @@ metadata:
     alm-examples: |-
       [
         {
-          "apiVersion": "authorino.kuadrant.io/v1beta1",
-          "kind": "AuthConfig",
-          "metadata": {
-            "name": "my-api-protection"
-          },
-          "spec": {
-            "hosts": [
-              "my-api.io"
-            ],
-            "identity": [
-              {
-                "apiKey": {
-                  "selector": {
-                    "matchLabels": {
-                      "group": "friends"
-                    }
-                  }
-                },
-                "credentials": {
-                  "in": "authorization_header",
-                  "keySelector": "APIKEY"
-                },
-                "name": "api-key-users"
-              }
-            ]
-          }
-        },
-        {
           "apiVersion": "authorino.kuadrant.io/v1beta2",
           "kind": "AuthConfig",
           "metadata": {
@@ -83,7 +55,7 @@ metadata:
     capabilities: Basic Install
     categories: Integration & Delivery
     containerImage: quay.io/kuadrant/authorino-operator:latest
-    createdAt: "2024-09-30T15:29:42Z"
+    createdAt: "2024-10-16T16:01:21Z"
     operators.operatorframework.io/builder: operator-sdk-v1.32.0
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
     repository: https://github.com/Kuadrant/authorino-operator
@@ -104,12 +76,10 @@ spec:
         displayName: AuthConfig
         kind: AuthConfig
         name: authconfigs.authorino.kuadrant.io
-        version: v1beta1
-      - description: API to describe the desired protection for a service
-        displayName: AuthConfig
-        kind: AuthConfig
-        name: authconfigs.authorino.kuadrant.io
         version: v1beta2
+      - kind: AuthConfig
+        name: authconfigs.authorino.kuadrant.io
+        version: v1beta3
       - description: API to create instances of authorino
         displayName: Authorino
         kind: Authorino
