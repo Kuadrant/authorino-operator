@@ -145,8 +145,8 @@ install_operator() {
 }
 
 if [[ -z $NO_DEPS ]]; then
-  step "Installing \033[0;32mcert-manager\033[0m \033[0;37m(version: ${CERT_MANAGER_VERSION})\033[0m to the current kubectl context..." \
-       install_cert_manager
+  # step "Installing \033[0;32mcert-manager\033[0m \033[0;37m(version: ${CERT_MANAGER_VERSION})\033[0m to the current kubectl context..." \
+  #      install_cert_manager
 fi
 
 version_info="git-ref: $GIT_REF"

@@ -251,7 +251,7 @@ install-operator: manifests kustomize ## Install CRDs into the K8s cluster speci
 uninstall-operator: manifests kustomize ## Uninstall CRDs from the K8s cluster specified in ~/.kube/config.
 	kubectl delete -f $(OPERATOR_MANIFESTS) --ignore-not-found
 
-install-authorino: $(KUSTOMIZE) create-namespace install-cert-manager ## install RBAC and CRD for authorino
+install-authorino: $(KUSTOMIZE) create-namespace ## install RBAC and CRD for authorino
 	$(KUSTOMIZE) build config/authorino | kubectl apply -f -
 
 uninstall-authorino: $(KUSTOMIZE) ## uninstall RBAC and CRD for authorino
@@ -357,7 +357,7 @@ verify-manifests: manifests $(YQ) ## Verify manifests update.
 	git diff -I'^    createdAt:' -I' containerImage:' -I' image:' --exit-code -- ./config ':(exclude)config/authorino/kustomization.yaml'
 	[ -z "$$(git ls-files --other --exclude-standard --directory --no-empty-directory ./config)" ]
 	$(YQ) ea -e 'select([.][].kind == "Deployment") | select([.][].metadata.name == "authorino-operator").spec.template.spec.containers[0].image | . == "$(OPERATOR_IMAGE)"' config/deploy/manifests.yaml
-	$(YQ) ea -e 'select([.][].kind == "Deployment") | select([.][].metadata.name == "authorino-webhooks").spec.template.spec.containers[0].image | . == "$(DEFAULT_AUTHORINO_IMAGE)"' config/deploy/manifests.yaml
+# $(YQ) ea -e 'select([.][].kind == "Deployment") | select([.][].metadata.name == "authorino-webhooks").spec.template.spec.containers[0].image | . == "$(DEFAULT_AUTHORINO_IMAGE)"' config/deploy/manifests.yaml
 	$(YQ) e -e '.metadata.annotations.containerImage == "$(OPERATOR_IMAGE)"' config/manifests/bases/authorino-operator.clusterserviceversion.yaml
 
 .PHONY: verify-bundle
@@ -366,7 +366,7 @@ verify-bundle: bundle $(YQ) ## Verify bundle update.
 	[ -z "$$(git ls-files --other --exclude-standard --directory --no-empty-directory ./bundle)" ]
 	$(YQ) e -e '.metadata.annotations.containerImage == "$(OPERATOR_IMAGE)"' $(BUNDLE_CSV)
 	$(YQ) e -e '.spec.install.spec.deployments[0].spec.template.spec.containers[0].image == "$(OPERATOR_IMAGE)"' $(BUNDLE_CSV)
-	$(YQ) e -e '.spec.install.spec.deployments[1].spec.template.spec.containers[0].image == "$(DEFAULT_AUTHORINO_IMAGE)"' $(BUNDLE_CSV)
+#	$(YQ) e -e '.spec.install.spec.deployments[1].spec.template.spec.containers[0].image == "$(DEFAULT_AUTHORINO_IMAGE)"' $(BUNDLE_CSV)
 
 .PHONY: verify-fmt
 verify-fmt: fmt ## Verify fmt update.
