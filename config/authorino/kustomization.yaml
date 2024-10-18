@@ -3,72 +3,72 @@ kind: Kustomization
 
 resources:
 - github.com/Kuadrant/authorino/install?ref=main
-- webhook
+# - webhook
 
-# Configures the conversion webhook
-images:
-- name: AUTHORINO_IMAGE
-  newName: quay.io/kuadrant/authorino
-  newTag: latest
+# # Configures the conversion webhook
+# images:
+# - name: AUTHORINO_IMAGE
+#   newName: quay.io/kuadrant/authorino
+#   newTag: latest
 
-patchesStrategicMerge:
-- webhook/patches/webhook_in_authconfigs.yaml
+# patchesStrategicMerge:
+# - webhook/patches/webhook_in_authconfigs.yaml
 
-replacements:
-- source:
-    fieldPath: .metadata.namespace
-    group: cert-manager.io
-    kind: Certificate
-    name: authorino-webhook-server-cert
-    version: v1
-  targets:
-  - fieldPaths:
-    - .metadata.annotations.[cert-manager.io/inject-ca-from]
-    options:
-      create: true
-      delimiter: /
-    select:
-      kind: CustomResourceDefinition
-      name: authconfigs.authorino.kuadrant.io
-- source:
-    fieldPath: .metadata.name
-    group: cert-manager.io
-    kind: Certificate
-    name: authorino-webhook-server-cert
-    version: v1
-  targets:
-  - fieldPaths:
-    - .metadata.annotations.[cert-manager.io/inject-ca-from]
-    options:
-      create: true
-      delimiter: /
-      index: 1
-    select:
-      kind: CustomResourceDefinition
-      name: authconfigs.authorino.kuadrant.io
-- source:
-    fieldPath: .metadata.name
-    kind: Service
-    name: authorino-webhooks
-    version: v1
-  targets:
-  - fieldPaths:
-    - .spec.conversion.webhook.clientConfig.service.name
-    options:
-      create: true
-    select:
-      kind: CustomResourceDefinition
-      name: authconfigs.authorino.kuadrant.io
-- source:
-    fieldPath: .metadata.namespace
-    kind: Service
-    name: authorino-webhooks
-    version: v1
-  targets:
-  - fieldPaths:
-    - .spec.conversion.webhook.clientConfig.service.namespace
-    options:
-      create: true
-    select:
-      kind: CustomResourceDefinition
-      name: authconfigs.authorino.kuadrant.io
+# replacements:
+# - source:
+#     fieldPath: .metadata.namespace
+#     group: cert-manager.io
+#     kind: Certificate
+#     name: authorino-webhook-server-cert
+#     version: v1
+#   targets:
+#   - fieldPaths:
+#     - .metadata.annotations.[cert-manager.io/inject-ca-from]
+#     options:
+#       create: true
+#       delimiter: /
+#     select:
+#       kind: CustomResourceDefinition
+#       name: authconfigs.authorino.kuadrant.io
+# - source:
+#     fieldPath: .metadata.name
+#     group: cert-manager.io
+#     kind: Certificate
+#     name: authorino-webhook-server-cert
+#     version: v1
+#   targets:
+#   - fieldPaths:
+#     - .metadata.annotations.[cert-manager.io/inject-ca-from]
+#     options:
+#       create: true
+#       delimiter: /
+#       index: 1
+#     select:
+#       kind: CustomResourceDefinition
+#       name: authconfigs.authorino.kuadrant.io
+# - source:
+#     fieldPath: .metadata.name
+#     kind: Service
+#     name: authorino-webhooks
+#     version: v1
+#   targets:
+#   - fieldPaths:
+#     - .spec.conversion.webhook.clientConfig.service.name
+#     options:
+#       create: true
+#     select:
+#       kind: CustomResourceDefinition
+#       name: authconfigs.authorino.kuadrant.io
+# - source:
+#     fieldPath: .metadata.namespace
+#     kind: Service
+#     name: authorino-webhooks
+#     version: v1
+#   targets:
+#   - fieldPaths:
+#     - .spec.conversion.webhook.clientConfig.service.namespace
+#     options:
+#       create: true
+#     select:
+#       kind: CustomResourceDefinition
+#       name: authconfigs.authorino.kuadrant.io

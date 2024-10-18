@@ -5,17 +5,14 @@ metadata:
     alm-examples: |-
       [
         {
-          "apiVersion": "authorino.kuadrant.io/v1beta1",
+          "apiVersion": "authorino.kuadrant.io/v1beta2",
           "kind": "AuthConfig",
           "metadata": {
             "name": "my-api-protection"
           },
           "spec": {
-            "hosts": [
-              "my-api.io"
-            ],
-            "identity": [
-              {
+            "authentication": {
+              "api-key-users": {
                 "apiKey": {
                   "selector": {
                     "matchLabels": {
@@ -24,16 +21,19 @@ metadata:
                   }
                 },
                 "credentials": {
-                  "in": "authorization_header",
-                  "keySelector": "APIKEY"
-                },
-                "name": "api-key-users"
+                  "authorizationHeader": {
+                    "prefix": "APIKEY"
+                  }
+                }
               }
+            },
+            "hosts": [
+              "my-api.io"
             ]
           }
         },
         {
-          "apiVersion": "authorino.kuadrant.io/v1beta2",
+          "apiVersion": "authorino.kuadrant.io/v1beta3",
           "kind": "AuthConfig",
           "metadata": {
             "name": "my-api-protection"
@@ -83,7 +83,7 @@ metadata:
     capabilities: Basic Install
     categories: Integration & Delivery
     containerImage: quay.io/kuadrant/authorino-operator:latest
-    createdAt: "2024-09-30T15:29:42Z"
+    createdAt: "2024-10-18T08:42:13Z"
     operators.operatorframework.io/builder: operator-sdk-v1.32.0
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
     repository: https://github.com/Kuadrant/authorino-operator
@@ -104,12 +104,12 @@ spec:
         displayName: AuthConfig
         kind: AuthConfig
         name: authconfigs.authorino.kuadrant.io
-        version: v1beta1
+        version: v1beta2
       - description: API to describe the desired protection for a service
         displayName: AuthConfig
         kind: AuthConfig
         name: authconfigs.authorino.kuadrant.io
-        version: v1beta2
+        version: v1beta3
       - description: API to create instances of authorino
         displayName: Authorino
         kind: Authorino
@@ -356,45 +356,6 @@ spec:
                   runAsNonRoot: true
                 serviceAccountName: authorino-operator
                 terminationGracePeriodSeconds: 10
-        - label:
-            app: authorino
-            authorino-component: authorino-webhooks
-          name: authorino-webhooks
-          spec:
-            selector:
-              matchLabels:
-                app: authorino
-                authorino-component: authorino-webhooks
-            strategy: {}
-            template:
-              metadata:
-                labels:
-                  app: authorino
-                  authorino-component: authorino-webhooks
-              spec:
-                containers:
-                  - command:
-                      - authorino
-                      - webhooks
-                    image: quay.io/kuadrant/authorino:latest
-                    name: webhooks
-                    ports:
-                      - containerPort: 9443
-                        name: webhooks
-                      - containerPort: 8080
-                        name: metrics
-                      - containerPort: 8081
-                        name: healthz
-                    resources: {}
-                    volumeMounts:
-                      - mountPath: /tmp/k8s-webhook-server/serving-certs
-                        name: cert
-                        readOnly: true
-                volumes:
-                  - name: cert
-                    secret:
-                      defaultMode: 420
-                      secretName: authorino-webhook-server-cert
       permissions:
         - rules:
             - apiGroups:
@@ -429,47 +390,6 @@ spec:
                 - create
                 - patch
           serviceAccountName: authorino-operator
-        - rules:
-            - apiGroups:
-                - authorino.kuadrant.io
-              resources:
-                - authconfigs
-              verbs:
-                - create
-                - delete
-                - get
-                - list
-                - patch
-                - update
-                - watch
-            - apiGroups:
-                - authorino.kuadrant.io
-              resources:
-                - authconfigs/status
-              verbs:
-                - get
-                - patch
-                - update
-            - apiGroups:
-                - coordination.k8s.io
-              resources:
-                - leases
-              verbs:
-                - create
-                - get
-                - list
-                - update
-            - apiGroups:
-                - ""
-              resources:
-                - configmaps
-                - events
-              verbs:
-                - create
-                - get
-                - list
-                - update
-          serviceAccountName: default
     strategy: deployment
   installModes:
     - supported: false
@@ -503,16 +423,3 @@ spec:
   provider:
     name: Red Hat
   version: 0.0.0
-  webhookdefinitions:
-    - admissionReviewVersions:
-        - v1beta1
-        - v1beta2
-      containerPort: 443
-      conversionCRDs:
-        - authconfigs.authorino.kuadrant.io
-      deploymentName: authorino-webhooks
-      generateName: cauthconfigs.kb.io
-      sideEffects: None
-      targetPort: 9443
-      type: ConversionWebhook
-      webhookPath: /convert
