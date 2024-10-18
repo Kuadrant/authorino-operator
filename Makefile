@@ -251,7 +251,7 @@ install-operator: manifests kustomize ## Install CRDs into the K8s cluster speci
 uninstall-operator: manifests kustomize ## Uninstall CRDs from the K8s cluster specified in ~/.kube/config.
 	kubectl delete -f $(OPERATOR_MANIFESTS) --ignore-not-found
 
-install-authorino: $(KUSTOMIZE) create-namespace install-cert-manager ## install RBAC and CRD for authorino
+install-authorino: $(KUSTOMIZE) create-namespace ## install RBAC and CRD for authorino
 	$(KUSTOMIZE) build config/authorino | kubectl apply -f -
 
 uninstall-authorino: $(KUSTOMIZE) ## uninstall RBAC and CRD for authorino
