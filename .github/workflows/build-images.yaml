@@ -24,7 +24,6 @@ env:
   OPERATOR_NAME: authorino-operator
   BUILD_CONFIG_FILE: build.yaml
   LATEST_AUTHORINO_GITREF: ${{ vars.AUTHORINO_SHA != '' && vars.AUTHORINO_SHA || 'latest' }}
-  ARCHITECTURES: "amd64 arm64 ppc64le s390x"
 
 jobs:
   build:
@@ -201,6 +200,8 @@ jobs:
           registry: ${{ env.IMG_REGISTRY_HOST }}
           username: ${{ secrets.IMG_REGISTRY_USERNAME }}
           password: ${{ secrets.IMG_REGISTRY_TOKEN }}
+      - name: Set permissions for build script
+        run: chmod +x ./script/build_catalog.sh
       - name: Git diff
         run: git diff
       - name: build and push catalog (main)

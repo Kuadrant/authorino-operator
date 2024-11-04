@@ -14,9 +14,9 @@ set -e  # Exit on error
 # Split tags into an array
 IFS=' ' read -r -a tags <<< "$TAG"
 first_tag="${tags[0]}"
-architectures=(${ARCHITECTURES})
+architectures=("amd64" "arm64" "ppc64le" "s390x")
 # Build and push catalog images for each architecture
-for arch in "${architectures[@]}"; do 
+for arch in "${architectures[@]}"; do
   make catalog-multiarch arch="${arch}"
   image_tag="${IMG_REGISTRY_HOST}/${IMG_REGISTRY_ORG}/${OPERATOR_NAME}-catalog:${first_tag}-${arch}"
   make catalog-build CATALOG_IMG="${image_tag}"
@@ -24,13 +24,14 @@ for arch in "${architectures[@]}"; do
   wait
 done
 
-# Tag and push the manifest for additional tags
+# Tag and push the manifest for tags
 for tag in "${tags[@]}"; do
   echo "Creating manifest for $TAG"
-  docker manifest create --amend "${IMG_REGISTRY_HOST}/${IMG_REGISTRY_ORG}/${OPERATOR_NAME}-catalog:${tag}" \
-                    $(for arch in "${architectures[@]}"; do
-                      echo "${IMG_REGISTRY_HOST}/${IMG_REGISTRY_ORG}/${OPERATOR_NAME}-catalog:${FIRST_TAG}-${arch}"
-                     done)
+   docker manifest create --amend "${IMG_REGISTRY_HOST}/${IMG_REGISTRY_ORG}/${OPERATOR_NAME}-catalog:${tag}" \
+                    ${IMG_REGISTRY_HOST}/${IMG_REGISTRY_ORG}/${OPERATOR_NAME}-catalog:${first_tag}-amd64 \
+                    ${IMG_REGISTRY_HOST}/${IMG_REGISTRY_ORG}/${OPERATOR_NAME}-catalog:${first_tag}-arm64  \
+                    ${IMG_REGISTRY_HOST}/${IMG_REGISTRY_ORG}/${OPERATOR_NAME}-catalog:${first_tag}-ppc64le \
+                    ${IMG_REGISTRY_HOST}/${IMG_REGISTRY_ORG}/${OPERATOR_NAME}-catalog:${first_tag}-s390x
   docker manifest push "${IMG_REGISTRY_HOST}/${IMG_REGISTRY_ORG}/${OPERATOR_NAME}-catalog:${tag}"
   docker rmi "${IMG_REGISTRY_HOST}/${IMG_REGISTRY_ORG}/${OPERATOR_NAME}-catalog:${tag}" || true
 done
