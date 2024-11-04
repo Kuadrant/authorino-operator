@@ -27,7 +27,7 @@ done
 # Tag and push the manifest for tags
 for tag in "${tags[@]}"; do
   echo "Creating manifest for $TAG"
-   docker manifest create --amend "${IMG_REGISTRY_HOST}/${IMG_REGISTRY_ORG}/${OPERATOR_NAME}-catalog:${tag}" \
+  docker manifest create --amend "${IMG_REGISTRY_HOST}/${IMG_REGISTRY_ORG}/${OPERATOR_NAME}-catalog:${tag}" \
                     $(for arch in "${architectures[@]}"; do
                       echo "${IMG_REGISTRY_HOST}/${IMG_REGISTRY_ORG}/${OPERATOR_NAME}-catalog:${first_tag}-${arch}"
                      done)
