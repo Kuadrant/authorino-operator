@@ -26,3 +26,54 @@ maintainers:
     name: Didier Di Cesare
   - email: eastizle@redhat.com
     name: Eguzki Astiz Lezaun
+annotations:
+  artifacthub.io/category: security
+  artifacthub.io/crds: |
+    - kind: Authorino
+      version: v1beta1
+      name: operator.authorino.kuadrant.io
+      displayName: Authorino
+      description: API to install, manage and configure Authorino authorization services.
+    - kind: AuthConfig
+          version: v1beta3
+          name: authorino.kuadrant.io
+          displayName: AuthConfig
+          description: Defines the desired protection for a service in a declarative way.
+  artifacthub.io/crdsExamples: |
+    - apiVersion: operator.authorino.kuadrant.io/v1beta1
+      kind: Authorino
+      metadata:
+        name: authorino
+      spec:
+        listener:
+          tls:
+            enabled: false
+        oidcServer:
+          tls:
+            enabled: false
+    - apiVersion: authorino.kuadrant.io/v1beta3
+      kind: AuthConfig
+      metadata:
+        name: talker-api-protection
+      spec:
+        hosts:
+          - talker-api.127.0.0.1.nip.io
+        identity:
+          - name: api-clients
+            apiKey:
+              selector:
+                matchLabels:
+                  group: friends
+            credentials:
+              in: authorization_header
+              keySelector: APIKEY
+  artifacthub.io/license: Apache-2.0
+  artifacthub.io/links: |
+    - name: Kuadrant
+      url: https://kuadrant.io
+    - name: Authorino Github
+      url: https://github.com/Kuadrant/authorino
+    - name: Authorino Operator Github
+      url: https://github.com/Kuadrant/authorino-operator
+  artifacthub.io/operator: "true"
+  artifacthub.io/operatorCapabilities: Basic Install
