@@ -32,6 +32,19 @@ catalog: $(OPM) ## Generate catalog content and validate.
 	$(MAKE) $(CATALOG_FILE) BUNDLE_IMG=$(BUNDLE_IMG)
 	cd $(PROJECT_DIR)/catalog && $(OPM) validate authorino-operator-catalog
 
+.PHONY: catalog-multiarch
+catalog-multiarch: $(OPM) ## Generate catalog content using architechture specific binaries and validate.
+	#Initializing the Catalog
+	@echo "Building catalog for architecture: $(arch)"
+	-rm -rf $(PROJECT_DIR)/catalog/authorino-operator-catalog
+	-rm -rf $(PROJECT_DIR)/catalog/authorino-operator-catalog.Dockerfile
+	-mkdir -p $(PROJECT_DIR)/catalog/authorino-operator-catalog
+	cd $(PROJECT_DIR)/catalog && $(OPM) generate dockerfile authorino-operator-catalog -i "quay.io/operator-framework/opm:v1.28.0-${arch}"
+	@echo "creating dir"
+	$(MAKE) $(CATALOG_FILE) BUNDLE_IMG=$(BUNDLE_IMG)
+	@echo "leaving dir"
+	cd $(PROJECT_DIR)/catalog && $(OPM) validate authorino-operator-catalog
+
 # Build a catalog image by adding bundle images to an empty catalog using the operator package manager tool, 'opm'.
 # Ref https://olm.operatorframework.io/docs/tasks/creating-a-catalog/#catalog-creation-with-raw-file-based-catalogs
 .PHONY: catalog-build
