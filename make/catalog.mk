@@ -8,7 +8,8 @@ CATALOG_DOCKERFILE = $(PROJECT_DIR)/catalog/authorino-operator-catalog.Dockerfil
 
 $(CATALOG_DOCKERFILE): $(OPM)
 	-mkdir -p $(PROJECT_DIR)/catalog/authorino-operator-catalog
-	cd $(PROJECT_DIR)/catalog && $(OPM) generate dockerfile authorino-operator-catalog
+	cd $(PROJECT_DIR)/catalog && $(OPM) generate dockerfile authorino-operator-catalog -b "quay.io/operator-framework/opm:v${OPM_VERSION}-$'\$${arch}" -i "quay.io/operator-framework/opm:v${OPM_VERSION}-$'\$${arch}" && sed -i '1s/^/ARG arch\n/' authorino-operator-catalog.Dockerfile
+
 catalog-dockerfile: $(CATALOG_DOCKERFILE) ## Generate catalog dockerfile.
 
 $(CATALOG_FILE): $(OPM) $(YQ)
