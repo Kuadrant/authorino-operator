@@ -204,7 +204,8 @@ jobs:
             VERSION=${{ env.VERSION }} \
             IMAGE_TAG=${{ github.sha }} \
             AUTHORINO_VERSION=${{ env.LATEST_AUTHORINO_GITREF }} \
-            CHANNELS=${{ inputs.channels }}
+            CHANNELS=${{ inputs.channels }} \
+            OPM_DOCKERFILE_TAG=latest
       - name: Run make catalog (release)
         if: ${{ github.ref_name != env.MAIN_BRANCH_NAME }}
         run: |
@@ -212,7 +213,8 @@ jobs:
             REGISTRY=${{ env.IMG_REGISTRY_HOST }} ORG=${{ env.IMG_REGISTRY_ORG }} \
             VERSION=${{ env.VERSION }} \
             AUTHORINO_VERSION=${{ github.event.inputs.authorinoVersion }} \
-            CHANNELS=${{ inputs.channels }}
+            CHANNELS=${{ inputs.channels }} \
+            OPM_DOCKERFILE_TAG=latest
       - name: Git diff
         run: git diff
       - name: Build Image
@@ -288,7 +290,7 @@ jobs:
             IMAGE_TAG=${{ github.sha }} \
             AUTHORINO_VERSION=${{ env.LATEST_AUTHORINO_GITREF }} \
             CHANNELS=${{ inputs.channels }} \
-            CATALOG_ARCH=${{ matrix.arch }}
+            ARCH=${{ matrix.arch }}
       - name: Run make catalog (release)
         if: ${{ github.ref_name != env.MAIN_BRANCH_NAME }}
         run: |
@@ -297,7 +299,7 @@ jobs:
             VERSION=${{ env.VERSION }} \
             AUTHORINO_VERSION=${{ github.event.inputs.authorinoVersion }} \
             CHANNELS=${{ inputs.channels }} \
-            CATALOG_ARCH=${{ matrix.arch }}
+            ARCH=${{ matrix.arch }}
       - name: Git diff
         run: git diff
       - name: Build Image
