@@ -138,14 +138,16 @@ $(YQ):
 .PHONY: yq
 yq: $(YQ) ## Download yq locally if necessary.
 
+ARCH ?= $(shell go env GOARCH)
+
 OPM = $(PROJECT_DIR)/bin/opm
-OPM_VERSION = v1.26.2
+OPM_VERSION ?= 1.48.0
 $(OPM):
 	@{ \
 	set -e ;\
 	mkdir -p $(dir $(OPM)) ;\
 	OS=$(shell go env GOOS) && ARCH=$(shell go env GOARCH) && \
-	curl -sSLo $(OPM) https://github.com/operator-framework/operator-registry/releases/download/$(OPM_VERSION)/$${OS}-$${ARCH}-opm ;\
+	curl -sSLo $(OPM) https://github.com/operator-framework/operator-registry/releases/download/v$(OPM_VERSION)/$${OS}-$(ARCH)-opm ;\
 	chmod +x $(OPM) ;\
 	}
 
