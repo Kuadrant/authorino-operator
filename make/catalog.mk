@@ -3,12 +3,20 @@
 # The image tag given to the resulting catalog image (e.g. make catalog-build CATALOG_IMG=example.com/operator-catalog:v0.2.0).
 CATALOG_IMG ?= $(IMAGE_TAG_BASE)-catalog:$(IMAGE_TAG)
 
+OPM_DOCKERFILE_VERSION ?= 1.28.0
+
+ifeq ($(origin CATALOG_ARCH),undefined)
+OPM_DOCKERFILE_TAG = latest
+else
+OPM_DOCKERFILE_TAG = v$(OPM_DOCKERFILE_VERSION)-$(CATALOG_ARCH)
+endif
+
 CATALOG_FILE = $(PROJECT_DIR)/catalog/authorino-operator-catalog/operator.yaml
 CATALOG_DOCKERFILE = $(PROJECT_DIR)/catalog/authorino-operator-catalog.Dockerfile
 
 $(CATALOG_DOCKERFILE): $(OPM)
 	-mkdir -p $(PROJECT_DIR)/catalog/authorino-operator-catalog
-	cd $(PROJECT_DIR)/catalog && $(OPM) generate dockerfile authorino-operator-catalog
+	cd $(PROJECT_DIR)/catalog && $(OPM) generate dockerfile authorino-operator-catalog -i "quay.io/operator-framework/opm:${OPM_DOCKERFILE_TAG}"
 catalog-dockerfile: $(CATALOG_DOCKERFILE) ## Generate catalog dockerfile.
 
 $(CATALOG_FILE): $(OPM) $(YQ)
@@ -30,19 +38,6 @@ catalog: $(OPM) ## Generate catalog content and validate.
 	-rm -rf $(PROJECT_DIR)/catalog/authorino-operator-catalog.Dockerfile
 	$(MAKE) $(CATALOG_DOCKERFILE)
 	$(MAKE) $(CATALOG_FILE) BUNDLE_IMG=$(BUNDLE_IMG)
-	cd $(PROJECT_DIR)/catalog && $(OPM) validate authorino-operator-catalog
-
-.PHONY: catalog-multiarch
-catalog-multiarch: $(OPM) ## Generate catalog content using architechture specific binaries and validate.
-	#Initializing the Catalog
-	@echo "Building catalog for architecture: $(arch)"
-	-rm -rf $(PROJECT_DIR)/catalog/authorino-operator-catalog
-	-rm -rf $(PROJECT_DIR)/catalog/authorino-operator-catalog.Dockerfile
-	-mkdir -p $(PROJECT_DIR)/catalog/authorino-operator-catalog
-	cd $(PROJECT_DIR)/catalog && $(OPM) generate dockerfile authorino-operator-catalog -i "quay.io/operator-framework/opm:v1.28.0-${arch}"
-	@echo "creating dir"
-	$(MAKE) $(CATALOG_FILE) BUNDLE_IMG=$(BUNDLE_IMG)
-	@echo "leaving dir"
 	cd $(PROJECT_DIR)/catalog && $(OPM) validate authorino-operator-catalog
 
 # Build a catalog image by adding bundle images to an empty catalog using the operator package manager tool, 'opm'.
