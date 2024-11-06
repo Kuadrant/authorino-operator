@@ -90,7 +90,7 @@ jobs:
         with:
           image: ${{ env.OPERATOR_NAME }}-catalog
           tags: ${{ env.IMG_TAGS }}
-          archs: amd64,arm64,s390x,ppc64le
+          platforms: linux/amd64,linux/arm64,linux/s390x,linux/ppc64le
           context: ./catalog
           dockerfiles: |
             ./catalog/${{ env.OPERATOR_NAME }}-catalog.Dockerfile
