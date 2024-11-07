@@ -6,7 +6,7 @@ CATALOG_IMG ?= $(IMAGE_TAG_BASE)-catalog:$(IMAGE_TAG)
 CATALOG_FILE = $(PROJECT_DIR)/catalog/authorino-operator-catalog/operator.yaml
 CATALOG_DOCKERFILE = $(PROJECT_DIR)/catalog/authorino-operator-catalog.Dockerfile
 
-OPM_DOCKERFILE_TAG ?= v$(OPM_VERSION)-$(ARCH)
+OPM_DOCKERFILE_TAG ?= latest
 $(CATALOG_DOCKERFILE): $(OPM)
 	-mkdir -p $(PROJECT_DIR)/catalog/authorino-operator-catalog
 	cd $(PROJECT_DIR)/catalog && $(OPM) generate dockerfile authorino-operator-catalog -b "quay.io/operator-framework/opm:${OPM_DOCKERFILE_TAG}" -i "quay.io/operator-framework/opm:${OPM_DOCKERFILE_TAG}"
