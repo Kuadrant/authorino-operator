@@ -35,10 +35,10 @@ annotations:
       displayName: Authorino
       description: API to install, manage and configure Authorino authorization services.
     - kind: AuthConfig
-          version: v1beta3
-          name: authorino.kuadrant.io
-          displayName: AuthConfig
-          description: Defines the desired protection for a service in a declarative way.
+      version: v1beta3
+      name: authorino.kuadrant.io
+      displayName: AuthConfig
+      description: Defines the desired protection for a service in a declarative way.
   artifacthub.io/crdsExamples: |
     - apiVersion: operator.authorino.kuadrant.io/v1beta1
       kind: Authorino
@@ -54,19 +54,19 @@ annotations:
     - apiVersion: authorino.kuadrant.io/v1beta3
       kind: AuthConfig
       metadata:
-        name: talker-api-protection
+        name: my-api-protection
       spec:
         hosts:
-          - talker-api.127.0.0.1.nip.io
-        identity:
-          - name: api-clients
+          - my-api.io
+        authentication:
+          "api-key-users":
             apiKey:
               selector:
                 matchLabels:
                   group: friends
             credentials:
-              in: authorization_header
-              keySelector: APIKEY
+              authorizationHeader:
+                prefix: APIKEY
   artifacthub.io/license: Apache-2.0
   artifacthub.io/links: |
     - name: Kuadrant
