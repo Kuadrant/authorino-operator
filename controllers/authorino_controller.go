@@ -200,7 +200,7 @@ func (r *AuthorinoReconciler) buildAuthorinoDeployment(authorino *api.Authorino)
 
 	if image == "" {
 		// `DefaultAuthorinoImage can be empty string. But image cannot be or deployment will fail
-		image = "quay.io/kuadrant/authorino:latest"
+		panic("DefaultAuthorinoImage is empty")
 	}
 
 	var volumes []k8score.Volume
