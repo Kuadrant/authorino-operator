@@ -5897,6 +5897,9 @@ spec:
         - --leader-elect
         command:
         - /manager
+        env:
+        - name: RELATED_IMAGE_AUTHORINO
+          value: quay.io/kuadrant/authorino:latest
         image: quay.io/kuadrant/authorino-operator:latest
         livenessProbe:
           httpGet:

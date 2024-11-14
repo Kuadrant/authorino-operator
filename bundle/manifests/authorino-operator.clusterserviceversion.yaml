@@ -83,7 +83,7 @@ metadata:
     capabilities: Basic Install
     categories: Integration & Delivery
     containerImage: quay.io/kuadrant/authorino-operator:latest
-    createdAt: "2024-10-30T16:22:39Z"
+    createdAt: "2024-11-14T11:17:40Z"
     operators.operatorframework.io/builder: operator-sdk-v1.32.0
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
     repository: https://github.com/Kuadrant/authorino-operator
@@ -320,6 +320,9 @@ spec:
                       - --leader-elect
                     command:
                       - /manager
+                    env:
+                      - name: RELATED_IMAGE_AUTHORINO
+                        value: quay.io/kuadrant/authorino:latest
                     image: quay.io/kuadrant/authorino-operator:latest
                     livenessProbe:
                       httpGet:
@@ -422,4 +425,7 @@ spec:
   minKubeVersion: 1.25.0
   provider:
     name: Red Hat
+  relatedImages:
+    - image: quay.io/kuadrant/authorino:latest
+      name: authorino
   version: 0.0.0

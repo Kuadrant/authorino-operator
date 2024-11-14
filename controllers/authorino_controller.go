@@ -31,6 +31,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/env"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -191,8 +192,15 @@ func (r *AuthorinoReconciler) buildAuthorinoDeployment(authorino *api.Authorino)
 	var containers []k8score.Container
 	var saName = authorino.Name + "-authorino"
 
-	if authorino.Spec.Image == "" {
-		authorino.Spec.Image = DefaultAuthorinoImage
+	image := authorino.Spec.Image
+
+	if image == "" {
+		image = env.GetString("RELATED_IMAGE_AUTHORINO", DefaultAuthorinoImage)
+	}
+
+	if image == "" {
+		// `DefaultAuthorinoImage can be empty string. But image cannot be or deployment will fail
+		image = "quay.io/kuadrant/authorino:latest"
 	}
 
 	var volumes []k8score.Volume
@@ -258,8 +266,6 @@ func (r *AuthorinoReconciler) buildAuthorinoDeployment(authorino *api.Authorino)
 		volumeMounts = append(volumeMounts, authorinoResources.GetTlsVolumeMount(authorinoOidcTlsCertVolumeName, defaultOidcTlsCertPath, defaultOidcTlsCertKeyPath)...)
 		volumes = append(volumes, authorinoResources.GetTlsVolume(authorinoOidcTlsCertVolumeName, secretName))
 	}
-
-	image := authorino.Spec.Image
 
 	args := r.buildAuthorinoArgs(authorino)
 	var envs []k8score.EnvVar
