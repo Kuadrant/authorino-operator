@@ -2,6 +2,8 @@
 
 .PHONY: helm-build
 helm-build: $(YQ) kustomize manifests ## Build the helm chart from kustomize manifests
+	# Set desired authorino image
+	V="$(ACTUAL_DEFAULT_AUTHORINO_IMAGE)" $(YQ) eval '(select(.kind == "Deployment").spec.template.spec.containers[].env[] | select(.name == "RELATED_IMAGE_AUTHORINO").value) = strenv(V)' -i config/manager/manager.yaml
 	# Replace the controller image
 	cd config/helm && $(KUSTOMIZE) edit set namespace "{{ .Release.Namespace }}"
 	cd config/authorino/webhook && $(KUSTOMIZE) edit set namespace "{{ .Release.Namespace }}"

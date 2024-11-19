@@ -288,6 +288,7 @@ bundle: export IMAGE_TAG := $(IMAGE_TAG)
 bundle: export BUNDLE_VERSION := $(BUNDLE_VERSION)
 bundle: manifests kustomize operator-sdk $(YQ) ## Generate bundle manifests and metadata, then validate generated files.
 	$(OPERATOR_SDK) generate kustomize manifests -q
+	V="$(ACTUAL_DEFAULT_AUTHORINO_IMAGE)" $(YQ) eval '(select(.kind == "Deployment").spec.template.spec.containers[].env[] | select(.name == "RELATED_IMAGE_AUTHORINO").value) = strenv(V)' -i config/manager/manager.yaml
 	cd config/manager && $(KUSTOMIZE) edit set image controller=$(OPERATOR_IMAGE)
 	envsubst \
         < config/manifests/bases/authorino-operator.clusterserviceversion.template.yaml \
