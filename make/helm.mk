@@ -11,6 +11,7 @@ helm-build: $(YQ) kustomize manifests ## Build the helm chart from kustomize man
 	# Build the helm chart templates from kustomize manifests
 	$(KUSTOMIZE) build config/helm > charts/authorino-operator/templates/manifests.yaml
 	V="$(BUNDLE_VERSION)" $(YQ) -i e '.version = strenv(V)' charts/authorino-operator/Chart.yaml
+	V="$(BUNDLE_VERSION)" $(YQ) -i e '.appVersion = strenv(V)' charts/authorino-operator/Chart.yaml
 	# Roll back edit
 	cd config/manager && $(KUSTOMIZE) edit set image controller=${DEFAULT_OPERATOR_IMAGE}
 	cd config/helm && $(KUSTOMIZE) edit set namespace authorino-operator
