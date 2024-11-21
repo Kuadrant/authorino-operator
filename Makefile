@@ -354,20 +354,25 @@ prepare-release: ## Prepares a release: create build info file, generate manifes
 
 ## Targets to verify actions that generate/modify code have been executed and output committed
 
+OPERATOR_IMAGE_REPO = $(shell echo $(OPERATOR_IMAGE) | cut -d: -f1)
+DEFAULT_AUTHORINO_IMAGE_REPO = $(shell echo $(DEFAULT_AUTHORINO_IMAGE) | cut -d: -f1)
+
 .PHONY: verify-manifests
 verify-manifests: manifests $(YQ) ## Verify manifests update.
-	git diff -I'^    createdAt:' -I' containerImage:' -I' image:' --exit-code -- ./config ':(exclude)config/authorino/kustomization.yaml'
+	git diff -I'^    createdAt:' -I'$(OPERATOR_IMAGE_REPO)' -I'$(DEFAULT_AUTHORINO_IMAGE_REPO)' -- ./config ':(exclude)config/authorino/kustomization.yaml'
 	[ -z "$$(git ls-files --other --exclude-standard --directory --no-empty-directory ./config)" ]
 	$(YQ) ea -e 'select([.][].kind == "Deployment") | select([.][].metadata.name == "authorino-operator").spec.template.spec.containers[0].image | . == "$(OPERATOR_IMAGE)"' config/deploy/manifests.yaml
 # $(YQ) ea -e 'select([.][].kind == "Deployment") | select([.][].metadata.name == "authorino-webhooks").spec.template.spec.containers[0].image | . == "$(DEFAULT_AUTHORINO_IMAGE)"' config/deploy/manifests.yaml
+	$(YQ) ea -e 'select([.][].kind == "Deployment") | select([.][].metadata.name == "authorino-operator").spec.template.spec.containers[0].env | select(.[].name == "RELATED_IMAGE_AUTHORINO") | .[].value == "$(DEFAULT_AUTHORINO_IMAGE)"' config/deploy/manifests.yaml
 	$(YQ) e -e '.metadata.annotations.containerImage == "$(OPERATOR_IMAGE)"' config/manifests/bases/authorino-operator.clusterserviceversion.yaml
 
 .PHONY: verify-bundle
 verify-bundle: bundle $(YQ) ## Verify bundle update.
-	git diff -I'^    createdAt:' -I' containerImage:' -I' image:' --exit-code -- ./bundle ':(exclude)config/authorino/kustomization.yaml'
+	git diff -I'^    createdAt:' -I'$(OPERATOR_IMAGE_REPO)' -I'$(DEFAULT_AUTHORINO_IMAGE_REPO)' --exit-code -- ./bundle ':(exclude)config/authorino/kustomization.yaml'
 	[ -z "$$(git ls-files --other --exclude-standard --directory --no-empty-directory ./bundle)" ]
 	$(YQ) e -e '.metadata.annotations.containerImage == "$(OPERATOR_IMAGE)"' $(BUNDLE_CSV)
 	$(YQ) e -e '.spec.install.spec.deployments[0].spec.template.spec.containers[0].image == "$(OPERATOR_IMAGE)"' $(BUNDLE_CSV)
+	$(YQ) e -e '.spec.install.spec.deployments[0].spec.template.spec.containers[0].env | select(.[].name == "RELATED_IMAGE_AUTHORINO") | .[].value == "$(DEFAULT_AUTHORINO_IMAGE)"' $(BUNDLE_CSV)
 #	$(YQ) e -e '.spec.install.spec.deployments[1].spec.template.spec.containers[0].image == "$(DEFAULT_AUTHORINO_IMAGE)"' $(BUNDLE_CSV)
 
 .PHONY: verify-fmt
