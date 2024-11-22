@@ -359,7 +359,7 @@ DEFAULT_AUTHORINO_IMAGE_REPO = $(shell echo $(DEFAULT_AUTHORINO_IMAGE) | cut -d:
 
 .PHONY: verify-manifests
 verify-manifests: manifests $(YQ) ## Verify manifests update.
-	git diff -I'^    createdAt:' -I'$(OPERATOR_IMAGE_REPO)' -I'$(DEFAULT_AUTHORINO_IMAGE_REPO)' -- ./config ':(exclude)config/authorino/kustomization.yaml'
+	git diff -I'^    createdAt:' -I'$(OPERATOR_IMAGE_REPO)' -I'$(DEFAULT_AUTHORINO_IMAGE_REPO)' --exit-code -- ./config ':(exclude)config/authorino/kustomization.yaml'
 	[ -z "$$(git ls-files --other --exclude-standard --directory --no-empty-directory ./config)" ]
 	$(YQ) ea -e 'select([.][].kind == "Deployment") | select([.][].metadata.name == "authorino-operator").spec.template.spec.containers[0].image | . == "$(OPERATOR_IMAGE)"' config/deploy/manifests.yaml
 # $(YQ) ea -e 'select([.][].kind == "Deployment") | select([.][].metadata.name == "authorino-webhooks").spec.template.spec.containers[0].image | . == "$(DEFAULT_AUTHORINO_IMAGE)"' config/deploy/manifests.yaml
