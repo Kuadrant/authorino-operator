@@ -57,7 +57,7 @@ func newService(serviceName, serviceNamespace, authorinoName string, labels map[
 	objMeta := getObjectMeta(serviceNamespace, authorinoName+"-"+serviceName, labels)
 	return &k8score.Service{
 		ObjectMeta: objMeta,
-		Spec:       newServiceSpec(labelsForAuthorino(authorinoName), servicePorts...),
+		Spec:       newServiceSpec(defaultAuthorinoLabels(authorinoName), servicePorts...),
 	}
 }
 

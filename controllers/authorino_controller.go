@@ -66,13 +66,12 @@ type AuthorinoReconciler struct {
 // +kubebuilder:rbac:groups="",resources=events,verbs=create;patch;
 // +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch
 // +kubebuilder:rbac:groups="authorino.kuadrant.io",resources=authconfigs,verbs=create;delete;get;list;patch;update;watch
-// +kubebuilder:rbac:groups="authorino.kuadrant.io",resources=authconfigs,verbs=create;delete;get;list;patch;update;watch
 // +kubebuilder:rbac:groups="authorino.kuadrant.io",resources=authconfigs/status,verbs=get;patch;update
 // +kubebuilder:rbac:groups="coordination.k8s.io",resources=leases,verbs=get;list;create;update;
 
 // Reconcile deploys an instance of authorino depending on the settings
-// defined in the API, any change applied to the existings CRs will trigger
-// a new reconcilation to apply the required changes
+// defined in the API, any change applied to the existing CRs will trigger
+// a new reconciliation to apply the required changes
 func (r *AuthorinoReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := r.Log.WithValues("authorino", req.NamespacedName)
 
@@ -106,14 +105,21 @@ func (r *AuthorinoReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	}
 
 	// Gets Deployment resource for the authorino instance
-	if existingDeployment, err := r.getAuthorinoDeployment(authorinoInstance); err != nil {
+	existingDeployment, err := r.getAuthorinoDeployment(authorinoInstance)
+	if err != nil {
 		return ctrl.Result{}, r.wrapErrorWithStatusUpdate(logger, authorinoInstance, r.setStatusFailed(statusUnableToGetDeployment),
 			fmt.Errorf("failed to get %s Deployment resource, err: %v", authorinoInstance.Name, err),
 		)
-	} else if existingDeployment == nil {
+	}
+	if existingDeployment == nil {
 		// Creates a new deployment resource to deploy the new authorino instance
-		newDeployment := r.buildAuthorinoDeployment(authorinoInstance)
-		if err := r.Client.Create(context.TODO(), newDeployment); err != nil {
+		newDeployment, err := r.buildAuthorinoDeployment(authorinoInstance)
+		if err != nil {
+			return ctrl.Result{}, r.wrapErrorWithStatusUpdate(logger, authorinoInstance, r.setStatusFailed(statusUnableToBuildDeploymentObject),
+				fmt.Errorf("failed to build %s Deployment resource for creation, err: %v", authorinoInstance.Name, err),
+			)
+		}
+		if err := r.Client.Create(ctx, newDeployment); err != nil {
 			return ctrl.Result{}, r.wrapErrorWithStatusUpdate(
 				logger, authorinoInstance, r.setStatusFailed(statusUnableToCreateDeployment),
 				fmt.Errorf("failed to create %s Deployment resource, err: %v", newDeployment.Name, err),
@@ -126,13 +132,23 @@ func (r *AuthorinoReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		// Deployment created successfully - return and requeue
 		return ctrl.Result{Requeue: true}, nil
 	} else {
+
 		// deployment already exists, then build a new resource with the desired changes
 		// and compare them, if changes are encountered apply the desired changes
-		desiredDeployment := r.buildAuthorinoDeployment(authorinoInstance)
-		logger.Info("desiredDeployment", "deployment", desiredDeployment)
-		logger.Info("existingDeployment", "deployment", existingDeployment)
+		desiredDeployment, err := r.buildAuthorinoDeployment(authorinoInstance)
+		if err != nil {
+			return ctrl.Result{}, r.wrapErrorWithStatusUpdate(logger, authorinoInstance, r.setStatusFailed(statusUnableToBuildDeploymentObject),
+				fmt.Errorf("failed to build %s Deployment resource for updating, err: %v", authorinoInstance.Name, err),
+			)
+		}
+		logger.V(1).Info("desiredDeployment", "deployment", desiredDeployment)
+		logger.V(1).Info("existingDeployment", "deployment", existingDeployment)
+		// merge existing key/value pairs back into the desiredDeployment Spec Template Labels so as not to overwrite those.
+		for existingKey, existingValue := range existingDeployment.Spec.Template.Labels {
+			desiredDeployment.Spec.Template.Labels[existingKey] = existingValue
+		}
 		if changed := r.authorinoDeploymentChanges(existingDeployment, desiredDeployment); changed {
-			if err := r.Update(ctx, desiredDeployment); err != nil {
+			if err = r.Update(ctx, desiredDeployment); err != nil {
 				return ctrl.Result{}, r.wrapErrorWithStatusUpdate(
 					logger, authorinoInstance, r.setStatusFailed(statusUnableToUpdateDeployment),
 					fmt.Errorf("failed to update %s Deployment resource, err: %v", desiredDeployment.Name, err),
@@ -188,7 +204,7 @@ func (r *AuthorinoReconciler) getAuthorinoDeployment(authorino *api.Authorino) (
 	return deployment, nil
 }
 
-func (r *AuthorinoReconciler) buildAuthorinoDeployment(authorino *api.Authorino) *k8sapps.Deployment {
+func (r *AuthorinoReconciler) buildAuthorinoDeployment(authorino *api.Authorino) (*k8sapps.Deployment, error) {
 	var containers []k8score.Container
 	var saName = authorino.Name + "-authorino"
 
@@ -259,7 +275,7 @@ func (r *AuthorinoReconciler) buildAuthorinoDeployment(authorino *api.Authorino)
 		volumes = append(volumes, authorinoResources.GetTlsVolume(authorinoTlsCertVolumeName, secretName))
 	}
 
-	// if an external OIDC server is enable mounts a volume to the container
+	// if an external OIDC server is enabled mounts a volume to the container
 	// by using the secret with the certs
 	if enabled := authorino.Spec.OIDCServer.Tls.Enabled; enabled == nil || *enabled {
 		secretName := authorino.Spec.OIDCServer.Tls.CertSecret.Name
@@ -270,7 +286,7 @@ func (r *AuthorinoReconciler) buildAuthorinoDeployment(authorino *api.Authorino)
 	args := r.buildAuthorinoArgs(authorino)
 	var envs []k8score.EnvVar
 
-	// [DEPRECATED] configure authorino using env vars (only for old Authorino versions)
+	// Deprecated: configure authorino using env vars (only for old Authorino versions)
 	authorinoVersion := authorinoVersionFromImageTag(image)
 	if detectEnvVarAuthorinoVersion(authorinoVersion) {
 		envs = r.buildAuthorinoEnv(authorino)
@@ -308,8 +324,8 @@ func (r *AuthorinoReconciler) buildAuthorinoDeployment(authorino *api.Authorino)
 		authorino.Labels,
 	)
 
-	_ = ctrl.SetControllerReference(authorino, deployment, r.Scheme)
-	return deployment
+	err := ctrl.SetControllerReference(authorino, deployment, r.Scheme)
+	return deployment, err
 }
 
 func (r *AuthorinoReconciler) buildAuthorinoArgs(authorino *api.Authorino) []string {
@@ -425,7 +441,7 @@ func (r *AuthorinoReconciler) buildAuthorinoArgs(authorino *api.Authorino) []str
 	return args
 }
 
-// [DEPRECATED] Configures Authorino by defining environment variables (instead of command-line args)
+// Deprecated: Configures Authorino by defining environment variables (instead of command-line args)
 // Kept for backward compatibility with older versions of Authorino (<= v0.10.x)
 func (r *AuthorinoReconciler) buildAuthorinoEnv(authorino *api.Authorino) []k8score.EnvVar {
 	envVar := []k8score.EnvVar{}
@@ -551,6 +567,16 @@ func (r *AuthorinoReconciler) buildAuthorinoEnv(authorino *api.Authorino) []k8sc
 
 func (r *AuthorinoReconciler) authorinoDeploymentChanges(existingDeployment, desiredDeployment *k8sapps.Deployment) bool {
 	if *existingDeployment.Spec.Replicas != *desiredDeployment.Spec.Replicas {
+		return true
+	}
+
+	// check the labels here to see if there needs to be a change
+	// selector labels are immutable so don't need to check those.
+	if authorinoResources.MapUpdateNeeded(existingDeployment.Labels, desiredDeployment.Labels) {
+		return true
+	}
+
+	if authorinoResources.MapUpdateNeeded(existingDeployment.Spec.Template.Labels, desiredDeployment.Spec.Template.Labels) {
 		return true
 	}
 
