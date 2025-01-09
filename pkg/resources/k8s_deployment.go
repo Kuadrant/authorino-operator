@@ -6,20 +6,23 @@ import (
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func GetDeployment(name, namespace, saName string, replicas *int32, containers []k8score.Container, vol []k8score.Volume, labels map[string]string) *k8sapps.Deployment {
-	objMeta := getObjectMeta(namespace, name, labels)
-	authorinoLabels := labelsForAuthorino(name)
+func GetDeployment(name, namespace, saName string, replicas *int32, containers []k8score.Container, vol []k8score.Volume, labelsFromAuthorinoCR map[string]string) *k8sapps.Deployment {
+	overrideLabels := defaultAuthorinoLabels(name)
+	for key, value := range labelsFromAuthorinoCR {
+		overrideLabels[key] = value
+	}
+	objMeta := getObjectMeta(namespace, name, overrideLabels)
 
 	return &k8sapps.Deployment{
 		ObjectMeta: objMeta,
 		Spec: k8sapps.DeploymentSpec{
 			Replicas: replicas,
 			Selector: &v1.LabelSelector{
-				MatchLabels: authorinoLabels,
+				MatchLabels: overrideLabels,
 			},
 			Template: k8score.PodTemplateSpec{
 				ObjectMeta: v1.ObjectMeta{
-					Labels: authorinoLabels,
+					Labels: defaultAuthorinoLabels(name),
 				},
 				Spec: k8score.PodSpec{
 					ServiceAccountName: saName,
@@ -74,4 +77,17 @@ func GetTlsVolume(certName, secretName string) k8score.Volume {
 			},
 		},
 	}
+}
+
+func MapUpdateNeeded(existing map[string]string, desired map[string]string) bool {
+	if existing == nil {
+		existing = map[string]string{}
+	}
+
+	for k, v := range desired {
+		if existingVal, exists := (existing)[k]; !exists || v != existingVal {
+			return true
+		}
+	}
+	return false
 }
