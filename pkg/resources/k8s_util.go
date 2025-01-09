@@ -10,7 +10,7 @@ func getObjectMeta(namespace, name string, labels map[string]string) v1.ObjectMe
 	return v1.ObjectMeta{Name: name, Namespace: namespace, Labels: labels}
 }
 
-func labelsForAuthorino(name string) map[string]string {
+func defaultAuthorinoLabels(name string) map[string]string {
 	return map[string]string{
 		"control-plane":      "controller-manager",
 		"authorino-resource": name,
