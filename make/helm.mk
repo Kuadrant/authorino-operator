@@ -37,10 +37,18 @@ helm-upgrade: $(HELM) ## Upgrade the helm chart
 	# Upgrade the helm chart in the cluster
 	$(HELM) upgrade $(CHART_NAME) $(CHART_DIRECTORY)
 
+# GPG_KEY_UID: substring of the desired key's uid, the name or email
+GPG_KEY_UID ?= 'Kuadrant Development Team'
+# GPG_KEYRING_BASE64: the gpg keyring base64 encoded
+GPG_KEYRING_BASE64 ?= <KUADRANT_GPG_KEYRING_BASE64>
+
 .PHONY: helm-package
-helm-package: $(HELM) ## Package the helm chart
+helm-package: $(HELM) ## Package the helm chart and GPG sign it
+	# Store the key
+	mkdir -p .gpg
+	echo $(GPG_KEYRING_BASE64) | base64 -d > .gpg/kuadrantsecring.gpg  #storing base64 GPG key into keyring
 	# Package the helm chart
-	$(HELM) package $(CHART_DIRECTORY)
+	$(HELM) package --sign --key $(GPG_KEY_UID) --keyring .gpg/kuadrantsecring.gpg $(CHART_DIRECTORY)
 
 # GitHub Token with permissions to upload to the release assets
 HELM_WORKFLOWS_TOKEN ?= <YOUR-TOKEN>

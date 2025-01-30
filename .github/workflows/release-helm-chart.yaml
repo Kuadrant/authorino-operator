@@ -27,6 +27,8 @@ jobs:
 
       - name: Package Helm Chart
         run: |
+          GPG_KEYRING_BASE64=${{ secrets.HELM_CHARTS_SIGNING_KEY }} \
+          GPG_KEY_UID="Kuadrant Development Team" \
           make helm-package
 
       - name: Parse Tag
