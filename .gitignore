@@ -36,3 +36,6 @@ tmp
 # Catalogs
 /catalog/authorino-operator-catalog
 /catalog/authorino-operator-catalog.Dockerfile
+
+# Helm chart packages
+*operator*.tgz*
