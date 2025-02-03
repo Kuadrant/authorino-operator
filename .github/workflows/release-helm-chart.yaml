@@ -34,7 +34,7 @@ jobs:
       - name: Package Helm Chart
         run: |
           GPG_KEY_UID="Kuadrant Development Team" \
-          make helm-package
+          make helm-package-sign
 
       - name: Parse Tag
         run: |
