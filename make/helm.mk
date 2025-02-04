@@ -48,7 +48,7 @@ GPG_KEY_UID ?= 'Kuadrant Development Team'
 .PHONY: helm-package-sign
 helm-package-sign: $(HELM) ## Package the helm chart and GPG sign it
 	# Package the helm chart and sign it
-	$(HELM) package --sign --key $(GPG_KEY_UID) $(CHART_DIRECTORY)
+	$(HELM) package --sign --key "$(GPG_KEY_UID)" $(CHART_DIRECTORY)
 
 # GitHub Token with permissions to upload to the release assets
 HELM_WORKFLOWS_TOKEN ?= <YOUR-TOKEN>
