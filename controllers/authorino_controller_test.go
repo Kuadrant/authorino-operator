@@ -10,17 +10,18 @@ import (
 	k8score "k8s.io/api/core/v1"
 	k8srbac "k8s.io/api/rbac/v1"
 
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
-
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-
 	"k8s.io/apimachinery/pkg/util/uuid"
+
+	controllerruntime "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	api "github.com/kuadrant/authorino-operator/api/v1beta1"
 	authorinoResources "github.com/kuadrant/authorino-operator/pkg/resources"
+
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 )
 
 const (
@@ -32,25 +33,38 @@ const (
 )
 
 var _ = Describe("Authorino controller", func() {
+
+	SetDefaultEventuallyTimeout(testTimeout)
+	SetDefaultEventuallyPollingInterval(testInterval)
+
 	Context("Creating an new instance of authorino", func() {
 		var authorinoInstance *api.Authorino
 
-		BeforeEach(func() {
-			_ = k8sClient.Create(context.TODO(), newExtServerConfigMap())
+		BeforeEach(func(ctx context.Context) {
+
+			createOrUpdateCfgMap := func(ctx context.Context) error {
+				_, err := controllerruntime.CreateOrUpdate(ctx, k8sClient, newExtServerConfigMap(), func() error {
+					return nil // noop as we pass entire object
+				})
+
+				return err
+			}
+
+			Expect(createOrUpdateCfgMap(ctx)).To(Succeed())
 
 			authorinoInstance = newFullAuthorinoInstance()
-			Expect(k8sClient.Create(context.TODO(), authorinoInstance)).Should(Succeed())
+			Expect(k8sClient.Create(ctx, authorinoInstance)).To(Succeed())
 
 			nsdName := namespacedName(authorinoInstance.GetNamespace(), authorinoInstance.GetName())
 
-			Eventually(func() bool {
+			Eventually(func(ctx context.Context) bool {
 				var authorino api.Authorino
-				err := k8sClient.Get(context.TODO(), nsdName, &authorino)
+				err := k8sClient.Get(ctx, nsdName, &authorino)
 				return err == nil && authorinoInstance.Status.Ready()
-			}, testTimeout, testInterval).Should(BeFalse())
+			}).WithContext(ctx).Should(BeFalse())
 		})
 
-		It("Should create authorino required services", func() {
+		It("Should create authorino required services", func(ctx context.Context) {
 			desiredServices := []*k8score.Service{
 				authorinoResources.NewOIDCService(authorinoInstance.Name, authorinoInstance.Namespace, defaultOIDCServicePort, authorinoInstance.Labels),
 				authorinoResources.NewMetricsService(authorinoInstance.Name, authorinoInstance.Namespace, defaultMetricsServicePort, authorinoInstance.Labels),
@@ -60,20 +74,20 @@ var _ = Describe("Authorino controller", func() {
 			for _, service := range desiredServices {
 				nsdName := namespacedName(service.GetNamespace(), service.GetName())
 
-				Eventually(func() error {
-					return k8sClient.Get(context.TODO(), nsdName, &k8score.Service{})
-				}, testTimeout, testInterval).Should(Succeed())
+				Eventually(func(ctx context.Context) error {
+					return k8sClient.Get(ctx, nsdName, &k8score.Service{})
+				}).WithContext(ctx).Should(Succeed())
 			}
 		})
 
-		It("Should create authorino permission", func() {
+		It("Should create authorino permission", func(ctx context.Context) {
 			// service account
 			sa := authorinoResources.GetAuthorinoServiceAccount(testAuthorinoNamespace, authorinoInstance.Name, authorinoInstance.Labels)
 			nsdName := namespacedName(sa.GetNamespace(), sa.GetName())
-			Eventually(func() bool {
-				err := k8sClient.Get(context.TODO(), nsdName, sa)
+			Eventually(func(ctx context.Context) bool {
+				err := k8sClient.Get(ctx, nsdName, sa)
 				return err == nil
-			}, testTimeout, testInterval).Should(BeTrue())
+			}).WithContext(ctx).Should(BeTrue())
 
 			// Authorino ClusterRoleBinding
 			var binding client.Object
@@ -87,33 +101,33 @@ var _ = Describe("Authorino controller", func() {
 			}
 
 			Eventually(func() error {
-				return k8sClient.Get(context.TODO(), bindingNsdName, binding)
-			}, testTimeout, testInterval).Should(Succeed())
+				return k8sClient.Get(ctx, bindingNsdName, binding)
+			}).WithContext(ctx).Should(Succeed())
 
 			// Authorino Auth ClusterRoleBinding
 			k8sAuthBinding := &k8srbac.ClusterRoleBinding{}
 			k8sAuthBindingNsdName := types.NamespacedName{Name: authorinoK8sAuthClusterRoleBindingName}
 
-			Eventually(func() error {
-				return k8sClient.Get(context.TODO(), k8sAuthBindingNsdName, k8sAuthBinding)
-			}, testTimeout, testInterval).Should(Succeed())
+			Eventually(func(ctx context.Context) error {
+				return k8sClient.Get(ctx, k8sAuthBindingNsdName, k8sAuthBinding)
+			}).WithContext(ctx).Should(Succeed())
 
 			// Authorino leaderElection ClusterRoleBinding
 			leaderElectionRole := &k8srbac.Role{}
 			leaderElectionNsdName := namespacedName(testAuthorinoNamespace, authorinoLeaderElectionRoleName)
-			Eventually(func() error {
-				return k8sClient.Get(context.TODO(), leaderElectionNsdName, leaderElectionRole)
-			}, testTimeout, testInterval).Should(Succeed())
+			Eventually(func(ctx context.Context) error {
+				return k8sClient.Get(ctx, leaderElectionNsdName, leaderElectionRole)
+			}).WithContext(ctx).Should(Succeed())
 		})
 
-		It("Should create authorino deployment", func() {
+		It("Should create authorino deployment", func(ctx context.Context) {
 			deployment := &k8sapps.Deployment{}
 
 			nsdName := namespacedName(testAuthorinoNamespace, authorinoInstance.Name)
 
-			Eventually(func() error {
-				return k8sClient.Get(context.TODO(), nsdName, deployment)
-			}, testTimeout, testInterval).Should(Succeed())
+			Eventually(func(ctx context.Context) error {
+				return k8sClient.Get(ctx, nsdName, deployment)
+			}).WithContext(ctx).Should(Succeed())
 
 			replicas := int32(testAuthorinoReplicas)
 			image := DefaultAuthorinoImage
@@ -126,7 +140,7 @@ var _ = Describe("Authorino controller", func() {
 					Expect(container.Image).Should(Equal(image))
 					Expect(container.ImagePullPolicy).Should(Equal(k8score.PullAlways))
 					checkAuthorinoArgs(authorinoInstance, container.Args)
-					Expect(len(container.Env)).Should(Equal(0))
+					Expect(container.Env).To(BeEmpty())
 					existContainer = true
 				}
 			}
@@ -137,9 +151,9 @@ var _ = Describe("Authorino controller", func() {
 	Context("Updating a instance of authorino object", func() {
 		var authorinoInstance *api.Authorino
 
-		BeforeEach(func() {
+		BeforeEach(func(ctx context.Context) {
 			authorinoInstance = newFullAuthorinoInstance()
-			Expect(k8sClient.Create(context.TODO(), authorinoInstance)).Should(Succeed())
+			Expect(k8sClient.Create(ctx, authorinoInstance)).Should(Succeed())
 		})
 
 		It("Should change the number of replicas", func() {
@@ -147,9 +161,9 @@ var _ = Describe("Authorino controller", func() {
 
 			nsdName := namespacedName(testAuthorinoNamespace, authorinoInstance.Name)
 
-			Eventually(func() error {
-				return k8sClient.Get(context.TODO(), nsdName, existingAuthorinoInstance)
-			}, testTimeout, testInterval).Should(Succeed())
+			Eventually(func(ctx context.Context) error {
+				return k8sClient.Get(ctx, nsdName, existingAuthorinoInstance)
+			}).WithContext(ctx).Should(Succeed())
 
 			replicas := int32(testAuthorinoReplicas + 1)
 			existingAuthorinoInstance.Spec.Replicas = &replicas
@@ -158,11 +172,11 @@ var _ = Describe("Authorino controller", func() {
 
 			desiredDevelopment := &k8sapps.Deployment{}
 
-			Eventually(func() error {
-				return k8sClient.Get(context.TODO(),
+			Eventually(func(ctx context.Context) error {
+				return k8sClient.Get(ctx,
 					nsdName,
 					desiredDevelopment)
-			}, testTimeout, testInterval).Should(Succeed())
+			}).WithContext(ctx).Should(Succeed())
 
 			Expect(desiredDevelopment.Spec.Replicas).Should(Equal(&replicas))
 			for _, container := range desiredDevelopment.Spec.Template.Spec.Containers {
@@ -177,24 +191,24 @@ var _ = Describe("Authorino controller", func() {
 	Context("Deploy an old version of Authorino", func() {
 		var authorinoInstance *api.Authorino
 
-		BeforeEach(func() {
+		BeforeEach(func(ctx context.Context) {
 			authorinoInstance = newFullAuthorinoInstance()
 			authorinoInstance.Spec.Image = "quay.io/kuadrant/authorino:v0.8.0"
-			Expect(k8sClient.Create(context.TODO(), authorinoInstance)).Should(Succeed())
+			Expect(k8sClient.Create(ctx, authorinoInstance)).To(Succeed())
 		})
 
-		It("Should have injected env vars", func() {
+		It("Should have injected env vars", func(ctx context.Context) {
 			deployment := &k8sapps.Deployment{}
 			nsdName := namespacedName(testAuthorinoNamespace, authorinoInstance.Name)
 
-			Eventually(func() error {
-				return k8sClient.Get(context.TODO(), nsdName, deployment)
-			}, testTimeout, testInterval).Should(Succeed())
+			Eventually(func(ctx context.Context) error {
+				return k8sClient.Get(ctx, nsdName, deployment)
+			}).WithContext(ctx).Should(Succeed())
 
 			for _, container := range deployment.Spec.Template.Spec.Containers {
 				if container.Name == authorinoContainerName {
 					checkAuthorinoEnvVar(authorinoInstance, container.Env)
-					Expect(len(container.Args) <= 2).Should(BeTrue())
+					Expect(len(container.Args) <= 2).To(BeTrue())
 				}
 			}
 		})
@@ -203,24 +217,25 @@ var _ = Describe("Authorino controller", func() {
 
 var _ = Describe("Detect Authorino old version", func() {
 	// old authorino versions
-	Expect(detectEnvVarAuthorinoVersion("v0.9.0")).Should(BeTrue())
-	Expect(detectEnvVarAuthorinoVersion("v0.10.0")).Should(BeTrue())
-	Expect(detectEnvVarAuthorinoVersion("v0.10.11")).Should(BeTrue())
+	Expect(detectEnvVarAuthorinoVersion("v0.9.0")).To(BeTrue())
+	Expect(detectEnvVarAuthorinoVersion("v0.10.0")).To(BeTrue())
+	Expect(detectEnvVarAuthorinoVersion("v0.10.11")).To(BeTrue())
 
 	// new authorino versions
-	Expect(detectEnvVarAuthorinoVersion("v0.11.0")).Should(BeFalse())
+	Expect(detectEnvVarAuthorinoVersion("v0.11.0")).To(BeFalse())
 
 	// undetectable authorino versions
-	Expect(detectEnvVarAuthorinoVersion("latest")).Should(BeFalse())
-	Expect(detectEnvVarAuthorinoVersion("3ba0baa64b9b86a0a197e28fcb269a07cbae8e04")).Should(BeFalse())
-	Expect(detectEnvVarAuthorinoVersion("git-ref-name")).Should(BeFalse())
-	Expect(detectEnvVarAuthorinoVersion("very.weird.version")).Should(BeFalse())
+	Expect(detectEnvVarAuthorinoVersion("latest")).To(BeFalse())
+	Expect(detectEnvVarAuthorinoVersion("3ba0baa64b9b86a0a197e28fcb269a07cbae8e04")).To(BeFalse())
+	Expect(detectEnvVarAuthorinoVersion("git-ref-name")).To(BeFalse())
+	Expect(detectEnvVarAuthorinoVersion("very.weird.version")).To(BeFalse())
 })
 
 func newExtServerConfigMap() *k8score.ConfigMap {
 	return &k8score.ConfigMap{
 		ObjectMeta: v1.ObjectMeta{
-			Name: "external-metadata-server-tls",
+			Name:      "external-metadata-server-tls",
+			Namespace: testAuthorinoNamespace,
 		},
 		Data: map[string]string{
 			"tls.crt": "-----BEGIN CERTIFICATE-----\nMIIGwjCCBKqgAwIBAgIUc13V+5zSFtQhEdAzXhtVXXh3D3MwDQYJKoZIhvcNAQEL\nBQAwgaIxCzAJBgNVBAYTAkVTMRIwEAYDVQQIDAlCYXJjZWxvbmExEjAQBgNVBAcM\nCUJhcmNlbG9uYTEWMBQGA1UECgwNUmVkIEhhdCwgSW5jLjEXMBUGA1UECwwOUmVk\nIEhhdCAzc2NhbGUxOjA4BgNVBAMMMUtleWNsb2FrIFNlcnZlciBvbiAzc2NhbGUg\nT3BlblNoaWZ0IGRldmVsIGNsdXN0ZXIwHhcNMjExMjE2MTkyMDA3WhcNMzExMjE0\nMTkyMDA3WjCBojELMAkGA1UEBhMCRVMxEjAQBgNVBAgMCUJhcmNlbG9uYTESMBAG\nA1UEBwwJQmFyY2Vsb25hMRYwFAYDVQQKDA1SZWQgSGF0LCBJbmMuMRcwFQYDVQQL\nDA5SZWQgSGF0IDNzY2FsZTE6MDgGA1UEAwwxS2V5Y2xvYWsgU2VydmVyIG9uIDNz\nY2FsZSBPcGVuU2hpZnQgZGV2ZWwgY2x1c3RlcjCCAiIwDQYJKoZIhvcNAQEBBQAD\nggIPADCCAgoCggIBAL1aPyDtqDBNziWLA2AhYPlOq4VBtnSNZJYwxWb1PMzZDw2M\nQxcaN+2/TGrFELv9RLFmJTYd9yMXk6ASJnx513bEqcMp4le2lREF+hUNFVNjQcF7\n3peoJNe06NcZIbLmCwJ8lR7SQD+lhjqr7rqsr9/+q9ZxCAMuCIkhF4BcBQV9Q2uH\n7juhJ0fEUOofqXfdGlyhTLecqQzfw/ZWEDc+uJWFWMB5OdBYJAphwIpyu6dFh245\nInuIHkO17MmFEWJX1HjkTNgIS+JHfJNmlwUBEG9d5/Lwy/NmLMnif6zdHfyjhEHv\nb0GI9n9zu1n6tcOpXSRL9bhYWYY9jxnVxZ2ubsKT0BZe8KHJDGdU1sOX6TWSA8zL\nDN2mIxQvPjGPq36pX32fesg+jUb2Y1ZEbXlrCm25K3L/TNe5G8EolowCd9EwyuYk\nwf1JlU2wO1zd1Y3V7/b3kHyQ4xlr9hjwnc4xcbZV3FGVyasxvtykvsgT3XtHroE9\nrqXcT+Rh6hMSIUFSWqIyON1h6ft8VPZjVhu51JdYk7h2VWFPsEzGi7SSU+f7Zdzj\nZ/9hyDINbUlHbluCBJxiTJb7Ig4t+XPj5etL0yvBh3/MLSHO9CCF8auGCmbTPR2/\njNESuJAs18uRA15EqqHGa0hC4NHuQqxRGsVgIxLKGi9kdPFvWI8pcCYw199RAgMB\nAAGjge0wgeowHQYDVR0OBBYEFCHy/ieeCgOXZvGrM/Qhvp5+Jt7IMB8GA1UdIwQY\nMBaAFCHy/ieeCgOXZvGrM/Qhvp5+Jt7IMA8GA1UdEwEB/wQFMAMBAf8wgZYGA1Ud\nEQSBjjCBi4I7a2V5Y2xvYWstYXBpY3VyaW8tcmVnaXN0cnkuYXBwcy5kZXYtZW5n\nLW9jcDQtOC5kZXYuM3NjYS5uZXSCHmtleWNsb2FrLWFwaWN1cmlvLXJlZ2lzdHJ5\nLnN2Y4Isa2V5Y2xvYWstYXBpY3VyaW8tcmVnaXN0cnkuc3ZjLmNsdXN0ZXIubG9j\nYWwwDQYJKoZIhvcNAQELBQADggIBAG5Dim4JDcYWeLrLyFs6byyV641FIaIRUlcd\ndj7L61LfjCMC7kjhl7ynLjiMxCtRBB04h56xGtncDG8kFFOAT26caNSkWzNnDFXI\n026gMSaamioqXoEKlRjbp2Lf+cLzqpaMN0vXJxdHoBrg74h7uptWkyWMqHVmaFy8\nlLi6T2ET9q/vXDPzKHHjwaN4KynRKgYfShY/UE3G/WmvstrrHF8zWQz5JN0TPhuv\n31LuSJkq1yRA9HNrLpBK685WYZ9vyPs+KUcG84sjTf1aaO8beAppYJc94knO28PA\nObT6YGQW1RxjH1XiCHFGXF5KL9HXMFfOpLK/FlFt5gUxUlqCKncK1ilyiRtNaNKZ\npJsmBnqPVV/ZbgR/Y1l1ucUT9OoEsPOPC/nBzQj4nue7seACGD9HJlapQml75Ix6\n5Ypmq+KyDU8GX+ejbeTnFY84xNqZPQhE7/lbTHKPj6zLD98IQt4FvOmKzdfZUhIG\nP8iWHYvV5NQ4XQUxu0s0kWJhSuTDZmrg9HtlXD2x1zi8ilAKCoJ7nu/avLvHemO5\nBgNixHMHTILZrd2xZ9xjyNPGi92EDK+WG6BHD3JAgLvbcBqB4eAi9EONj7qmw3Ry\n6FlViwpQjDQf3Aj2JZvGgqtCrj5TlvMXiwTdE3p29JTSiY9JE8jJVuqv93Af/HZJ\njqr1zGh3\n-----END CERTIFICATE-----",
@@ -320,7 +335,7 @@ func checkAuthorinoArgs(authorinoInstance *api.Authorino, args []string) {
 		case flagWatchedSecretLabelSelector:
 			Expect(value).Should(Equal(authorinoInstance.Spec.SecretLabelSelectors))
 		case flagSupersedingHostSubsets:
-			Expect(authorinoInstance.Spec.SupersedingHostSubsets).Should(BeTrue())
+			Expect(authorinoInstance.Spec.SupersedingHostSubsets).To(BeTrue())
 		case flagLogLevel:
 			Expect(value).Should(Equal(authorinoInstance.Spec.LogLevel))
 		case flagLogMode:
@@ -348,10 +363,10 @@ func checkAuthorinoArgs(authorinoInstance *api.Authorino, args []string) {
 			Expect(len(kv)).Should(Equal(2))
 			Expect(kv[1]).Should(Equal(authorinoInstance.Spec.Tracing.Tags[kv[0]]))
 		case flagTracingServiceInsecure:
-			Expect(authorinoInstance.Spec.Tracing.Insecure).Should(BeTrue())
+			Expect(authorinoInstance.Spec.Tracing.Insecure).To(BeTrue())
 		case flagDeepMetricsEnabled:
 			Expect(authorinoInstance.Spec.Metrics.DeepMetricsEnabled).ShouldNot(BeNil())
-			Expect(*authorinoInstance.Spec.Metrics.DeepMetricsEnabled).Should(BeTrue())
+			Expect(*authorinoInstance.Spec.Metrics.DeepMetricsEnabled).To(BeTrue())
 		case flagMetricsAddr:
 			metricsAddr := fmt.Sprintf(":%d", defaultMetricsServicePort)
 			if port := authorinoInstance.Spec.Metrics.Port; port != nil {
@@ -370,7 +385,7 @@ func checkAuthorinoArgs(authorinoInstance *api.Authorino, args []string) {
 				value := int32(0)
 				replicas = &value
 			}
-			Expect(*replicas > 1).Should(BeTrue())
+			Expect(*replicas > 1).To(BeTrue())
 		case flagMaxHttpRequestBodySize:
 			Expect(value).Should(Equal(fmt.Sprintf("%v", *authorinoInstance.Spec.Listener.MaxHttpRequestBodySize)))
 		}
