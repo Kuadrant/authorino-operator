@@ -113,7 +113,7 @@ func (r *AuthorinoReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	} else if existingDeployment == nil {
 		// Creates a new deployment resource to deploy the new authorino instance
 		newDeployment := r.buildAuthorinoDeployment(authorinoInstance)
-		if err := r.Client.Create(context.TODO(), newDeployment); err != nil {
+		if err := r.Client.Create(ctx, newDeployment); err != nil {
 			return ctrl.Result{}, r.wrapErrorWithStatusUpdate(
 				logger, authorinoInstance, r.setStatusFailed(statusUnableToCreateDeployment),
 				fmt.Errorf("failed to create %s Deployment resource, err: %v", newDeployment.Name, err),
@@ -259,7 +259,7 @@ func (r *AuthorinoReconciler) buildAuthorinoDeployment(authorino *api.Authorino)
 		volumes = append(volumes, authorinoResources.GetTlsVolume(authorinoTlsCertVolumeName, secretName))
 	}
 
-	// if an external OIDC server is enable mounts a volume to the container
+	// if an external OIDC server is enabled mounts a volume to the container
 	// by using the secret with the certs
 	if enabled := authorino.Spec.OIDCServer.Tls.Enabled; enabled == nil || *enabled {
 		secretName := authorino.Spec.OIDCServer.Tls.CertSecret.Name

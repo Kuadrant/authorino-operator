@@ -119,8 +119,9 @@ var _ = Describe("Authorino controller", func() {
 			image := DefaultAuthorinoImage
 			existContainer := false
 
-			Expect(deployment.Spec.Replicas).Should(Equal(&replicas))
-			Expect(deployment.Labels).Should(Equal(map[string]string{"thisLabel": "willPropagate"}))
+			Expect(deployment.Spec.Replicas).To(Equal(&replicas))
+			Expect(deployment.Labels).To(Equal(map[string]string{"thisLabel": "willPropagate"}))
+			Expect(deployment.Spec.Template.Labels).Should(HaveKeyWithValue("thisLabel", "willPropagate"))
 			for _, container := range deployment.Spec.Template.Spec.Containers {
 				if container.Name == authorinoContainerName {
 					Expect(container.Image).Should(Equal(image))

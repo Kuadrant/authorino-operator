@@ -9,6 +9,9 @@ import (
 func GetDeployment(name, namespace, saName string, replicas *int32, containers []k8score.Container, vol []k8score.Volume, labels map[string]string) *k8sapps.Deployment {
 	objMeta := getObjectMeta(namespace, name, labels)
 	authorinoLabels := labelsForAuthorino(name)
+	for key, value := range labels {
+		authorinoLabels[key] = value
+	}
 
 	return &k8sapps.Deployment{
 		ObjectMeta: objMeta,
