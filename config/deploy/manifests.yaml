@@ -6087,8 +6087,8 @@ spec:
         - /manager
         env:
         - name: RELATED_IMAGE_AUTHORINO
-          value: quay.io/kuadrant/authorino:latest
-        image: quay.io/kuadrant/authorino-operator:latest
+          value: quay.io/kuadrant/authorino:v0.20.0
+        image: quay.io/kuadrant/authorino-operator:v0.17.0-alpha1
         livenessProbe:
           httpGet:
             path: /healthz
