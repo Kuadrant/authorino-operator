@@ -12,10 +12,10 @@ jobs:
     name: Verify manifests
     runs-on: ubuntu-latest
     steps:
-      - name: Set up Go 1.21.x
+      - name: Set up Go 1.22.x
         uses: actions/setup-go@v4
         with:
-          go-version: 1.21.x
+          go-version: 1.22.x
         id: go
       - name: Check out code
         uses: actions/checkout@v3
@@ -27,10 +27,10 @@ jobs:
     name: Verify bundle
     runs-on: ubuntu-latest
     steps:
-      - name: Set up Go 1.21.x
+      - name: Set up Go 1.22.x
         uses: actions/setup-go@v4
         with:
-          go-version: 1.21.x
+          go-version: 1.22.x
         id: go
       - name: Check out code
         uses: actions/checkout@v3
@@ -42,10 +42,10 @@ jobs:
     name: Verify fmt
     runs-on: ubuntu-latest
     steps:
-      - name: Set up Go 1.21.x
+      - name: Set up Go 1.22.x
         uses: actions/setup-go@v4
         with:
-          go-version: 1.21.x
+          go-version: 1.22.x
         id: go
       - name: Check out code
         uses: actions/checkout@v3
@@ -57,7 +57,7 @@ jobs:
     name: Test Scripts
     strategy:
       matrix:
-        go-version: [1.21.x]
+        go-version: [1.22.x]
         platform: [ ubuntu-latest, macos-latest ]
     runs-on: ${{ matrix.platform }}
     defaults:
@@ -79,7 +79,7 @@ jobs:
     name: Unit Tests
     strategy:
       matrix:
-        go-version: [1.21.x]
+        go-version: [1.22.x]
         platform: [ ubuntu-latest, macos-latest ]
     runs-on: ${{ matrix.platform }}
     defaults:
