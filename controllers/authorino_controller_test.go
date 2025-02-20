@@ -133,8 +133,19 @@ var _ = Describe("Authorino controller", func() {
 			image := DefaultAuthorinoImage
 			existContainer := false
 
-			Expect(deployment.Spec.Replicas).Should(Equal(&replicas))
-			Expect(deployment.Labels).Should(Equal(map[string]string{"thisLabel": "willPropagate"}))
+			Expect(deployment.Spec.Replicas).To(Equal(&replicas))
+
+			Expect(deployment.Labels).Should(HaveKeyWithValue("thisLabel", "willPropagate"))
+			Expect(deployment.Spec.Selector.MatchLabels).ShouldNot(HaveKeyWithValue("thisLabel", "willPropagate"))
+			Expect(deployment.Spec.Template.Labels).Should(HaveKeyWithValue("thisLabel", "willPropagate"))
+
+			Expect(deployment.Labels).Should(HaveKeyWithValue("control-plane", "controller-manager"))
+			Expect(deployment.Spec.Selector.MatchLabels).Should(HaveKeyWithValue("control-plane", "controller-manager"))
+			Expect(deployment.Spec.Template.Labels).Should(HaveKeyWithValue("control-plane", "controller-manager"))
+
+			Expect(deployment.Labels).Should(HaveKeyWithValue("authorino-resource", authorinoInstance.Name))
+			Expect(deployment.Spec.Selector.MatchLabels).Should(HaveKeyWithValue("authorino-resource", authorinoInstance.Name))
+			Expect(deployment.Spec.Template.Labels).Should(HaveKeyWithValue("authorino-resource", authorinoInstance.Name))
 			for _, container := range deployment.Spec.Template.Spec.Containers {
 				if container.Name == authorinoContainerName {
 					Expect(container.Image).Should(Equal(image))
