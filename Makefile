@@ -221,7 +221,7 @@ build: generate fmt vet ## Build manager binary.
 run: GIT_SHA=$(shell git rev-parse HEAD || echo "unknown")
 run: DIRTY=$(shell $(PROJECT_DIR)/utils/check-git-dirty.sh || echo "unknown")
 run: manifests generate fmt vet ## Run a controller from your host.
-	go run -ldflags "-X main.version=$(VERSION) -X main.gitSHA=${GIT_SHA} -X main.dirty=${DIRTY} -X github.com/kuadrant/authorino-operator/controllers.DefaultAuthorinoImage=$(ACTUAL_DEFAULT_AUTHORINO_IMAGE)" ./main.go
+	go run -ldflags "-X main.version=$(VERSION) -X main.gitSHA=${GIT_SHA} -X main.dirty=${DIRTY} -X github.com/kuadrant/authorino-operator/controllers.DefaultAuthorinoImage=$(ACTUAL_DEFAULT_AUTHORINO_IMAGE)" ./main.go --log-level debug --log-mode development
 
 docker-build: GIT_SHA=$(shell git rev-parse HEAD || echo "unknown")
 docker-build: DIRTY=$(shell $(PROJECT_DIR)/utils/check-git-dirty.sh || echo "unknown")
