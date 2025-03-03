@@ -89,6 +89,7 @@ const (
 	statusTlsSecretNotProvided                    = "TlsSecretNotProvided"
 	statusUnableToUpdateDeployment                = "UnableToUpdateDeployment"
 	statusDeploymentNotReady                      = "DeploymentNotReady"
+	statusUnableToBuildDeploymentObject           = "UnableToBuildDeploymentObject"
 )
 
 // ldflags

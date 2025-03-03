@@ -3,6 +3,7 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"k8s.io/utils/env"
 	"strings"
 	"time"
 
@@ -54,14 +55,6 @@ var _ = Describe("Authorino controller", func() {
 
 			authorinoInstance = newFullAuthorinoInstance()
 			Expect(k8sClient.Create(ctx, authorinoInstance)).To(Succeed())
-
-			nsdName := namespacedName(authorinoInstance.GetNamespace(), authorinoInstance.GetName())
-
-			Eventually(func(ctx context.Context) bool {
-				var authorino api.Authorino
-				err := k8sClient.Get(ctx, nsdName, &authorino)
-				return err == nil && authorinoInstance.Status.Ready()
-			}).WithContext(ctx).Should(BeFalse())
 		})
 
 		It("Should create authorino required services", func(ctx context.Context) {
@@ -73,10 +66,16 @@ var _ = Describe("Authorino controller", func() {
 
 			for _, service := range desiredServices {
 				nsdName := namespacedName(service.GetNamespace(), service.GetName())
-
+				clusterService := &k8score.Service{}
 				Eventually(func(ctx context.Context) error {
-					return k8sClient.Get(ctx, nsdName, &k8score.Service{})
+					return k8sClient.Get(ctx, nsdName, clusterService)
 				}).WithContext(ctx).Should(Succeed())
+
+				Expect(clusterService.Labels).ShouldNot(HaveKeyWithValue("control-plane", "controller-manager"))
+				Expect(clusterService.Labels).ShouldNot(HaveKeyWithValue("authorino-resource", authorinoInstance.Name))
+
+				Expect(clusterService.Spec.Selector).Should(HaveKeyWithValue("control-plane", "controller-manager"))
+				Expect(clusterService.Spec.Selector).Should(HaveKeyWithValue("authorino-resource", authorinoInstance.Name))
 			}
 		})
 
@@ -130,13 +129,27 @@ var _ = Describe("Authorino controller", func() {
 			}).WithContext(ctx).Should(Succeed())
 
 			replicas := int32(testAuthorinoReplicas)
-			image := DefaultAuthorinoImage
+			image := authorinoInstance.Spec.Image
 			existContainer := false
 
-			Expect(deployment.Spec.Replicas).Should(Equal(&replicas))
+			Expect(deployment.Spec.Replicas).To(Equal(&replicas))
+
 			Expect(deployment.Labels).Should(Equal(map[string]string{"thisLabel": "willPropagate"}))
+			Expect(deployment.Spec.Selector.MatchLabels).ShouldNot(HaveKeyWithValue("thisLabel", "willPropagate"))
+			Expect(deployment.Spec.Template.Labels).ShouldNot(HaveKeyWithValue("thisLabel", "willPropagate"))
+
+			Expect(deployment.Labels).ShouldNot(HaveKeyWithValue("control-plane", "controller-manager"))
+			Expect(deployment.Spec.Selector.MatchLabels).Should(HaveKeyWithValue("control-plane", "controller-manager"))
+			Expect(deployment.Spec.Template.Labels).Should(HaveKeyWithValue("control-plane", "controller-manager"))
+
+			Expect(deployment.Labels).ShouldNot(HaveKeyWithValue("authorino-resource", authorinoInstance.Name))
+			Expect(deployment.Spec.Selector.MatchLabels).Should(HaveKeyWithValue("authorino-resource", authorinoInstance.Name))
+			Expect(deployment.Spec.Template.Labels).Should(HaveKeyWithValue("authorino-resource", authorinoInstance.Name))
 			for _, container := range deployment.Spec.Template.Spec.Containers {
 				if container.Name == authorinoContainerName {
+					if image == "" {
+						image = env.GetString("RELATED_IMAGE_AUTHORINO", DefaultAuthorinoImage)
+					}
 					Expect(container.Image).Should(Equal(image))
 					Expect(container.ImagePullPolicy).Should(Equal(k8score.PullAlways))
 					checkAuthorinoArgs(authorinoInstance, container.Args)
@@ -170,21 +183,86 @@ var _ = Describe("Authorino controller", func() {
 			existingAuthorinoInstance.Spec.LogLevel = "debug"
 			Expect(k8sClient.Update(context.TODO(), existingAuthorinoInstance)).Should(Succeed())
 
-			desiredDevelopment := &k8sapps.Deployment{}
+			desiredDeployment := &k8sapps.Deployment{}
 
 			Eventually(func(ctx context.Context) error {
 				return k8sClient.Get(ctx,
 					nsdName,
-					desiredDevelopment)
+					desiredDeployment)
 			}).WithContext(ctx).Should(Succeed())
 
-			Expect(desiredDevelopment.Spec.Replicas).Should(Equal(&replicas))
-			for _, container := range desiredDevelopment.Spec.Template.Spec.Containers {
+			Expect(desiredDeployment.Spec.Replicas).Should(Equal(&replicas))
+			for _, container := range desiredDeployment.Spec.Template.Spec.Containers {
 				if container.Name == authorinoContainerName {
 					checkAuthorinoArgs(existingAuthorinoInstance, container.Args)
 					Expect(container.Env).To(BeEmpty())
 				}
 			}
+		})
+	})
+
+	Context("Updating the labels on the deployment", func() {
+		var authorinoInstance *api.Authorino
+
+		BeforeEach(func() {
+			_ = k8sClient.Create(context.TODO(), newExtServerConfigMap())
+
+			authorinoInstance = newFullAuthorinoInstance()
+			Expect(k8sClient.Create(context.TODO(), authorinoInstance)).Should(Succeed())
+		})
+
+		It("Should not have the label removed", func() {
+
+			desiredDeployment := &k8sapps.Deployment{}
+			nsdName := namespacedName(testAuthorinoNamespace, authorinoInstance.Name)
+
+			Eventually(func(ctx context.Context) error {
+				return k8sClient.Get(ctx,
+					nsdName,
+					desiredDeployment)
+			}).WithContext(ctx).Should(Succeed())
+			Expect(desiredDeployment.Spec.Template.Labels).ShouldNot(HaveKeyWithValue("user-added-label", "value"))
+			Expect(desiredDeployment.Labels).ShouldNot(HaveKeyWithValue("user-added-label", "value"))
+			Expect(desiredDeployment.Spec.Selector.MatchLabels).ShouldNot(HaveKeyWithValue("user-added-label", "value"))
+			Expect(desiredDeployment.Labels).ShouldNot(HaveKeyWithValue("control-plane", "controller-manager"))
+			Expect(desiredDeployment.Spec.Selector.MatchLabels).Should(HaveKeyWithValue("control-plane", "controller-manager"))
+			Expect(desiredDeployment.Spec.Template.Labels).Should(HaveKeyWithValue("control-plane", "controller-manager"))
+
+			Expect(desiredDeployment.Labels).ShouldNot(HaveKeyWithValue("authorino-resource", authorinoInstance.Name))
+			Expect(desiredDeployment.Spec.Selector.MatchLabels).Should(HaveKeyWithValue("authorino-resource", authorinoInstance.Name))
+			Expect(desiredDeployment.Spec.Template.Labels).Should(HaveKeyWithValue("authorino-resource", authorinoInstance.Name))
+
+			desiredDeployment.Spec.Template.Labels["user-added-label"] = "value"
+			Expect(k8sClient.Update(context.TODO(), desiredDeployment)).Should(Succeed())
+
+			Eventually(func(ctx context.Context) error {
+				return k8sClient.Get(ctx,
+					nsdName,
+					authorinoInstance)
+			}).WithContext(ctx).Should(Succeed())
+			replicas := int32(testAuthorinoReplicas + 1)
+			authorinoInstance.Spec.Replicas = &replicas
+			Expect(k8sClient.Update(context.TODO(), authorinoInstance)).Should(Succeed())
+
+			updatedDeployment := &k8sapps.Deployment{}
+
+			Eventually(func(ctx context.Context) error {
+				return k8sClient.Get(ctx,
+					nsdName,
+					updatedDeployment)
+			}).WithContext(ctx).Should(Succeed())
+			Expect(updatedDeployment.Spec.Template.Labels).Should(HaveKeyWithValue("user-added-label", "value"))
+			Expect(updatedDeployment.Labels).ShouldNot(HaveKeyWithValue("user-added-label", "value"))
+			Expect(updatedDeployment.Spec.Selector.MatchLabels).ShouldNot(HaveKeyWithValue("user-added-label", "value"))
+
+			Expect(updatedDeployment.Labels).ShouldNot(HaveKeyWithValue("control-plane", "controller-manager"))
+			Expect(updatedDeployment.Spec.Selector.MatchLabels).Should(HaveKeyWithValue("control-plane", "controller-manager"))
+			Expect(updatedDeployment.Spec.Template.Labels).Should(HaveKeyWithValue("control-plane", "controller-manager"))
+
+			Expect(updatedDeployment.Labels).ShouldNot(HaveKeyWithValue("authorino-resource", authorinoInstance.Name))
+			Expect(updatedDeployment.Spec.Selector.MatchLabels).Should(HaveKeyWithValue("authorino-resource", authorinoInstance.Name))
+			Expect(updatedDeployment.Spec.Template.Labels).Should(HaveKeyWithValue("authorino-resource", authorinoInstance.Name))
+
 		})
 	})
 
