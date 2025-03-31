@@ -92,6 +92,8 @@ BUILD_CONFIG_FILE ?= build.yaml
 DEFAULT_AUTHORINO_IMAGE = $(DEFAULT_REGISTRY)/$(DEFAULT_ORG)/authorino:$(AUTHORINO_IMAGE_TAG)
 ACTUAL_DEFAULT_AUTHORINO_IMAGE ?= $(shell $(YQ) e -e '.config.authorinoImage' $(BUILD_CONFIG_FILE) || echo $(DEFAULT_AUTHORINO_IMAGE))
 
+COVER_PKGS = ./pkg/...,./controllers/...,./api/...
+
 all: build
 
 ##@ General
@@ -209,19 +211,23 @@ vet: ## Run go vet against code.
 
 test: manifests generate fmt vet setup-envtest ## Run the tests.
 	echo $(SETUP_ENVTEST)
-	KUBEBUILDER_ASSETS='$(strip $(shell $(SETUP_ENVTEST)  use -p path $(ENVTEST_K8S_VERSION)))'  go test -ldflags="-X github.com/kuadrant/authorino-operator/controllers.DefaultAuthorinoImage=$(ACTUAL_DEFAULT_AUTHORINO_IMAGE)" ./... -coverprofile cover.out
+	KUBEBUILDER_ASSETS='$(strip $(shell $(SETUP_ENVTEST)  use -p path $(ENVTEST_K8S_VERSION)))' \
+		go test -ldflags="-X github.com/kuadrant/authorino-operator/pkg/reconcilers.DefaultAuthorinoImage=$(ACTUAL_DEFAULT_AUTHORINO_IMAGE)" \
+		-coverprofile cover.out \
+	  	--coverpkg $(COVER_PKGS) \
+		./...
 
 ##@ Build
 
 build: GIT_SHA=$(shell git rev-parse HEAD || echo "unknown")
 build: DIRTY=$(shell $(PROJECT_DIR)/utils/check-git-dirty.sh || echo "unknown")
 build: generate fmt vet ## Build manager binary.
-	go build -ldflags "-X main.version=$(VERSION) -X main.gitSHA=${GIT_SHA} -X main.dirty=${DIRTY} -X github.com/kuadrant/authorino-operator/controllers.DefaultAuthorinoImage=$(ACTUAL_DEFAULT_AUTHORINO_IMAGE)" -o bin/manager main.go
+	go build -ldflags "-X main.version=$(VERSION) -X main.gitSHA=${GIT_SHA} -X main.dirty=${DIRTY} -X github.com/kuadrant/authorino-operator/pkg/reconcilers.DefaultAuthorinoImage=$(ACTUAL_DEFAULT_AUTHORINO_IMAGE)" -o bin/manager main.go
 
 run: GIT_SHA=$(shell git rev-parse HEAD || echo "unknown")
 run: DIRTY=$(shell $(PROJECT_DIR)/utils/check-git-dirty.sh || echo "unknown")
 run: manifests generate fmt vet ## Run a controller from your host.
-	go run -ldflags "-X main.version=$(VERSION) -X main.gitSHA=${GIT_SHA} -X main.dirty=${DIRTY} -X github.com/kuadrant/authorino-operator/controllers.DefaultAuthorinoImage=$(ACTUAL_DEFAULT_AUTHORINO_IMAGE)" ./main.go --log-level debug --log-mode development
+	go run -ldflags "-X main.version=$(VERSION) -X main.gitSHA=${GIT_SHA} -X main.dirty=${DIRTY} -X github.com/kuadrant/authorino-operator/pkg/reconcilers.DefaultAuthorinoImage=$(ACTUAL_DEFAULT_AUTHORINO_IMAGE)" ./main.go --log-level debug --log-mode development
 
 docker-build: GIT_SHA=$(shell git rev-parse HEAD || echo "unknown")
 docker-build: DIRTY=$(shell $(PROJECT_DIR)/utils/check-git-dirty.sh || echo "unknown")
