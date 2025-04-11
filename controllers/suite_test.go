@@ -27,13 +27,14 @@ import (
 	k8srbac "k8s.io/api/rbac/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/scheme"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	api "github.com/kuadrant/authorino-operator/api/v1beta1"
-	ctrl "sigs.k8s.io/controller-runtime"
+	"github.com/kuadrant/authorino-operator/pkg/reconcilers"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -81,16 +82,20 @@ var _ = BeforeSuite(func() {
 	Expect(err).ToNot(HaveOccurred())
 
 	// creates authorino ClusterRole
-	Expect(k8sClient.Create(context.TODO(), getAuthorinoClusterRole(authorinoManagerClusterRoleName))).Should(Succeed())
+	Expect(k8sClient.Create(context.TODO(), getAuthorinoClusterRole(reconcilers.AuthorinoManagerClusterRoleName))).Should(Succeed())
 
-	Expect(k8sClient.Create(context.TODO(), getAuthorinoClusterRole(authorinoK8sAuthClusterRoleName))).Should(Succeed())
+	Expect(k8sClient.Create(context.TODO(), getAuthorinoClusterRole(reconcilers.AuthorinoK8sAuthClusterRoleName))).Should(Succeed())
 
 	Expect(k8sClient.Create(context.TODO(), newCertSecret())).Should(Succeed())
 
-	err = (&AuthorinoReconciler{
+	authorinoReconciler := &reconcilers.AuthorinoReconciler{
 		Client: k8sClient,
 		Log:    ctrl.Log.WithName("authorino-operator").WithName("controller").WithName("Authorino"),
 		Scheme: mgr.GetScheme(),
+	}
+
+	err = (&AuthorinoReconciler{
+		authorinoReconciler,
 	}).SetupWithManager(mgr)
 	Expect(err).ToNot(HaveOccurred())
 

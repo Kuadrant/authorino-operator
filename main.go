@@ -34,6 +34,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	"github.com/kuadrant/authorino-operator/pkg/log"
+	"github.com/kuadrant/authorino-operator/pkg/reconcilers"
 
 	authorinooperatorv1beta1 "github.com/kuadrant/authorino-operator/api/v1beta1"
 	"github.com/kuadrant/authorino-operator/controllers"
@@ -95,7 +96,7 @@ func main() {
 		"version", version,
 		"commit", gitSHA,
 		"dirty", dirty,
-		"default authorino image", controllers.DefaultAuthorinoImage)
+		"default authorino image", reconcilers.DefaultAuthorinoImage)
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                 scheme,
@@ -110,10 +111,14 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err = (&controllers.AuthorinoReconciler{
+	authorinoReconciler := &reconcilers.AuthorinoReconciler{
 		Client: mgr.GetClient(),
 		Log:    logger,
 		Scheme: mgr.GetScheme(),
+	}
+
+	if err = (&controllers.AuthorinoReconciler{
+		AuthorinoReconciler: authorinoReconciler,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Authorino")
 		os.Exit(1)
