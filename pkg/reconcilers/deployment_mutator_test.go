@@ -272,6 +272,28 @@ func TestDeploymentMutatorFunctions(t *testing.T) {
 			want: false,
 		},
 		{
+			name:    "SpecTemplateLabelsMutator - existing has few extra",
+			mutator: DeploymentSpecTemplateLabelsMutator,
+			desired: func() *appsv1.Deployment {
+				d := deployment.DeepCopy()
+				d.Spec.Template.Labels = map[string]string{
+					"foo":  "bar",
+					"foo2": "bar2",
+				}
+				return d
+			}(),
+			existing: func() *appsv1.Deployment {
+				d := deployment.DeepCopy()
+				d.Spec.Template.Labels = map[string]string{
+					"foo":       "bar",
+					"foo2":      "bar2",
+					"new-label": "new-value",
+				}
+				return d
+			}(),
+			want: false,
+		},
+		{
 			name:    "SpecTemplateLabelsMutator - change with merge",
 			mutator: DeploymentSpecTemplateLabelsMutator,
 			desired: func() *appsv1.Deployment {
@@ -293,8 +315,11 @@ func TestDeploymentMutatorFunctions(t *testing.T) {
 			want: true,
 			verify: func(t *testing.T, existing *appsv1.Deployment) {
 				labels := existing.Spec.Template.Labels
-				if labels["app"] != "authorino-pod" {
-					t.Errorf("expected app label not to be updated, got %s", labels["app"])
+				if len(labels) != 3 {
+					t.Errorf("expected num label to be 3, got %d", len(labels))
+				}
+				if labels["app"] != "authorino-pod-new" {
+					t.Errorf("expected app label to be updated, got %s", labels["app"])
 				}
 				if labels["new"] != "pod-label" {
 					t.Error("expected new label to be added")

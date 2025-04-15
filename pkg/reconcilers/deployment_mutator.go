@@ -136,19 +136,7 @@ func DeploymentLabelsMutator(desired, existing *k8sapps.Deployment) bool {
 }
 
 func DeploymentSpecTemplateLabelsMutator(desired, existing *k8sapps.Deployment) bool {
-	update := false
-
-	if !reflect.DeepEqual(existing.Spec.Template.Labels, desired.Spec.Template.Labels) {
-		// merge existing key/value pairs back into the desiredDeployment Spec Template Labels so as not to overwrite those.
-		for existingKey, existingValue := range existing.Spec.Template.Labels {
-			desired.Spec.Template.Labels[existingKey] = existingValue
-		}
-		existing.Spec.Template.Labels = desired.Spec.Template.Labels
-
-		update = true
-	}
-
-	return update
+	return authorinoResources.MergeMapStringString(&existing.Spec.Template.Labels, desired.Spec.Template.Labels)
 }
 
 func IsObjectTaggedToDelete(obj client.Object) bool {
