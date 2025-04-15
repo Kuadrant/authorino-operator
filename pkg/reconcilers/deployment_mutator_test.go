@@ -411,3 +411,51 @@ func TestDeploymentMutator(t *testing.T) {
 		}
 	})
 }
+
+func TestDetectEnvVarAuthorinoVersion(t *testing.T) {
+	tests := []struct {
+		version  string
+		expected bool
+	}{
+		{
+			version:  "v0.9.0",
+			expected: true,
+		},
+		{
+			version:  "v0.10.0",
+			expected: true,
+		},
+		{
+			version:  "v0.10.11",
+			expected: true,
+		},
+		{
+			version:  "v0.11.0",
+			expected: false,
+		},
+		{
+			version:  "latest",
+			expected: false,
+		},
+		{
+			version:  "3ba0baa64b9b86a0a197e28fcb269a07cbae8e04",
+			expected: false,
+		},
+		{
+			version:  "git-ref-name",
+			expected: false,
+		},
+		{
+			version:  "very.weird.version",
+			expected: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.version, func(subT *testing.T) {
+			res := detectEnvVarAuthorinoVersion(tt.version)
+			if res != tt.expected {
+				subT.Errorf("expected: %t, got: %t", tt.expected, res)
+			}
+		})
+	}
+}

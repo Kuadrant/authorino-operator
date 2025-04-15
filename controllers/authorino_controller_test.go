@@ -316,7 +316,7 @@ var _ = Describe("Authorino controller", func() {
 				g.Expect(k8sClient.Get(ctx, bindingNsdName, binding)).ToNot(HaveOccurred())
 			}).WithContext(ctx).Should(Succeed())
 			Expect(binding.Subjects).To(ContainElement(
-				authorinoResources.GetSubjectForRoleBinding(*sa),
+				authorinoResources.GetSubjectForRoleBinding(sa),
 			))
 
 			// Authorino Auth ClusterRoleBinding
@@ -353,27 +353,11 @@ var _ = Describe("Authorino controller", func() {
 				sa := authorinoResources.GetAuthorinoServiceAccount(testAuthorinoNamespace, authorinoInstance.Name, authorinoInstance.Labels)
 				g.Expect(k8sClient.Get(ctx, bindingNsdName, binding)).ToNot(HaveOccurred())
 				g.Expect(binding.Subjects).To(ContainElement(
-					authorinoResources.GetSubjectForRoleBinding(*sa),
+					authorinoResources.GetSubjectForRoleBinding(sa),
 				))
 			}).WithContext(ctx).Should(Succeed())
 		})
 	})
-})
-
-var _ = Describe("Detect Authorino old version", func() {
-	// old authorino versions
-	Expect(detectEnvVarAuthorinoVersion("v0.9.0")).To(BeTrue())
-	Expect(detectEnvVarAuthorinoVersion("v0.10.0")).To(BeTrue())
-	Expect(detectEnvVarAuthorinoVersion("v0.10.11")).To(BeTrue())
-
-	// new authorino versions
-	Expect(detectEnvVarAuthorinoVersion("v0.11.0")).To(BeFalse())
-
-	// undetectable authorino versions
-	Expect(detectEnvVarAuthorinoVersion("latest")).To(BeFalse())
-	Expect(detectEnvVarAuthorinoVersion("3ba0baa64b9b86a0a197e28fcb269a07cbae8e04")).To(BeFalse())
-	Expect(detectEnvVarAuthorinoVersion("git-ref-name")).To(BeFalse())
-	Expect(detectEnvVarAuthorinoVersion("very.weird.version")).To(BeFalse())
 })
 
 func newExtServerConfigMap() *k8score.ConfigMap {

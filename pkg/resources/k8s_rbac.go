@@ -14,7 +14,7 @@ func GetAuthorinoServiceAccount(namespace, crName string, labels map[string]stri
 	}
 }
 
-func GetAuthorinoClusterRoleBinding(roleBindingName, clusterRoleName string, serviceAccount k8score.ServiceAccount) *k8srbac.ClusterRoleBinding {
+func GetAuthorinoClusterRoleBinding(roleBindingName, clusterRoleName string, serviceAccount *k8score.ServiceAccount) *k8srbac.ClusterRoleBinding {
 	roleRef, roleSubject := getRoleRefAndSubject(clusterRoleName, "ClusterRole", serviceAccount)
 	return &k8srbac.ClusterRoleBinding{
 		ObjectMeta: k8smeta.ObjectMeta{Name: roleBindingName},
@@ -23,7 +23,7 @@ func GetAuthorinoClusterRoleBinding(roleBindingName, clusterRoleName string, ser
 	}
 }
 
-func GetAuthorinoRoleBinding(namespace, crName, roleBindingNameSuffix, roleKind, roleName string, serviceAccount k8score.ServiceAccount, labels map[string]string) *k8srbac.RoleBinding {
+func GetAuthorinoRoleBinding(namespace, crName, roleBindingNameSuffix, roleKind, roleName string, serviceAccount *k8score.ServiceAccount, labels map[string]string) *k8srbac.RoleBinding {
 	roleRef, roleSubject := getRoleRefAndSubject(roleName, roleKind, serviceAccount)
 	return &k8srbac.RoleBinding{
 		ObjectMeta: getObjectMeta(namespace, authorinoRoleBindingName(crName, roleBindingNameSuffix), labels),
@@ -32,7 +32,7 @@ func GetAuthorinoRoleBinding(namespace, crName, roleBindingNameSuffix, roleKind,
 	}
 }
 
-func getRoleRefAndSubject(roleName, roleKind string, serviceAccount k8score.ServiceAccount) (k8srbac.RoleRef, k8srbac.Subject) {
+func getRoleRefAndSubject(roleName, roleKind string, serviceAccount *k8score.ServiceAccount) (k8srbac.RoleRef, k8srbac.Subject) {
 	var roleRef = k8srbac.RoleRef{
 		Name: roleName,
 		Kind: roleKind,
@@ -48,7 +48,7 @@ func getRoleRefAndSubject(roleName, roleKind string, serviceAccount k8score.Serv
 }
 
 // Makes sure a given serviceaccount is among the subjects of a rolebinding or clusterrolebinding
-func AppendSubjectToRoleBinding(roleBinding client.Object, serviceAccount k8score.ServiceAccount) client.Object {
+func AppendSubjectToRoleBinding(roleBinding client.Object, serviceAccount *k8score.ServiceAccount) client.Object {
 	subject := GetSubjectForRoleBinding(serviceAccount)
 	if rb, ok := roleBinding.(*k8srbac.RoleBinding); ok {
 		if subjectIncluded(rb.Subjects, subject) {
@@ -73,7 +73,7 @@ func appendSubjectToClusterRoleBinding(roleBinding client.Object, subject k8srba
 	}
 }
 
-func GetSubjectForRoleBinding(serviceAccount k8score.ServiceAccount) k8srbac.Subject {
+func GetSubjectForRoleBinding(serviceAccount *k8score.ServiceAccount) k8srbac.Subject {
 	return k8srbac.Subject{
 		Kind:      "ServiceAccount",
 		Name:      serviceAccount.Name,
