@@ -1,5 +1,17 @@
 package resources
 
+// MergeMapStringString merges key-value pairs from the desired map into the existing map.
+//
+// If a key in the desired map is not present in the existing map, or if its value differs,
+// the key-value pair is added or updated in the existing map. The function ensures that
+// the existing map is initialized if it is nil.
+//
+// The entries included in "existing" map that are not included in the "desired" map are preserved.
+//
+// It returns true if the existing map was modified (i.e., at least one key-value pair was added or updated),
+// and false otherwise.
+//
+// The existing map is passed as a pointer to allow modification in-place.
 func MergeMapStringString(existing *map[string]string, desired map[string]string) bool {
 	if existing == nil {
 		return false
