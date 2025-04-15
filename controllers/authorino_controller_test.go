@@ -290,6 +290,74 @@ var _ = Describe("Authorino controller", func() {
 			}
 		})
 	})
+
+	Context("Creating cluster wide authorino object", func() {
+		var authorinoInstance *api.Authorino
+
+		BeforeEach(func(ctx context.Context) {
+			authorinoInstance = newFullAuthorinoInstance()
+			authorinoInstance.Spec.ClusterWide = true
+			Expect(k8sClient.Create(ctx, authorinoInstance)).Should(Succeed())
+		})
+
+		It("Should create authorino permission", func(ctx context.Context) {
+			// service account
+			sa := authorinoResources.GetAuthorinoServiceAccount(testAuthorinoNamespace, authorinoInstance.Name, authorinoInstance.Labels)
+			nsdName := namespacedName(sa.GetNamespace(), sa.GetName())
+			Eventually(func(g Gomega, ctx context.Context) {
+				g.Expect(k8sClient.Get(ctx, nsdName, sa)).ToNot(HaveOccurred())
+			}).WithContext(ctx).Should(Succeed())
+
+			// Authorino ClusterRoleBinding
+			binding := &k8srbac.ClusterRoleBinding{}
+			bindingNsdName := types.NamespacedName{Name: "authorino"}
+
+			Eventually(func(g Gomega, ctx context.Context) {
+				g.Expect(k8sClient.Get(ctx, bindingNsdName, binding)).ToNot(HaveOccurred())
+			}).WithContext(ctx).Should(Succeed())
+			Expect(binding.Subjects).To(ContainElement(
+				authorinoResources.GetSubjectForRoleBinding(*sa),
+			))
+
+			// Authorino Auth ClusterRoleBinding
+			k8sAuthBinding := &k8srbac.ClusterRoleBinding{}
+			k8sAuthBindingNsdName := types.NamespacedName{Name: authorinoK8sAuthClusterRoleBindingName}
+
+			Eventually(func(g Gomega, ctx context.Context) {
+				g.Expect(k8sClient.Get(ctx, k8sAuthBindingNsdName, k8sAuthBinding)).ToNot(HaveOccurred())
+			}).WithContext(ctx).Should(Succeed())
+
+			// Authorino leaderElection ClusterRoleBinding
+			leaderElectionRole := &k8srbac.Role{}
+			leaderElectionNsdName := namespacedName(testAuthorinoNamespace, reconcilers.AuthorinoLeaderElectionRoleName)
+			Eventually(func(ctx context.Context) error {
+				return k8sClient.Get(ctx, leaderElectionNsdName, leaderElectionRole)
+			}).WithContext(ctx).Should(Succeed())
+
+			//  delete authorino CR
+			Expect(k8sClient.Delete(ctx, authorinoInstance)).ToNot(HaveOccurred())
+
+			// manager cluster role binding should get service account removed
+			Eventually(func(g Gomega, ctx context.Context) {
+				g.Expect(k8sClient.Get(ctx, bindingNsdName, binding)).ToNot(HaveOccurred())
+				g.Expect(binding.Subjects).To(BeEmpty())
+			}).WithContext(ctx).Should(Succeed())
+
+			// Create authorino CR back
+			authorinoInstance = newFullAuthorinoInstance()
+			authorinoInstance.Spec.ClusterWide = true
+			Expect(k8sClient.Create(ctx, authorinoInstance)).Should(Succeed())
+
+			// manager cluster role binding should get service account added
+			Eventually(func(g Gomega, ctx context.Context) {
+				sa := authorinoResources.GetAuthorinoServiceAccount(testAuthorinoNamespace, authorinoInstance.Name, authorinoInstance.Labels)
+				g.Expect(k8sClient.Get(ctx, bindingNsdName, binding)).ToNot(HaveOccurred())
+				g.Expect(binding.Subjects).To(ContainElement(
+					authorinoResources.GetSubjectForRoleBinding(*sa),
+				))
+			}).WithContext(ctx).Should(Succeed())
+		})
+	})
 })
 
 var _ = Describe("Detect Authorino old version", func() {

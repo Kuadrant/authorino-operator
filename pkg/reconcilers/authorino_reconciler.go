@@ -131,15 +131,15 @@ func (r *AuthorinoReconciler) ReconcileAuthorinoServices(ctx context.Context, lo
 }
 
 func (r *AuthorinoReconciler) ReconcileAuthorinoPermissions(ctx context.Context, logger logr.Logger, authorinoInstance *api.Authorino, sa k8score.ServiceAccount) error {
-	roleBindingMutators := make([]RoleBindingMutateFn, 0)
-
-	//ToDo: specific mutators for clusterRoleBindings and RoleBindings
-	roleBindingMutators = append(roleBindingMutators,
+	roleBindingMutators := []RoleBindingMutateFn{
 		RoleBindingLabelsMutator,
-		RoleBindingNameMutator,
-		RoleBindingNamespaceMutator,
 		RoleBindingSubjectMutator,
-	)
+	}
+
+	clusterRoleBindingMutators := []ClusterRoleBindingMutateFn{
+		ClusterRoleBindingLabelsMutator,
+		ClusterRoleBindingSubjectMutator,
+	}
 
 	// creates the manager ClusterRoleBinding/RoleBinding depending on type of installation
 	rb, err := r.bindAuthorinoServiceAccountToClusterRole(AuthorinoManagerClusterRoleBindingName, authorinoInstance.Spec.ClusterWide, AuthorinoManagerClusterRoleName, sa, authorinoInstance)
@@ -147,16 +147,14 @@ func (r *AuthorinoReconciler) ReconcileAuthorinoPermissions(ctx context.Context,
 		return err
 	}
 
-	if roleBinding, ok := rb.(*k8srbac.RoleBinding); ok {
-		err := r.reconcileRoleBinding(ctx, logger, roleBinding, RoleBindingMutator(roleBindingMutators...), authorinoInstance)
+	switch binding := rb.(type) {
+	case *k8srbac.RoleBinding:
+		err := r.reconcileRoleBinding(ctx, logger, binding, RoleBindingMutator(roleBindingMutators...), authorinoInstance)
 		if err != nil {
 			return fmt.Errorf("failed to reconcile %s RoleBinding resource, err: %v", authorinoInstance.Name, err)
 		}
-	}
-
-	if roleBinding, ok := rb.(*k8srbac.ClusterRoleBinding); ok {
-		_ = ctrl.SetControllerReference(authorinoInstance, roleBinding, r.Scheme)
-		err := r.reconcileClusterRoleBinding(ctx, logger, roleBinding, RoleBindingMutator(roleBindingMutators...), authorinoInstance)
+	case *k8srbac.ClusterRoleBinding:
+		err := r.reconcileClusterRoleBinding(ctx, logger, binding, ClusterRoleBindingMutator(clusterRoleBindingMutators...), authorinoInstance)
 		if err != nil {
 			return fmt.Errorf("failed to reconcile %s ClusterRoleBinding resource, err: %v", authorinoInstance.Name, err)
 		}
@@ -375,7 +373,9 @@ func (r *AuthorinoReconciler) reconcileService(ctx context.Context, logger logr.
 }
 
 func (r *AuthorinoReconciler) reconcileRoleBinding(ctx context.Context, logger logr.Logger, desired *k8srbac.RoleBinding, mutatefn MutateFn, authorino *api.Authorino) error {
-	_ = ctrl.SetControllerReference(authorino, desired, r.Scheme)
+	if err := ctrl.SetControllerReference(authorino, desired, r.Scheme); err != nil {
+		return err
+	}
 
 	crud, _, err := r.reconcileResource(ctx, &k8srbac.RoleBinding{}, desired, mutatefn)
 
