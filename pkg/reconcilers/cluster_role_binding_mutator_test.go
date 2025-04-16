@@ -7,7 +7,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-var RoleBinding = &k8srbac.RoleBinding{
+var ClusterRoleBinding = &k8srbac.ClusterRoleBinding{
 	ObjectMeta: metav1.ObjectMeta{
 		Name:      "test-rolebinding",
 		Namespace: "default",
@@ -27,21 +27,21 @@ var RoleBinding = &k8srbac.RoleBinding{
 	},
 }
 
-func TestRoleBindingMutatorFunctions(t *testing.T) {
+func TestClusterRoleBindingMutatorFunctions(t *testing.T) {
 	tests := []struct {
 		name     string
-		mutator  RoleBindingMutateFn
-		desired  *k8srbac.RoleBinding
-		existing *k8srbac.RoleBinding
+		mutator  ClusterRoleBindingMutateFn
+		desired  *k8srbac.ClusterRoleBinding
+		existing *k8srbac.ClusterRoleBinding
 		want     bool
-		verify   func(t *testing.T, existing *k8srbac.RoleBinding)
+		verify   func(t *testing.T, existing *k8srbac.ClusterRoleBinding)
 	}{
 		{
 			name:    "LabelsMutator - no change",
-			mutator: RoleBindingLabelsMutator,
-			desired: RoleBinding.DeepCopy(),
-			existing: func() *k8srbac.RoleBinding {
-				rb := RoleBinding.DeepCopy()
+			mutator: ClusterRoleBindingLabelsMutator,
+			desired: ClusterRoleBinding.DeepCopy(),
+			existing: func() *k8srbac.ClusterRoleBinding {
+				rb := ClusterRoleBinding.DeepCopy()
 				rb.Labels = map[string]string{"app": "authorino"}
 				return rb
 			}(),
@@ -49,18 +49,18 @@ func TestRoleBindingMutatorFunctions(t *testing.T) {
 		},
 		{
 			name:    "LabelsMutator - change",
-			mutator: RoleBindingLabelsMutator,
-			desired: func() *k8srbac.RoleBinding {
-				rb := RoleBinding.DeepCopy()
+			mutator: ClusterRoleBindingLabelsMutator,
+			desired: func() *k8srbac.ClusterRoleBinding {
+				rb := ClusterRoleBinding.DeepCopy()
 				rb.Labels = map[string]string{
 					"app": "authorino",
 					"new": "label",
 				}
 				return rb
 			}(),
-			existing: RoleBinding.DeepCopy(),
+			existing: ClusterRoleBinding.DeepCopy(),
 			want:     true,
-			verify: func(t *testing.T, existing *k8srbac.RoleBinding) {
+			verify: func(t *testing.T, existing *k8srbac.ClusterRoleBinding) {
 				if _, exists := existing.Labels["new"]; !exists {
 					t.Error("expected 'new' label to be added")
 				}
@@ -71,10 +71,10 @@ func TestRoleBindingMutatorFunctions(t *testing.T) {
 		},
 		{
 			name:    "SubjectMutator - no change",
-			mutator: RoleBindingSubjectMutator,
-			desired: RoleBinding.DeepCopy(),
-			existing: func() *k8srbac.RoleBinding {
-				rb := RoleBinding.DeepCopy()
+			mutator: ClusterRoleBindingSubjectMutator,
+			desired: ClusterRoleBinding.DeepCopy(),
+			existing: func() *k8srbac.ClusterRoleBinding {
+				rb := ClusterRoleBinding.DeepCopy()
 				rb.Subjects = []k8srbac.Subject{
 					{
 						Kind:      "ServiceAccount",
@@ -88,9 +88,9 @@ func TestRoleBindingMutatorFunctions(t *testing.T) {
 		},
 		{
 			name:    "SubjectMutator - change",
-			mutator: RoleBindingSubjectMutator,
-			desired: func() *k8srbac.RoleBinding {
-				rb := RoleBinding.DeepCopy()
+			mutator: ClusterRoleBindingSubjectMutator,
+			desired: func() *k8srbac.ClusterRoleBinding {
+				rb := ClusterRoleBinding.DeepCopy()
 				rb.Subjects = []k8srbac.Subject{
 					{
 						Kind:      "ServiceAccount",
@@ -100,9 +100,9 @@ func TestRoleBindingMutatorFunctions(t *testing.T) {
 				}
 				return rb
 			}(),
-			existing: RoleBinding.DeepCopy(),
+			existing: ClusterRoleBinding.DeepCopy(),
 			want:     true,
-			verify: func(t *testing.T, existing *k8srbac.RoleBinding) {
+			verify: func(t *testing.T, existing *k8srbac.ClusterRoleBinding) {
 				if len(existing.Subjects) != 1 {
 					t.Fatalf("expected 1 subject, got %d", len(existing.Subjects))
 				}
@@ -113,9 +113,9 @@ func TestRoleBindingMutatorFunctions(t *testing.T) {
 		},
 		{
 			name:    "SubjectMutator - multiple subjects",
-			mutator: RoleBindingSubjectMutator,
-			desired: func() *k8srbac.RoleBinding {
-				rb := RoleBinding.DeepCopy()
+			mutator: ClusterRoleBindingSubjectMutator,
+			desired: func() *k8srbac.ClusterRoleBinding {
+				rb := ClusterRoleBinding.DeepCopy()
 				rb.Subjects = []k8srbac.Subject{
 					{
 						Kind:      "ServiceAccount",
@@ -130,9 +130,9 @@ func TestRoleBindingMutatorFunctions(t *testing.T) {
 				}
 				return rb
 			}(),
-			existing: RoleBinding.DeepCopy(),
+			existing: ClusterRoleBinding.DeepCopy(),
 			want:     true,
-			verify: func(t *testing.T, existing *k8srbac.RoleBinding) {
+			verify: func(t *testing.T, existing *k8srbac.ClusterRoleBinding) {
 				if len(existing.Subjects) != 2 {
 					t.Fatalf("expected 2 subjects, got %d", len(existing.Subjects))
 				}
@@ -157,9 +157,9 @@ func TestRoleBindingMutatorFunctions(t *testing.T) {
 	}
 }
 
-func TestRoleBindingMutator(t *testing.T) {
+func TestClusterRoleBindingMutator(t *testing.T) {
 	t.Run("invalid object types", func(t *testing.T) {
-		mutator := RoleBindingMutator(RoleBindingLabelsMutator)
+		mutator := ClusterRoleBindingMutator(ClusterRoleBindingLabelsMutator)
 
 		_, err := mutator(&k8srbac.ClusterRoleBinding{}, &k8srbac.RoleBinding{})
 		if err == nil {
@@ -173,7 +173,7 @@ func TestRoleBindingMutator(t *testing.T) {
 	})
 
 	t.Run("multiple mutators", func(t *testing.T) {
-		desired := &k8srbac.RoleBinding{
+		desired := &k8srbac.ClusterRoleBinding{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "new-name",
 				Namespace: "new-ns",
@@ -187,11 +187,11 @@ func TestRoleBindingMutator(t *testing.T) {
 				},
 			},
 		}
-		existing := RoleBinding.DeepCopy()
+		existing := ClusterRoleBinding.DeepCopy()
 
-		mutator := RoleBindingMutator(
-			RoleBindingLabelsMutator,
-			RoleBindingSubjectMutator,
+		mutator := ClusterRoleBindingMutator(
+			ClusterRoleBindingLabelsMutator,
+			ClusterRoleBindingSubjectMutator,
 		)
 
 		updated, err := mutator(desired, existing)

@@ -8,18 +8,18 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-// RoleBindingMutateFn is a function which mutates the existing RoleBinding into it's desired state.
-type RoleBindingMutateFn func(desired, existing *k8srbac.RoleBinding) bool
+// ClusterRoleBindingMutateFn is a function which mutates the existing ClusterRoleBinding into it's desired state.
+type ClusterRoleBindingMutateFn func(desired, existing *k8srbac.ClusterRoleBinding) bool
 
-func RoleBindingMutator(opts ...RoleBindingMutateFn) MutateFn {
+func ClusterRoleBindingMutator(opts ...ClusterRoleBindingMutateFn) MutateFn {
 	return func(desiredObj, existingObj client.Object) (bool, error) {
-		existing, ok := existingObj.(*k8srbac.RoleBinding)
+		existing, ok := existingObj.(*k8srbac.ClusterRoleBinding)
 		if !ok {
-			return false, fmt.Errorf("%T is not a *k8srbac.RoleBinding", existingObj)
+			return false, fmt.Errorf("%T is not a *k8srbac.ClusterRoleBinding", existingObj)
 		}
-		desired, ok := desiredObj.(*k8srbac.RoleBinding)
+		desired, ok := desiredObj.(*k8srbac.ClusterRoleBinding)
 		if !ok {
-			return false, fmt.Errorf("%T is not a *k8srbac.RoleBinding", desiredObj)
+			return false, fmt.Errorf("%T is not a *k8srbac.ClusterRoleBinding", desiredObj)
 		}
 
 		update := false
@@ -34,7 +34,7 @@ func RoleBindingMutator(opts ...RoleBindingMutateFn) MutateFn {
 	}
 }
 
-func RoleBindingLabelsMutator(desired, existing *k8srbac.RoleBinding) bool {
+func ClusterRoleBindingLabelsMutator(desired, existing *k8srbac.ClusterRoleBinding) bool {
 	update := false
 
 	if !reflect.DeepEqual(existing.ObjectMeta.Labels, desired.ObjectMeta.Labels) {
@@ -45,7 +45,7 @@ func RoleBindingLabelsMutator(desired, existing *k8srbac.RoleBinding) bool {
 	return update
 }
 
-func RoleBindingSubjectMutator(desired, existing *k8srbac.RoleBinding) bool {
+func ClusterRoleBindingSubjectMutator(desired, existing *k8srbac.ClusterRoleBinding) bool {
 	update := false
 
 	if !reflect.DeepEqual(existing.Subjects, desired.Subjects) {
