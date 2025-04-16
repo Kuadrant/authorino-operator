@@ -28,7 +28,7 @@ env:
 jobs:
   build:
     name: Build and push image
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     steps:
       - name: Check out code
         uses: actions/checkout@v3
@@ -87,7 +87,7 @@ jobs:
   build-bundle:
     needs: build
     name: Build and push bundle image
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     if: github.ref_name == 'main' || startsWith(github.ref, 'refs/tags/v') # We cannot use `env.MAIN_BRANCH_NAME` because `env` context is not available to `job.if`. See https://docs.github.com/en/actions/learn-github-actions/contexts#context-availability
     steps:
       - name: Set up Go 1.22.x
@@ -161,7 +161,7 @@ jobs:
   build-catalog:
     name: Build and push catalog image
     needs: [build, build-bundle]
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     if: github.ref_name == 'main' || startsWith(github.ref, 'refs/tags/v') # We cannot use `env.MAIN_BRANCH_NAME` because `env` context is not available to `job.if`. See https://docs.github.com/en/actions/learn-github-actions/contexts#context-availability
     steps:
       - name: Set up Go 1.22.x

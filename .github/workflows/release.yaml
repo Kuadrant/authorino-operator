@@ -25,7 +25,7 @@ on:
 jobs:
   build:
     name: Release operator
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     steps:
     - name: Install gettext-base
       run: |
