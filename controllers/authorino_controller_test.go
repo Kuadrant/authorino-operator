@@ -104,7 +104,7 @@ var _ = Describe("Authorino controller", func() {
 
 			// Authorino Auth ClusterRoleBinding
 			k8sAuthBinding := &k8srbac.ClusterRoleBinding{}
-			k8sAuthBindingNsdName := types.NamespacedName{Name: authorinoK8sAuthClusterRoleBindingName}
+			k8sAuthBindingNsdName := types.NamespacedName{Name: reconcilers.AuthorinoK8sAuthClusterRoleBindingName}
 
 			Eventually(func(ctx context.Context) error {
 				return k8sClient.Get(ctx, k8sAuthBindingNsdName, k8sAuthBinding)
@@ -321,7 +321,7 @@ var _ = Describe("Authorino controller", func() {
 
 			// Authorino Auth ClusterRoleBinding
 			k8sAuthBinding := &k8srbac.ClusterRoleBinding{}
-			k8sAuthBindingNsdName := types.NamespacedName{Name: authorinoK8sAuthClusterRoleBindingName}
+			k8sAuthBindingNsdName := types.NamespacedName{Name: reconcilers.AuthorinoK8sAuthClusterRoleBindingName}
 
 			Eventually(func(g Gomega, ctx context.Context) {
 				g.Expect(k8sClient.Get(ctx, k8sAuthBindingNsdName, k8sAuthBinding)).ToNot(HaveOccurred())

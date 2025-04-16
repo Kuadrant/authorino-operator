@@ -22,7 +22,6 @@ import (
 
 	k8sapps "k8s.io/api/apps/v1"
 	k8score "k8s.io/api/core/v1"
-	k8srbac "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -150,28 +149,8 @@ func (r *AuthorinoReconciler) cleanupClusterScopedPermissions(ctx context.Contex
 
 	// we only care about cluster-scoped role bindings for the cleanup
 	// namespaced ones are garbage collected automatically by k8s because of the owner reference
-	r.unboundAuthorinoServiceAccountFromClusterRole(ctx, authorinoManagerClusterRoleBindingName, sa)
-	r.unboundAuthorinoServiceAccountFromClusterRole(ctx, authorinoK8sAuthClusterRoleBindingName, sa)
-}
-
-// remove SA from list of subjects of the clusterrolebinding
-func (r *AuthorinoReconciler) unboundAuthorinoServiceAccountFromClusterRole(ctx context.Context, roleBindingName string, sa *k8score.ServiceAccount) {
-	var logger = r.Log
-	roleBinding := &k8srbac.ClusterRoleBinding{}
-	if err := r.Client.Get(ctx, types.NamespacedName{Name: roleBindingName}, roleBinding); err == nil {
-		staleSubject := authorinoResources.GetSubjectForRoleBinding(sa)
-		var subjects []k8srbac.Subject
-		for _, subject := range roleBinding.Subjects {
-			if subject.Kind != staleSubject.Kind || subject.Name != staleSubject.Name || subject.Namespace != staleSubject.Namespace {
-				subjects = append(subjects, subject)
-			}
-		}
-		// FIXME: This is subject to race condition. The list of subjects may be outdated under concurrent updates
-		roleBinding.Subjects = subjects
-		if err = r.Client.Update(ctx, roleBinding); err != nil {
-			logger.Error(err, "failed to cleanup subject from authorino role binding", "roleBinding", roleBinding, "subject", staleSubject)
-		}
-	}
+	r.UnboundAuthorinoServiceAccountFromClusterRole(ctx, reconcilers.AuthorinoManagerClusterRoleBindingName, sa)
+	r.UnboundAuthorinoServiceAccountFromClusterRole(ctx, reconcilers.AuthorinoK8sAuthClusterRoleBindingName, sa)
 }
 
 func (r *AuthorinoReconciler) installationPreflightCheck(authorino *api.Authorino) error {

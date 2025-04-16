@@ -114,3 +114,25 @@ func GetLeaderElectionRules() []k8srbac.PolicyRule {
 		},
 	}
 }
+
+// MergeBindingSubject merges desired subject slice into the existing slice.
+//
+// The subject entries included in "existing" slice that are not included in the "desired" slice are preserved.
+//
+// It returns true if the existing slice was modified (i.e., at least one subject was added),
+// and false otherwise.
+func MergeBindingSubject(desired []k8srbac.Subject, existing *[]k8srbac.Subject) bool {
+	if existing == nil {
+		return false
+	}
+
+	update := false
+	for idx := range desired {
+		if !subjectIncluded(*existing, desired[idx]) {
+			*existing = append(*existing, desired[idx])
+			update = true
+		}
+	}
+
+	return update
+}
