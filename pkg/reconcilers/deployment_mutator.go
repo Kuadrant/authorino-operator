@@ -153,6 +153,16 @@ func IsObjectTaggedToDelete(obj client.Object) bool {
 	return ok && annotation == "true"
 }
 
+func TagObjectToDelete(obj client.Object) {
+	// Add custom annotation
+	annotations := obj.GetAnnotations()
+	if annotations == nil {
+		annotations = make(map[string]string)
+		obj.SetAnnotations(annotations)
+	}
+	annotations[DeleteTagAnnotation] = "true"
+}
+
 func AuthorinoDeployment(authorino *api.Authorino) *k8sapps.Deployment {
 	var containers []k8score.Container
 	var saName = authorino.Name + "-authorino"

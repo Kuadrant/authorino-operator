@@ -87,6 +87,9 @@ AUTHORINO_GITREF = $(AUTHORINO_VERSION)
 endif
 endif
 
+# Container Engine to be used for building image and with kind
+CONTAINER_ENGINE ?= docker
+
 # Build file used to store replaces/authorinoImage options.
 BUILD_CONFIG_FILE ?= build.yaml
 DEFAULT_AUTHORINO_IMAGE = $(DEFAULT_REGISTRY)/$(DEFAULT_ORG)/authorino:$(AUTHORINO_IMAGE_TAG)
@@ -103,8 +106,8 @@ help: ## Display this help.
 
 ##@ Tools
 
-# go-get-tool will 'go install' any package $2 and install it to $1.
-define go-get-tool
+# go-install-tool will 'go install' any package $2 and install it to $1.
+define go-install-tool
 @[ -f $(1) ] || { \
 set -e ;\
 TMP_DIR=$$(mktemp -d) ;\
@@ -123,11 +126,11 @@ operator-sdk: ## Download operator-sdk locally if necessary.
 
 CONTROLLER_GEN = $(shell pwd)/bin/controller-gen
 controller-gen: ## Download controller-gen locally if necessary.
-	$(call go-get-tool,$(CONTROLLER_GEN),sigs.k8s.io/controller-tools/cmd/controller-gen@v0.15.0)
+	$(call go-install-tool,$(CONTROLLER_GEN),sigs.k8s.io/controller-tools/cmd/controller-gen@v0.15.0)
 
 KUSTOMIZE = $(PROJECT_DIR)/bin/kustomize
 $(KUSTOMIZE):
-	$(call go-get-tool,$(KUSTOMIZE),sigs.k8s.io/kustomize/kustomize/v4@v4.5.5)
+	$(call go-install-tool,$(KUSTOMIZE),sigs.k8s.io/kustomize/kustomize/v4@v4.5.5)
 
 .PHONY: kustomize
 kustomize: $(KUSTOMIZE) ## Download kustomize locally if necessary.
@@ -135,7 +138,7 @@ kustomize: $(KUSTOMIZE) ## Download kustomize locally if necessary.
 YQ = $(shell pwd)/bin/yq
 YQ_VERSION := v4.34.2
 $(YQ):
-	$(call go-get-tool,$(YQ),github.com/mikefarah/yq/v4@$(YQ_VERSION))
+	$(call go-install-tool,$(YQ),github.com/mikefarah/yq/v4@$(YQ_VERSION))
 
 .PHONY: yq
 yq: $(YQ) ## Download yq locally if necessary.
@@ -171,6 +174,14 @@ $(HELM):
 
 .PHONY: helm
 helm: $(HELM) ## Download helm locally if necessary.
+
+KIND = $(PROJECT_DIR)/bin/kind
+KIND_VERSION = v0.23.0
+$(KIND):
+	$(call go-install-tool,$(KIND),sigs.k8s.io/kind@$(KIND_VERSION))
+
+.PHONY: kind
+kind: $(KIND) ## Download kind locally if necessary.
 
 setup-envtest: ## Setup envtest.
 ifeq (, $(shell which setup-envtest))

@@ -4,7 +4,6 @@ import (
 	k8score "k8s.io/api/core/v1"
 	k8srbac "k8s.io/api/rbac/v1"
 	k8smeta "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 func GetAuthorinoServiceAccount(namespace, crName string, labels map[string]string) *k8score.ServiceAccount {
@@ -47,32 +46,6 @@ func getRoleRefAndSubject(roleName, roleKind string, serviceAccount *k8score.Ser
 	return roleRef, roleSubject
 }
 
-// Makes sure a given serviceaccount is among the subjects of a rolebinding or clusterrolebinding
-func AppendSubjectToRoleBinding(roleBinding client.Object, serviceAccount *k8score.ServiceAccount) client.Object {
-	subject := GetSubjectForRoleBinding(serviceAccount)
-	if rb, ok := roleBinding.(*k8srbac.RoleBinding); ok {
-		if subjectIncluded(rb.Subjects, subject) {
-			return rb
-		}
-		rb.Subjects = append(rb.Subjects, subject)
-		return rb
-	} else {
-		return appendSubjectToClusterRoleBinding(roleBinding, subject)
-	}
-}
-
-func appendSubjectToClusterRoleBinding(roleBinding client.Object, subject k8srbac.Subject) client.Object {
-	if rb, ok := roleBinding.(*k8srbac.ClusterRoleBinding); ok {
-		if subjectIncluded(rb.Subjects, subject) {
-			return rb
-		}
-		rb.Subjects = append(rb.Subjects, subject)
-		return rb
-	} else {
-		return nil
-	}
-}
-
 func GetSubjectForRoleBinding(serviceAccount *k8score.ServiceAccount) k8srbac.Subject {
 	return k8srbac.Subject{
 		Kind:      "ServiceAccount",
@@ -113,4 +86,26 @@ func GetLeaderElectionRules() []k8srbac.PolicyRule {
 			Verbs:     []string{"get", "list", "create", "update"},
 		},
 	}
+}
+
+// MergeBindingSubject merges desired subject slice into the existing slice.
+//
+// The subject entries included in "existing" slice that are not included in the "desired" slice are preserved.
+//
+// It returns true if the existing slice was modified (i.e., at least one subject was added),
+// and false otherwise.
+func MergeBindingSubject(desired []k8srbac.Subject, existing *[]k8srbac.Subject) bool {
+	if existing == nil {
+		return false
+	}
+
+	update := false
+	for idx := range desired {
+		if !subjectIncluded(*existing, desired[idx]) {
+			*existing = append(*existing, desired[idx])
+			update = true
+		}
+	}
+
+	return update
 }
