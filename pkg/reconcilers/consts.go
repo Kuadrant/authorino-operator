@@ -1,7 +1,7 @@
 package reconcilers
 
 const (
-	DeleteTagAnnotation = "limitador.kuadrant.io/delete"
+	DeleteTagAnnotation = "authorino.kuadrant.io/delete"
 
 	RelatedImageAuthorino = "RELATED_IMAGE_AUTHORINO"
 

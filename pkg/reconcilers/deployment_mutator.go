@@ -19,6 +19,10 @@ import (
 // MutateFn is a function which mutates the existing object into it's desired state.
 type MutateFn func(desired, existing client.Object) (bool, error)
 
+func CreateOnlyMutator(_, _ client.Object) (bool, error) {
+	return false, nil
+}
+
 // DeploymentMutateFn is a function which mutates the existing Deployment into it's desired state.
 type DeploymentMutateFn func(desired, existing *k8sapps.Deployment) bool
 
