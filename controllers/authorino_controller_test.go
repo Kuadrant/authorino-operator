@@ -18,6 +18,7 @@ import (
 	"k8s.io/utils/env"
 	controllerruntime "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	api "github.com/kuadrant/authorino-operator/api/v1beta1"
 	"github.com/kuadrant/authorino-operator/pkg/reconcilers"
@@ -174,8 +175,9 @@ var _ = Describe("Authorino controller", func() {
 
 			nsdName := namespacedName(testAuthorinoNamespace, authorinoInstance.Name)
 
-			Eventually(func(ctx context.Context) error {
-				return k8sClient.Get(ctx, nsdName, existingAuthorinoInstance)
+			Eventually(func(g Gomega, ctx context.Context) {
+				g.Expect(k8sClient.Get(ctx, nsdName, existingAuthorinoInstance)).ToNot(HaveOccurred())
+				g.Expect(controllerutil.ContainsFinalizer(existingAuthorinoInstance, authorinoFinalizer)).To(BeTrue())
 			}).WithContext(ctx).Should(Succeed())
 
 			replicas := int32(testAuthorinoReplicas + 1)
@@ -185,13 +187,11 @@ var _ = Describe("Authorino controller", func() {
 
 			desiredDeployment := &k8sapps.Deployment{}
 
-			Eventually(func(ctx context.Context) error {
-				return k8sClient.Get(ctx,
-					nsdName,
-					desiredDeployment)
+			Eventually(func(g Gomega, ctx context.Context) {
+				g.Expect(k8sClient.Get(ctx, nsdName, desiredDeployment)).ToNot(HaveOccurred())
+				g.Expect(desiredDeployment.Spec.Replicas).Should(Equal(&replicas))
 			}).WithContext(ctx).Should(Succeed())
 
-			Expect(desiredDeployment.Spec.Replicas).Should(Equal(&replicas))
 			for _, container := range desiredDeployment.Spec.Template.Spec.Containers {
 				if container.Name == reconcilers.AuthorinoContainerName {
 					checkAuthorinoArgs(existingAuthorinoInstance, container.Args)
