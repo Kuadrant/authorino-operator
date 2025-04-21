@@ -11,6 +11,7 @@ import (
 	k8sapps "k8s.io/api/apps/v1"
 	k8score "k8s.io/api/core/v1"
 	k8srbac "k8s.io/api/rbac/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/uuid"
@@ -337,10 +338,10 @@ var _ = Describe("Authorino controller", func() {
 			//  delete authorino CR
 			Expect(k8sClient.Delete(ctx, authorinoInstance)).ToNot(HaveOccurred())
 
-			// manager cluster role binding should get service account removed
+			// manager cluster role removed
 			Eventually(func(g Gomega, ctx context.Context) {
-				g.Expect(k8sClient.Get(ctx, bindingNsdName, binding)).ToNot(HaveOccurred())
-				g.Expect(binding.Subjects).To(BeEmpty())
+				err := k8sClient.Get(ctx, bindingNsdName, binding)
+				g.Expect(apierrors.IsNotFound(err)).To(BeTrue())
 			}).WithContext(ctx).Should(Succeed())
 
 			// Create authorino CR back

@@ -103,11 +103,14 @@ func TestRoleBindingMutatorFunctions(t *testing.T) {
 			existing: RoleBinding.DeepCopy(),
 			want:     true,
 			verify: func(t *testing.T, existing *k8srbac.RoleBinding) {
-				if len(existing.Subjects) != 1 {
-					t.Fatalf("expected 1 subject, got %d", len(existing.Subjects))
+				if len(existing.Subjects) != 2 {
+					t.Fatalf("expected 2 subject, got %d", len(existing.Subjects))
 				}
-				if existing.Subjects[0].Name != "new-sa" {
-					t.Errorf("expected subject name 'new-sa', got '%s'", existing.Subjects[0].Name)
+				if existing.Subjects[0].Name != "authorino-sa" {
+					t.Errorf("expected subject name 'authorino-sa', got '%s'", existing.Subjects[0].Name)
+				}
+				if existing.Subjects[1].Name != "new-sa" {
+					t.Errorf("expected subject name 'new-sa', got '%s'", existing.Subjects[1].Name)
 				}
 			},
 		},
@@ -133,8 +136,8 @@ func TestRoleBindingMutatorFunctions(t *testing.T) {
 			existing: RoleBinding.DeepCopy(),
 			want:     true,
 			verify: func(t *testing.T, existing *k8srbac.RoleBinding) {
-				if len(existing.Subjects) != 2 {
-					t.Fatalf("expected 2 subjects, got %d", len(existing.Subjects))
+				if len(existing.Subjects) != 3 {
+					t.Fatalf("expected 3 subjects, got %d", len(existing.Subjects))
 				}
 			},
 		},
@@ -173,18 +176,13 @@ func TestRoleBindingMutator(t *testing.T) {
 	})
 
 	t.Run("multiple mutators", func(t *testing.T) {
-		desired := &k8srbac.RoleBinding{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "new-name",
+		desired := RoleBinding.DeepCopy()
+		desired.Labels = map[string]string{"new": "label"}
+		desired.Subjects = []k8srbac.Subject{
+			{
+				Kind:      "ServiceAccount",
+				Name:      "new-sa",
 				Namespace: "new-ns",
-				Labels:    map[string]string{"new": "label"},
-			},
-			Subjects: []k8srbac.Subject{
-				{
-					Kind:      "ServiceAccount",
-					Name:      "new-sa",
-					Namespace: "new-ns",
-				},
 			},
 		}
 		existing := RoleBinding.DeepCopy()
@@ -205,7 +203,7 @@ func TestRoleBindingMutator(t *testing.T) {
 		if _, exists := existing.Labels["new"]; !exists {
 			t.Error("expected 'new' label to be added")
 		}
-		if len(existing.Subjects) != 1 || existing.Subjects[0].Name != "new-sa" {
+		if len(existing.Subjects) != 2 || existing.Subjects[1].Name != "new-sa" {
 			t.Error("expected subjects to be updated")
 		}
 	})
