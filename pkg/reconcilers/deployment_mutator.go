@@ -96,6 +96,15 @@ func DeploymentImageMutator(desired, existing *k8sapps.Deployment) bool {
 func DeploymentImagePullPolicyMutator(desired, existing *k8sapps.Deployment) bool {
 	update := false
 
+	if existing == nil {
+		return false
+	}
+
+	if len(existing.Spec.Template.Spec.Containers) < 1 ||
+		len(desired.Spec.Template.Spec.Containers) < 1 {
+		return false
+	}
+
 	if existing.Spec.Template.Spec.Containers[0].ImagePullPolicy != desired.Spec.Template.Spec.Containers[0].ImagePullPolicy {
 		existing.Spec.Template.Spec.Containers[0].ImagePullPolicy = desired.Spec.Template.Spec.Containers[0].ImagePullPolicy
 		update = true
@@ -106,6 +115,15 @@ func DeploymentImagePullPolicyMutator(desired, existing *k8sapps.Deployment) boo
 
 func DeploymentContainerArgsMutator(desired, existing *k8sapps.Deployment) bool {
 	update := false
+
+	if existing == nil {
+		return false
+	}
+
+	if len(existing.Spec.Template.Spec.Containers) < 1 ||
+		len(desired.Spec.Template.Spec.Containers) < 1 {
+		return false
+	}
 
 	existingArgs := existing.Spec.Template.Spec.Containers[0].DeepCopy().Args
 	desiredArgs := desired.Spec.Template.Spec.Containers[0].DeepCopy().Args

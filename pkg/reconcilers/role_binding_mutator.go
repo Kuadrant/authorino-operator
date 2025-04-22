@@ -3,9 +3,10 @@ package reconcilers
 import (
 	"fmt"
 
-	authorinoResources "github.com/kuadrant/authorino-operator/pkg/resources"
 	k8srbac "k8s.io/api/rbac/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	authorinoResources "github.com/kuadrant/authorino-operator/pkg/resources"
 )
 
 // RoleBindingMutateFn is a function which mutates the existing RoleBinding into it's desired state.
