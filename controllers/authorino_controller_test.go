@@ -11,12 +11,14 @@ import (
 	k8sapps "k8s.io/api/apps/v1"
 	k8score "k8s.io/api/core/v1"
 	k8srbac "k8s.io/api/rbac/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/utils/env"
 	controllerruntime "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	api "github.com/kuadrant/authorino-operator/api/v1beta1"
 	"github.com/kuadrant/authorino-operator/pkg/reconcilers"
@@ -104,7 +106,7 @@ var _ = Describe("Authorino controller", func() {
 
 			// Authorino Auth ClusterRoleBinding
 			k8sAuthBinding := &k8srbac.ClusterRoleBinding{}
-			k8sAuthBindingNsdName := types.NamespacedName{Name: authorinoK8sAuthClusterRoleBindingName}
+			k8sAuthBindingNsdName := types.NamespacedName{Name: reconcilers.AuthorinoK8sAuthClusterRoleBindingName}
 
 			Eventually(func(ctx context.Context) error {
 				return k8sClient.Get(ctx, k8sAuthBindingNsdName, k8sAuthBinding)
@@ -173,8 +175,9 @@ var _ = Describe("Authorino controller", func() {
 
 			nsdName := namespacedName(testAuthorinoNamespace, authorinoInstance.Name)
 
-			Eventually(func(ctx context.Context) error {
-				return k8sClient.Get(ctx, nsdName, existingAuthorinoInstance)
+			Eventually(func(g Gomega, ctx context.Context) {
+				g.Expect(k8sClient.Get(ctx, nsdName, existingAuthorinoInstance)).ToNot(HaveOccurred())
+				g.Expect(controllerutil.ContainsFinalizer(existingAuthorinoInstance, authorinoFinalizer)).To(BeTrue())
 			}).WithContext(ctx).Should(Succeed())
 
 			replicas := int32(testAuthorinoReplicas + 1)
@@ -184,13 +187,11 @@ var _ = Describe("Authorino controller", func() {
 
 			desiredDeployment := &k8sapps.Deployment{}
 
-			Eventually(func(ctx context.Context) error {
-				return k8sClient.Get(ctx,
-					nsdName,
-					desiredDeployment)
+			Eventually(func(g Gomega, ctx context.Context) {
+				g.Expect(k8sClient.Get(ctx, nsdName, desiredDeployment)).ToNot(HaveOccurred())
+				g.Expect(desiredDeployment.Spec.Replicas).Should(Equal(&replicas))
 			}).WithContext(ctx).Should(Succeed())
 
-			Expect(desiredDeployment.Spec.Replicas).Should(Equal(&replicas))
 			for _, container := range desiredDeployment.Spec.Template.Spec.Containers {
 				if container.Name == reconcilers.AuthorinoContainerName {
 					checkAuthorinoArgs(existingAuthorinoInstance, container.Args)
@@ -316,12 +317,12 @@ var _ = Describe("Authorino controller", func() {
 				g.Expect(k8sClient.Get(ctx, bindingNsdName, binding)).ToNot(HaveOccurred())
 			}).WithContext(ctx).Should(Succeed())
 			Expect(binding.Subjects).To(ContainElement(
-				authorinoResources.GetSubjectForRoleBinding(*sa),
+				authorinoResources.GetSubjectForRoleBinding(sa),
 			))
 
 			// Authorino Auth ClusterRoleBinding
 			k8sAuthBinding := &k8srbac.ClusterRoleBinding{}
-			k8sAuthBindingNsdName := types.NamespacedName{Name: authorinoK8sAuthClusterRoleBindingName}
+			k8sAuthBindingNsdName := types.NamespacedName{Name: reconcilers.AuthorinoK8sAuthClusterRoleBindingName}
 
 			Eventually(func(g Gomega, ctx context.Context) {
 				g.Expect(k8sClient.Get(ctx, k8sAuthBindingNsdName, k8sAuthBinding)).ToNot(HaveOccurred())
@@ -337,10 +338,10 @@ var _ = Describe("Authorino controller", func() {
 			//  delete authorino CR
 			Expect(k8sClient.Delete(ctx, authorinoInstance)).ToNot(HaveOccurred())
 
-			// manager cluster role binding should get service account removed
+			// manager cluster role removed
 			Eventually(func(g Gomega, ctx context.Context) {
-				g.Expect(k8sClient.Get(ctx, bindingNsdName, binding)).ToNot(HaveOccurred())
-				g.Expect(binding.Subjects).To(BeEmpty())
+				err := k8sClient.Get(ctx, bindingNsdName, binding)
+				g.Expect(apierrors.IsNotFound(err)).To(BeTrue())
 			}).WithContext(ctx).Should(Succeed())
 
 			// Create authorino CR back
@@ -353,27 +354,11 @@ var _ = Describe("Authorino controller", func() {
 				sa := authorinoResources.GetAuthorinoServiceAccount(testAuthorinoNamespace, authorinoInstance.Name, authorinoInstance.Labels)
 				g.Expect(k8sClient.Get(ctx, bindingNsdName, binding)).ToNot(HaveOccurred())
 				g.Expect(binding.Subjects).To(ContainElement(
-					authorinoResources.GetSubjectForRoleBinding(*sa),
+					authorinoResources.GetSubjectForRoleBinding(sa),
 				))
 			}).WithContext(ctx).Should(Succeed())
 		})
 	})
-})
-
-var _ = Describe("Detect Authorino old version", func() {
-	// old authorino versions
-	Expect(detectEnvVarAuthorinoVersion("v0.9.0")).To(BeTrue())
-	Expect(detectEnvVarAuthorinoVersion("v0.10.0")).To(BeTrue())
-	Expect(detectEnvVarAuthorinoVersion("v0.10.11")).To(BeTrue())
-
-	// new authorino versions
-	Expect(detectEnvVarAuthorinoVersion("v0.11.0")).To(BeFalse())
-
-	// undetectable authorino versions
-	Expect(detectEnvVarAuthorinoVersion("latest")).To(BeFalse())
-	Expect(detectEnvVarAuthorinoVersion("3ba0baa64b9b86a0a197e28fcb269a07cbae8e04")).To(BeFalse())
-	Expect(detectEnvVarAuthorinoVersion("git-ref-name")).To(BeFalse())
-	Expect(detectEnvVarAuthorinoVersion("very.weird.version")).To(BeFalse())
 })
 
 func newExtServerConfigMap() *k8score.ConfigMap {

@@ -36,7 +36,7 @@ func (r *AuthorinoReconciler) updateStatusConditions(logger logr.Logger, authori
 	var updated bool
 	authorino.Status.Conditions, updated = condition.AddOrUpdateStatusConditions(authorino.Status.Conditions, newConditions...)
 	if !updated {
-		logger.Info("Authorino status conditions not changed")
+		logger.V(1).Info("Authorino status conditions not changed")
 		return nil
 	}
 	return r.Client.Status().Update(context.TODO(), authorino)

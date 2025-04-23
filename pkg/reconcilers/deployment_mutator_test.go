@@ -1,6 +1,7 @@
 package reconcilers
 
 import (
+	"reflect"
 	"testing"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -410,4 +411,170 @@ func TestDeploymentMutator(t *testing.T) {
 				existing.Spec.Template.Spec.Containers[0].Image)
 		}
 	})
+}
+
+func TestDetectEnvVarAuthorinoVersion(t *testing.T) {
+	tests := []struct {
+		version  string
+		expected bool
+	}{
+		{
+			version:  "v0.9.0",
+			expected: true,
+		},
+		{
+			version:  "v0.10.0",
+			expected: true,
+		},
+		{
+			version:  "v0.10.11",
+			expected: true,
+		},
+		{
+			version:  "v0.11.0",
+			expected: false,
+		},
+		{
+			version:  "latest",
+			expected: false,
+		},
+		{
+			version:  "3ba0baa64b9b86a0a197e28fcb269a07cbae8e04",
+			expected: false,
+		},
+		{
+			version:  "git-ref-name",
+			expected: false,
+		},
+		{
+			version:  "very.weird.version",
+			expected: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.version, func(subT *testing.T) {
+			res := detectEnvVarAuthorinoVersion(tt.version)
+			if res != tt.expected {
+				subT.Errorf("expected: %t, got: %t", tt.expected, res)
+			}
+		})
+	}
+}
+
+func TestDeploymentImagePullPolicyMutator(t *testing.T) {
+	t.Run("same imagepullpolicy", func(subT *testing.T) {
+		desired := &appsv1.Deployment{}
+		desired.Spec.Template.Spec.Containers = []corev1.Container{
+			{
+				ImagePullPolicy: corev1.PullAlways,
+			},
+		}
+		existing := &appsv1.Deployment{}
+		existing.Spec.Template.Spec.Containers = []corev1.Container{
+			{
+				ImagePullPolicy: corev1.PullAlways,
+			},
+		}
+
+		update := DeploymentImagePullPolicyMutator(desired, existing)
+		if update {
+			subT.Error("expected no update")
+		}
+	})
+
+	t.Run("diff imagepullpolicy", func(subT *testing.T) {
+		desired := &appsv1.Deployment{}
+		desired.Spec.Template.Spec.Containers = []corev1.Container{
+			{
+				ImagePullPolicy: corev1.PullAlways,
+			},
+		}
+		existing := &appsv1.Deployment{}
+		existing.Spec.Template.Spec.Containers = []corev1.Container{
+			{
+				ImagePullPolicy: corev1.PullNever,
+			},
+		}
+
+		update := DeploymentImagePullPolicyMutator(desired, existing)
+		if !update {
+			subT.Error("expected update")
+		}
+
+		if existing.Spec.Template.Spec.Containers[0].ImagePullPolicy != corev1.PullAlways {
+			subT.Error("expected pullalways")
+		}
+	})
+}
+
+func TestDeploymentContainerArgsMutator(t *testing.T) {
+	deployment := &appsv1.Deployment{
+		Spec: appsv1.DeploymentSpec{
+			Template: corev1.PodTemplateSpec{
+				Spec: corev1.PodSpec{Containers: []corev1.Container{{}}},
+			},
+		},
+	}
+
+	tests := []struct {
+		name           string
+		expectedUpdate bool
+		existingArgs   []string
+		desiredArgs    []string
+		expectedArgs   []string
+	}{
+		{
+			name:           "nil args",
+			expectedUpdate: false,
+			existingArgs:   nil,
+			desiredArgs:    nil,
+			expectedArgs:   nil,
+		},
+		{
+			name:           "empty args",
+			expectedUpdate: false,
+			existingArgs:   []string{},
+			desiredArgs:    []string{},
+			expectedArgs:   []string{},
+		},
+		{
+			name:           "same args",
+			expectedUpdate: false,
+			existingArgs:   []string{"a", "b", "c"},
+			desiredArgs:    []string{"a", "b", "c"},
+			expectedArgs:   []string{"a", "b", "c"},
+		},
+		{
+			name:           "different args",
+			expectedUpdate: true,
+			existingArgs:   []string{"a", "b"},
+			desiredArgs:    []string{"c"},
+			expectedArgs:   []string{"c"},
+		},
+		{
+			name:           "same args different order",
+			expectedUpdate: false,
+			existingArgs:   []string{"a", "b"},
+			desiredArgs:    []string{"b", "a"},
+			expectedArgs:   []string{"a", "b"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(subT *testing.T) {
+			existing := deployment.DeepCopy()
+			existing.Spec.Template.Spec.Containers[0].Args = tt.existingArgs
+			desired := deployment.DeepCopy()
+			desired.Spec.Template.Spec.Containers[0].Args = tt.desiredArgs
+
+			update := DeploymentContainerArgsMutator(desired, existing)
+			if update != tt.expectedUpdate {
+				subT.Fatalf("expected: %t, got: %t", tt.expectedUpdate, update)
+			}
+
+			existingArgs := existing.Spec.Template.Spec.Containers[0].Args
+			if !reflect.DeepEqual(existingArgs, tt.expectedArgs) {
+				subT.Fatalf("expected: %v, got: %v", tt.expectedArgs, existingArgs)
+			}
+		})
+	}
 }

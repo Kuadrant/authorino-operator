@@ -2,6 +2,8 @@ package reconcilers
 
 import (
 	"context"
+	"testing"
+
 	appsv1 "k8s.io/api/apps/v1"
 	k8score "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -11,7 +13,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
-	"testing"
 
 	api "github.com/kuadrant/authorino-operator/api/v1beta1"
 )
@@ -75,13 +76,12 @@ func TestReconcileService(t *testing.T) {
 		}
 
 		r, ctx := setupTestEnvironment(t, []client.Object{authorinoInstance, existingService})
-		logger := log.FromContext(ctx)
 
 		newLabels := map[string]string{"new-label": "new-value"}
 		desiredService := existingService.DeepCopy()
 		desiredService.Spec.Selector = newLabels
 		desiredService.Labels = newLabels
-		err := r.reconcileService(ctx, logger, desiredService, ServiceMutator(LabelsMutator, PortMutator, SelectorMutator), authorinoInstance)
+		err := r.reconcileService(ctx, desiredService, ServiceMutator(LabelsMutator, PortMutator, SelectorMutator), authorinoInstance)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}

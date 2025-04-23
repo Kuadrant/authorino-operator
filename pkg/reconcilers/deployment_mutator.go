@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"reflect"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -18,6 +19,10 @@ import (
 
 // MutateFn is a function which mutates the existing object into it's desired state.
 type MutateFn func(desired, existing client.Object) (bool, error)
+
+func CreateOnlyMutator(_, _ client.Object) (bool, error) {
+	return false, nil
+}
 
 // DeploymentMutateFn is a function which mutates the existing Deployment into it's desired state.
 type DeploymentMutateFn func(desired, existing *k8sapps.Deployment) bool
@@ -88,15 +93,79 @@ func DeploymentImageMutator(desired, existing *k8sapps.Deployment) bool {
 	return update
 }
 
-func DeploymentVolumesMutator(desired, existing *k8sapps.Deployment) bool {
+func DeploymentImagePullPolicyMutator(desired, existing *k8sapps.Deployment) bool {
 	update := false
 
-	if !reflect.DeepEqual(existing.Spec.Template.Spec.Volumes, desired.Spec.Template.Spec.Volumes) {
-		existing.Spec.Template.Spec.Volumes = desired.Spec.Template.Spec.Volumes
+	if existing == nil {
+		return false
+	}
+
+	if len(existing.Spec.Template.Spec.Containers) < 1 ||
+		len(desired.Spec.Template.Spec.Containers) < 1 {
+		return false
+	}
+
+	if existing.Spec.Template.Spec.Containers[0].ImagePullPolicy != desired.Spec.Template.Spec.Containers[0].ImagePullPolicy {
+		existing.Spec.Template.Spec.Containers[0].ImagePullPolicy = desired.Spec.Template.Spec.Containers[0].ImagePullPolicy
 		update = true
 	}
 
 	return update
+}
+
+func DeploymentContainerArgsMutator(desired, existing *k8sapps.Deployment) bool {
+	update := false
+
+	if existing == nil {
+		return false
+	}
+
+	if len(existing.Spec.Template.Spec.Containers) < 1 ||
+		len(desired.Spec.Template.Spec.Containers) < 1 {
+		return false
+	}
+
+	existingArgs := existing.Spec.Template.Spec.Containers[0].DeepCopy().Args
+	desiredArgs := desired.Spec.Template.Spec.Containers[0].DeepCopy().Args
+
+	existingArgsSortable := sort.StringSlice(existingArgs)
+	existingArgsSortable.Sort()
+	desiredArgsSortable := sort.StringSlice(desiredArgs)
+	desiredArgsSortable.Sort()
+
+	if strings.Join(existingArgsSortable, " ") != strings.Join(desiredArgsSortable, " ") {
+		existing.Spec.Template.Spec.Containers[0].Args = desired.Spec.Template.Spec.Containers[0].Args
+		update = true
+	}
+
+	return update
+}
+
+func DeploymentVolumesMutator(desired, existing *k8sapps.Deployment) bool {
+	existingVolumes := existing.Spec.Template.Spec.DeepCopy().Volumes
+	desiredVolumes := desired.Spec.Template.Spec.DeepCopy().Volumes
+
+	if len(existingVolumes) != len(desiredVolumes) {
+		existing.Spec.Template.Spec.Volumes = desired.Spec.Template.Spec.Volumes
+		return true
+	}
+
+	sort.Slice(existingVolumes, func(i, j int) bool {
+		return existingVolumes[i].Name < existingVolumes[j].Name
+	})
+
+	sort.Slice(desiredVolumes, func(i, j int) bool {
+		return desiredVolumes[i].Name < desiredVolumes[j].Name
+	})
+
+	for i, desiredVolume := range desiredVolumes {
+		if existingVolumes[i].Name != desiredVolume.Name { // comparing only the names has limitation, but more reliable than using reflect.DeepEqual or comparing the marshalled version of the resources
+			existing.Spec.Template.Spec.Volumes = desired.Spec.Template.Spec.Volumes
+			return true
+		}
+	}
+
+	return false
 }
 
 func DeploymentVolumeMountsMutator(desired, existing *k8sapps.Deployment) bool {
@@ -147,6 +216,16 @@ func IsObjectTaggedToDelete(obj client.Object) bool {
 
 	annotation, ok := annotations[DeleteTagAnnotation]
 	return ok && annotation == "true"
+}
+
+func TagObjectToDelete(obj client.Object) {
+	// Add custom annotation
+	annotations := obj.GetAnnotations()
+	if annotations == nil {
+		annotations = make(map[string]string)
+		obj.SetAnnotations(annotations)
+	}
+	annotations[DeleteTagAnnotation] = "true"
 }
 
 func AuthorinoDeployment(authorino *api.Authorino) *k8sapps.Deployment {

@@ -19,16 +19,14 @@ package controllers
 import (
 	"context"
 	"fmt"
-	"regexp"
-	"strconv"
-	"strings"
 
+	"github.com/go-logr/logr"
 	k8sapps "k8s.io/api/apps/v1"
 	k8score "k8s.io/api/core/v1"
-	k8srbac "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	api "github.com/kuadrant/authorino-operator/api/v1beta1"
 	"github.com/kuadrant/authorino-operator/pkg/reconcilers"
@@ -64,42 +62,72 @@ type AuthorinoReconciler struct {
 // Reconcile deploys an instance of authorino depending on the settings
 // defined in the API, any change applied to the existing CRs will trigger
 // a new reconciliation to apply the required changes
-func (r *AuthorinoReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (r *AuthorinoReconciler) Reconcile(eventCtx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := r.Log.WithValues("authorino", req.NamespacedName)
+	logger.V(1).Info("Reconciling authorino")
+	ctx := logr.NewContext(eventCtx, logger)
 
-	// Retrieve Authorino instance
-	authorinoInstance, err := r.getAuthorinoInstance(req.NamespacedName)
+	// Fetch the instance
+	authorinoInstance := &api.Authorino{}
+	err := r.Get(ctx, req.NamespacedName, authorinoInstance)
 	if err != nil {
+		if errors.IsNotFound(err) {
+			// Request object not found, could have been deleted after reconcile request.
+			// Owned objects are automatically garbage collected. For additional cleanup logic use finalizers.
+			// Return and don't requeue
+			logger.Info("resource not found. Ignoring since object must have been deleted")
+			return ctrl.Result{}, nil
+		}
+		// Error reading the object - requeue the request.
 		logger.Error(err, "Unable to get Authorino CR")
 		return ctrl.Result{}, err
 	}
 
-	// If the Authorino instance is not found, returns the reconcile request.
-	if authorinoInstance == nil {
-		logger.Info("Authorino instance not found. returning the reconciler")
+	// authorino has been marked for deletion
+	if authorinoInstance.GetDeletionTimestamp() != nil && controllerutil.ContainsFinalizer(authorinoInstance, authorinoFinalizer) {
+		r.cleanupClusterScopedPermissions(ctx, req.NamespacedName, authorinoInstance.Labels)
+
+		controllerutil.RemoveFinalizer(authorinoInstance, authorinoFinalizer)
+		err = r.Client.Update(ctx, authorinoInstance)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+
 		return ctrl.Result{}, nil
 	}
 
-	logger.V(1).Info("Found an instance of authorino", "authorinoInstanceName", authorinoInstance.Name)
+	// Ignore deleted resource, this can happen when foregroundDeletion is enabled
+	// https://kubernetes.io/docs/concepts/workloads/controllers/garbage-collection/#foreground-cascading-deletion
+	if authorinoInstance.DeletionTimestamp != nil {
+		return ctrl.Result{}, nil
+	}
+
+	if !controllerutil.ContainsFinalizer(authorinoInstance, authorinoFinalizer) {
+		controllerutil.AddFinalizer(authorinoInstance, authorinoFinalizer)
+		err = r.Client.Update(ctx, authorinoInstance)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+		return ctrl.Result{}, nil
+	}
 
 	if err := r.installationPreflightCheck(authorinoInstance); err != nil {
 		return ctrl.Result{Requeue: true}, err
 	}
 
-	if err := r.ReconcileAuthorinoServices(ctx, logger, authorinoInstance); err != nil {
+	if err := r.ReconcileAuthorinoServices(ctx, authorinoInstance); err != nil {
 		return ctrl.Result{}, err
 	}
 
-	sa, err := r.createAuthorinoServiceAccount(authorinoInstance)
-	if err != nil {
+	if err := r.ReconcileAuthorinoServiceAccount(ctx, authorinoInstance); err != nil {
 		return ctrl.Result{}, err
 	}
 
-	if err := r.ReconcileAuthorinoPermissions(ctx, logger, authorinoInstance, *sa); err != nil {
+	if err := r.ReconcileAuthorinoPermissions(ctx, authorinoInstance); err != nil {
 		return ctrl.Result{}, err
 	}
 
-	if err := r.ReconcileAuthorinoDeployment(ctx, logger, authorinoInstance); err != nil {
+	if err := r.ReconcileAuthorinoDeployment(ctx, authorinoInstance); err != nil {
 		return ctrl.Result{}, err
 	}
 
@@ -114,71 +142,15 @@ func (r *AuthorinoReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
-func (r *AuthorinoReconciler) getAuthorinoInstance(namespacedName types.NamespacedName) (*api.Authorino, error) {
-	authorinoInstance := &api.Authorino{}
-	err := r.Get(context.TODO(), namespacedName, authorinoInstance)
-	if err != nil {
-		if errors.IsNotFound(err) {
-			r.Log.Info("Authorino CR not found.")
-			r.cleanupClusterScopedPermissions(context.Background(), namespacedName, authorinoInstance.Labels)
-			return nil, nil
-		}
-		return nil, err
-	}
-	return authorinoInstance, nil
-}
-
-func (r *AuthorinoReconciler) createAuthorinoServiceAccount(authorino *api.Authorino) (*k8score.ServiceAccount, error) {
-	var logger = r.Log
-	sa := authorinoResources.GetAuthorinoServiceAccount(authorino.Namespace, authorino.Name, authorino.Labels)
-	if err := r.Get(context.TODO(), namespacedName(sa.Namespace, sa.Name), sa); err != nil {
-		if errors.IsNotFound(err) {
-			// ServiceAccount doesn't exit - create one
-			_ = ctrl.SetControllerReference(authorino, sa, r.Scheme)
-			if err := r.Client.Create(context.TODO(), sa); err != nil {
-				return nil, r.WrapErrorWithStatusUpdate(
-					logger, authorino, r.SetStatusFailed(statusUnableToCreateServiceAccount),
-					fmt.Errorf("failed to create %s ServiceAccount, err: %v", sa.Name, err),
-				)
-			}
-		}
-		return nil, r.WrapErrorWithStatusUpdate(
-			logger, authorino, r.SetStatusFailed(statusUnableToGetServiceAccount),
-			fmt.Errorf("failed to get %s ServiceAccount, err: %v", sa.Name, err),
-		)
-	}
-	// ServiceAccount exists
-	return sa, nil
-}
-
+// TODO: this method should return error
 func (r *AuthorinoReconciler) cleanupClusterScopedPermissions(ctx context.Context, crNamespacedName types.NamespacedName, labels map[string]string) {
 	crName := crNamespacedName.Name
 	sa := authorinoResources.GetAuthorinoServiceAccount(crNamespacedName.Namespace, crName, labels)
 
 	// we only care about cluster-scoped role bindings for the cleanup
 	// namespaced ones are garbage collected automatically by k8s because of the owner reference
-	r.unboundAuthorinoServiceAccountFromClusterRole(ctx, authorinoManagerClusterRoleBindingName, sa)
-	r.unboundAuthorinoServiceAccountFromClusterRole(ctx, authorinoK8sAuthClusterRoleBindingName, sa)
-}
-
-// remove SA from list of subjects of the clusterrolebinding
-func (r *AuthorinoReconciler) unboundAuthorinoServiceAccountFromClusterRole(ctx context.Context, roleBindingName string, sa *k8score.ServiceAccount) {
-	var logger = r.Log
-	roleBinding := &k8srbac.ClusterRoleBinding{}
-	if err := r.Client.Get(ctx, types.NamespacedName{Name: roleBindingName}, roleBinding); err == nil {
-		staleSubject := authorinoResources.GetSubjectForRoleBinding(*sa)
-		var subjects []k8srbac.Subject
-		for _, subject := range roleBinding.Subjects {
-			if subject.Kind != staleSubject.Kind || subject.Name != staleSubject.Name || subject.Namespace != staleSubject.Namespace {
-				subjects = append(subjects, subject)
-			}
-		}
-		// FIXME: This is subject to race condition. The list of subjects may be outdated under concurrent updates
-		roleBinding.Subjects = subjects
-		if err = r.Client.Update(ctx, roleBinding); err != nil {
-			logger.Error(err, "failed to cleanup subject from authorino role binding", "roleBinding", roleBinding, "subject", staleSubject)
-		}
-	}
+	r.UnboundAuthorinoServiceAccountFromClusterRole(ctx, reconcilers.AuthorinoManagerClusterRoleBindingName, sa)
+	r.UnboundAuthorinoServiceAccountFromClusterRole(ctx, reconcilers.AuthorinoK8sAuthClusterRoleBindingName, sa)
 }
 
 func (r *AuthorinoReconciler) installationPreflightCheck(authorino *api.Authorino) error {
@@ -222,15 +194,4 @@ func (r *AuthorinoReconciler) installationPreflightCheck(authorino *api.Authorin
 
 func namespacedName(namespace, name string) types.NamespacedName {
 	return types.NamespacedName{Namespace: namespace, Name: name}
-}
-
-// Detects possible old Authorino version (<= v0.10.x) configurable with deprecated environemnt variables (instead of command-line args)
-func detectEnvVarAuthorinoVersion(version string) bool {
-	if match, err := regexp.MatchString(`v0\.(\d)+\..+`, version); err != nil || !match {
-		return false
-	}
-
-	parts := strings.Split(version, ".")
-	minor, err := strconv.Atoi(parts[1])
-	return err == nil && minor <= 10
 }
