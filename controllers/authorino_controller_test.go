@@ -16,6 +16,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/utils/env"
+	"k8s.io/utils/pointer"
 	controllerruntime "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -359,6 +360,38 @@ var _ = Describe("Authorino controller", func() {
 			}).WithContext(ctx).Should(Succeed())
 		})
 	})
+
+	Context("Authorino with part TLS enabled", func() {
+		var authorinoInstance *api.Authorino
+
+		BeforeEach(func(ctx context.Context) {
+			authorinoInstance = newFullAuthorinoInstance()
+		})
+
+		It("Should create deployment when only listener tls is enabled", func(ctx context.Context) {
+			authorinoInstance.Spec.OIDCServer.Tls.Enabled = pointer.Bool(false)
+
+			Expect(k8sClient.Create(ctx, authorinoInstance)).Should(Succeed())
+
+			deployment := &k8sapps.Deployment{}
+			nsdName := namespacedName(testAuthorinoNamespace, authorinoInstance.Name)
+			Eventually(func(ctx context.Context) error {
+				return k8sClient.Get(ctx, nsdName, deployment)
+			}).WithContext(ctx).Should(Succeed())
+		})
+
+		It("Should create deployment when only oidc tls is enabled", func(ctx context.Context) {
+			authorinoInstance.Spec.Listener.Tls.Enabled = pointer.Bool(false)
+
+			Expect(k8sClient.Create(ctx, authorinoInstance)).Should(Succeed())
+
+			deployment := &k8sapps.Deployment{}
+			nsdName := namespacedName(testAuthorinoNamespace, authorinoInstance.Name)
+			Eventually(func(ctx context.Context) error {
+				return k8sClient.Get(ctx, nsdName, deployment)
+			}).WithContext(ctx).Should(Succeed())
+		})
+	})
 })
 
 func newExtServerConfigMap() *k8score.ConfigMap {
@@ -378,11 +411,9 @@ func newFullAuthorinoInstance() *api.Authorino {
 	image := reconcilers.DefaultAuthorinoImage
 	replicas := int32(testAuthorinoReplicas)
 	tslEnable := true
-	tlsDisabled := false
 	portGRPC := int32(30051)
 	portHTTP := int32(3000)
 	cacheSize := 10
-	secretName := "bkabk"
 	label := "authorino"
 	return &api.Authorino{
 		ObjectMeta: v1.ObjectMeta{
@@ -417,7 +448,10 @@ func newFullAuthorinoInstance() *api.Authorino {
 			EvaluatorCacheSize:       &cacheSize,
 			Listener: api.Listener{
 				Tls: api.Tls{
-					Enabled: &tlsDisabled,
+					Enabled: &tslEnable,
+					CertSecret: &k8score.LocalObjectReference{
+						Name: testCertSecretName,
+					},
 				},
 				Ports: api.Ports{
 					GRPC: &portGRPC,
@@ -429,7 +463,7 @@ func newFullAuthorinoInstance() *api.Authorino {
 				Tls: api.Tls{
 					Enabled: &tslEnable,
 					CertSecret: &k8score.LocalObjectReference{
-						Name: secretName,
+						Name: testCertSecretName,
 					},
 				},
 			},

@@ -301,7 +301,7 @@ func AuthorinoDeployment(authorino *api.Authorino) *k8sapps.Deployment {
 	// mount tls cert volume for the oidc listener if enabled
 	if enabled := authorino.Spec.OIDCServer.Tls.Enabled; enabled == nil || *enabled {
 		secretName := authorino.Spec.OIDCServer.Tls.CertSecret.Name
-		volumeMounts = append(volumeMounts, authorinoResources.GetTlsVolumeMount(AuthorinoOidcTlsCertVolumeName, DefaultTlsCertPath, DefaultOidcTlsCertKeyPath)...)
+		volumeMounts = append(volumeMounts, authorinoResources.GetTlsVolumeMount(AuthorinoOidcTlsCertVolumeName, DefaultOidcTlsCertPath, DefaultOidcTlsCertKeyPath)...)
 		volumes = append(volumes, authorinoResources.GetTlsVolume(AuthorinoOidcTlsCertVolumeName, secretName))
 	}
 
