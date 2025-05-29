@@ -46,6 +46,8 @@ var testEnv *envtest.Environment
 var cancel context.CancelFunc
 var ctx = context.Background()
 
+const testCertSecretName = "bkabk"
+
 func TestAPIs(t *testing.T) {
 	RegisterFailHandler(Fail)
 
@@ -124,7 +126,7 @@ func getAuthorinoClusterRole(clusterRoleName string) *k8srbac.ClusterRole {
 func newCertSecret() *k8score.Secret {
 	return &k8score.Secret{
 		ObjectMeta: v1.ObjectMeta{
-			Name:      "bkabk",
+			Name:      testCertSecretName,
 			Namespace: testAuthorinoNamespace,
 		},
 	}
