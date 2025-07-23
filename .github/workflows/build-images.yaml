@@ -31,7 +31,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Add latest tag
         if: ${{ github.ref_name == env.MAIN_BRANCH_NAME }}
         id: add-latest-tag
@@ -90,13 +90,13 @@ jobs:
     runs-on: ubuntu-latest
     if: github.ref_name == 'main' || startsWith(github.ref, 'refs/tags/v') # We cannot use `env.MAIN_BRANCH_NAME` because `env` context is not available to `job.if`. See https://docs.github.com/en/actions/learn-github-actions/contexts#context-availability
     steps:
-      - name: Set up Go 1.23.x
+      - name: Check out code
+        uses: actions/checkout@v4
+      - name: Set up Go
         uses: actions/setup-go@v4
         with:
-          go-version: 1.23.x
+          go-version-file: go.mod
         id: go
-      - name: Check out code
-        uses: actions/checkout@v3
       - name: Add latest tag
         if: ${{ github.ref_name == env.MAIN_BRANCH_NAME }}
         id: add-latest-tag
@@ -160,17 +160,17 @@ jobs:
 
   build-catalog:
     name: Build and push catalog image
-    needs: [build, build-bundle]
+    needs: [ build, build-bundle ]
     runs-on: ubuntu-latest
     if: github.ref_name == 'main' || startsWith(github.ref, 'refs/tags/v') # We cannot use `env.MAIN_BRANCH_NAME` because `env` context is not available to `job.if`. See https://docs.github.com/en/actions/learn-github-actions/contexts#context-availability
     steps:
-      - name: Set up Go 1.23.x
+      - name: Check out code
+        uses: actions/checkout@v4
+      - name: Set up Go
         uses: actions/setup-go@v4
         with:
-          go-version: 1.23.x
+          go-version-file: go.mod
         id: go
-      - name: Check out code
-        uses: actions/checkout@v3
       - name: Add latest tag
         if: ${{ github.ref_name == env.MAIN_BRANCH_NAME }}
         id: add-latest-tag

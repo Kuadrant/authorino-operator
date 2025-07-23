@@ -27,42 +27,42 @@ jobs:
     name: Release operator
     runs-on: ubuntu-latest
     steps:
-    - name: Install gettext-base
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y gettext-base
-    - name: Set up Go 1.23.x
-      uses: actions/setup-go@v4
-      with:
-        go-version: 1.23.x
-      id: go
-    - name: Checkout code at git ref
-      uses: actions/checkout@v3
-      with:
-        ref: ${{ github.event.inputs.gitRef }}
-    - name: Create release branch
-      if: ${{ !startsWith(github.event.inputs.gitRef, 'release-v') }}
-      run: |
-        git checkout -b release-v${{ github.event.inputs.operatorVersion }}
-    - name: Prepare release
-      run: |
-        VERSION=${{ github.event.inputs.operatorVersion }} \
-        AUTHORINO_VERSION=${{ github.event.inputs.authorinoVersion }} \
-        CHANNELS=${{ github.event.inputs.channels }} \
-        DEFAULT_CHANNEL=stable \
-        make prepare-release
-    - name: Commit and push
-      run: |
-        git config --global user.name "github-actions[bot]"
-        git config --global user.email "github-actions[bot]@users.noreply.github.com"
-        git add -A && git commit -m "Prepared release v${{ github.event.inputs.operatorVersion }}"
-        git push origin release-v${{ github.event.inputs.operatorVersion }}
-    - name: Create release
-      uses: softprops/action-gh-release@v1
-      with:
-        name: v${{ github.event.inputs.operatorVersion }}
-        tag_name: v${{ github.event.inputs.operatorVersion }}
-        body: "**This release enables installations of Authorino v${{ github.event.inputs.authorinoVersion }}**"
-        generate_release_notes: true
-        target_commitish: release-v${{ github.event.inputs.operatorVersion }}
-        prerelease: ${{ github.event.inputs.prerelease }}
+      - name: Install gettext-base
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gettext-base
+      - name: Checkout code at git ref
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.gitRef }}
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version-file: go.mod
+        id: go
+      - name: Create release branch
+        if: ${{ !startsWith(github.event.inputs.gitRef, 'release-v') }}
+        run: |
+          git checkout -b release-v${{ github.event.inputs.operatorVersion }}
+      - name: Prepare release
+        run: |
+          VERSION=${{ github.event.inputs.operatorVersion }} \
+          AUTHORINO_VERSION=${{ github.event.inputs.authorinoVersion }} \
+          CHANNELS=${{ github.event.inputs.channels }} \
+          DEFAULT_CHANNEL=stable \
+          make prepare-release
+      - name: Commit and push
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A && git commit -m "Prepared release v${{ github.event.inputs.operatorVersion }}"
+          git push origin release-v${{ github.event.inputs.operatorVersion }}
+      - name: Create release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: v${{ github.event.inputs.operatorVersion }}
+          tag_name: v${{ github.event.inputs.operatorVersion }}
+          body: "**This release enables installations of Authorino v${{ github.event.inputs.authorinoVersion }}**"
+          generate_release_notes: true
+          target_commitish: release-v${{ github.event.inputs.operatorVersion }}
+          prerelease: ${{ github.event.inputs.prerelease }}
