@@ -232,7 +232,7 @@ test: manifests generate fmt vet setup-envtest ## Run the tests.
 
 build: GIT_SHA=$(shell git rev-parse HEAD || echo "unknown")
 build: DIRTY=$(shell $(PROJECT_DIR)/utils/check-git-dirty.sh || echo "unknown")
-build: generate fmt vet ## Build manager binary.
+build: generate fmt vet $(YQ) ## Build manager binary.
 	go build -ldflags "-X main.version=$(VERSION) -X main.gitSHA=${GIT_SHA} -X main.dirty=${DIRTY} -X github.com/kuadrant/authorino-operator/pkg/reconcilers.DefaultAuthorinoImage=$(ACTUAL_DEFAULT_AUTHORINO_IMAGE)" -o bin/manager main.go
 
 run: GIT_SHA=$(shell git rev-parse HEAD || echo "unknown")
