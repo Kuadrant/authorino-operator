@@ -32,7 +32,14 @@ func NewMetricsService(authorinoName, serviceNamespace string, port int32, label
 	if port != 0 {
 		ports = append(ports, newServicePort("http", port))
 	}
-	return newService("controller-metrics", serviceNamespace, authorinoName, labels, ports...)
+
+	metricLabels := CopyMap(labels)
+	MergeMapStringString(&metricLabels, defaultAuthorinoLabels(authorinoName))
+	metricLabels["app.kubernetes.io/component"] = "metrics"
+	metricLabels["app.kubernetes.io/part-of"] = "authorino"
+	metricLabels["app.kubernetes.io/managed-by"] = "authorino-operator"
+
+	return newService("controller-metrics", serviceNamespace, authorinoName, metricLabels, ports...)
 }
 
 func EqualServices(s1, s2 *k8score.Service) bool {

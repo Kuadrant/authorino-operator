@@ -61,7 +61,6 @@ var _ = Describe("Authorino controller", func() {
 		It("Should create authorino required services", func(ctx context.Context) {
 			desiredServices := []*k8score.Service{
 				authorinoResources.NewOIDCService(authorinoInstance.Name, authorinoInstance.Namespace, reconcilers.DefaultOIDCServicePort, authorinoInstance.Labels),
-				authorinoResources.NewMetricsService(authorinoInstance.Name, authorinoInstance.Namespace, reconcilers.DefaultMetricsServicePort, authorinoInstance.Labels),
 				authorinoResources.NewAuthService(authorinoInstance.Name, authorinoInstance.Namespace, reconcilers.DefaultAuthGRPCServicePort, reconcilers.DefaultAuthHTTPServicePort, authorinoInstance.Labels),
 			}
 
@@ -79,6 +78,20 @@ var _ = Describe("Authorino controller", func() {
 				Expect(clusterService.Spec.Selector).Should(HaveKeyWithValue("control-plane", "controller-manager"))
 				Expect(clusterService.Spec.Selector).Should(HaveKeyWithValue("authorino-resource", authorinoInstance.Name))
 			}
+
+			metricsService := authorinoResources.NewMetricsService(authorinoInstance.Name, authorinoInstance.Namespace, reconcilers.DefaultMetricsServicePort, authorinoInstance.Labels)
+			clusterService := &k8score.Service{}
+			nsdName := namespacedName(metricsService.GetNamespace(), metricsService.GetName())
+			Eventually(func(ctx context.Context) error {
+				return k8sClient.Get(ctx, nsdName, clusterService)
+			}).WithContext(ctx).Should(Succeed())
+
+			Expect(clusterService.Labels).Should(HaveKeyWithValue("control-plane", "controller-manager"))
+			Expect(clusterService.Labels).Should(HaveKeyWithValue("authorino-resource", authorinoInstance.Name))
+			Expect(clusterService.Labels).Should(HaveKeyWithValue("app.kubernetes.io/component", "metrics"))
+			Expect(clusterService.Labels).Should(HaveKeyWithValue("thisLabel", "willPropagate"))
+			Expect(clusterService.Spec.Selector).Should(HaveKeyWithValue("control-plane", "controller-manager"))
+			Expect(clusterService.Spec.Selector).Should(HaveKeyWithValue("authorino-resource", authorinoInstance.Name))
 		})
 
 		It("Should create authorino permission", func(ctx context.Context) {
