@@ -18,7 +18,9 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"os"
+	"runtime"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
@@ -26,7 +28,7 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
-	"k8s.io/apimachinery/pkg/runtime"
+	apimachineryruntime "k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -42,7 +44,7 @@ import (
 )
 
 var (
-	scheme   = runtime.NewScheme()
+	scheme   = apimachineryruntime.NewScheme()
 	setupLog = ctrl.Log.WithName("setup")
 	logger   log.Logger
 	version  string // value injected in compilation-time
@@ -96,7 +98,9 @@ func main() {
 		"version", version,
 		"commit", gitSHA,
 		"dirty", dirty,
-		"default authorino image", reconcilers.DefaultAuthorinoImage)
+		"default authorino image", reconcilers.DefaultAuthorinoImage,
+		"go version", runtime.Version(),
+		"go os/arch", fmt.Sprintf("%s/%s", runtime.GOOS, runtime.GOARCH))
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                 scheme,
