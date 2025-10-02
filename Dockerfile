@@ -24,7 +24,9 @@ ARG TARGETOS
 ARG TARGETARCH
 ARG TARGETVARIANT
 
-RUN CGO_ENABLED=0 GO111MODULE=on go build -a -ldflags "-X main.version=${OPERATOR_VERSION} -X main.gitSHA=${GIT_SHA} -X main.dirty=${DIRTY} -X github.com/kuadrant/authorino-operator/pkg/reconcilers.DefaultAuthorinoImage=${DEFAULT_AUTHORINO_IMAGE}" -o manager main.go
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} GOARM=${TARGETVARIANT} \
+    go build -a -ldflags "-X main.version=${OPERATOR_VERSION} -X main.gitSHA=${GIT_SHA} -X main.dirty=${DIRTY} -X github.com/kuadrant/authorino-operator/pkg/reconcilers.DefaultAuthorinoImage=${DEFAULT_AUTHORINO_IMAGE}" \
+    -o manager main.go
 
 # Use Red Hat minimal base image to package the binary
 # https://catalog.redhat.com/software/containers/ubi9-minimal
