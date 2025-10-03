@@ -49,7 +49,7 @@ jobs:
           tags: |
             type=raw,value=${{ github.sha }}
             type=raw,value=latest,enable={{is_default_branch}}
-            type=ref,event=branch,enable={{is_not_default_branch}}
+            type=raw,value=${{ github.ref_name }},enable={{is_not_default_branch}}
       - name: Install yq dependency
         run: make yq
       - name: Set default authorino image
@@ -113,7 +113,7 @@ jobs:
           tags: |
             type=raw,value=${{ github.sha }}
             type=raw,value=latest,enable={{is_default_branch}}
-            type=ref,event=branch,enable={{is_not_default_branch}}
+            type=raw,value=${{ github.ref_name }},enable={{is_not_default_branch}}
       - name: Run make bundle (main)
         if: ${{ github.ref_name == env.MAIN_BRANCH_NAME }}
         run: make bundle REGISTRY=${{ env.IMG_REGISTRY_HOST }} ORG=${{ env.IMG_REGISTRY_ORG }} IMAGE_TAG=${{ github.sha }} AUTHORINO_VERSION=${{ env.LATEST_AUTHORINO_GITREF }}
@@ -184,7 +184,7 @@ jobs:
           tags: |
             type=raw,value=${{ github.sha }}
             type=raw,value=latest,enable={{is_default_branch}}
-            type=ref,event=branch,enable={{is_not_default_branch}}
+            type=raw,value=${{ github.ref_name }},enable={{is_not_default_branch}}
       - name: Run make catalog (main)
         if: ${{ github.ref_name == env.MAIN_BRANCH_NAME }}
         run: |
