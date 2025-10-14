@@ -10,6 +10,8 @@ OPM_DOCKERFILE_TAG ?= latest
 $(CATALOG_DOCKERFILE): $(OPM)
 	-mkdir -p $(PROJECT_DIR)/catalog/authorino-operator-catalog
 	cd $(PROJECT_DIR)/catalog && $(OPM) generate dockerfile authorino-operator-catalog -b "quay.io/operator-framework/opm:${OPM_DOCKERFILE_TAG}" -i "quay.io/operator-framework/opm:${OPM_DOCKERFILE_TAG}"
+	# Inject --pprof-addr="" into both RUN and CMD serve invocations to disable running the pprof server
+	sed -i.bak -E '/(opm".*"serve|^CMD \["serve)/s#\]$$#, "--pprof-addr="]#' $(CATALOG_DOCKERFILE) && rm -f $(CATALOG_DOCKERFILE).bak
 catalog-dockerfile: $(CATALOG_DOCKERFILE) ## Generate catalog dockerfile.
 
 $(CATALOG_FILE): $(OPM) $(YQ)

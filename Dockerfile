@@ -1,6 +1,6 @@
 # Build the authorino binary
 # https://catalog.redhat.com/software/containers/ubi9/go-toolset
-FROM registry.access.redhat.com/ubi9/go-toolset:1.23 AS builder
+FROM --platform=$BUILDPLATFORM registry.access.redhat.com/ubi9/go-toolset:1.24 AS builder
 USER root
 WORKDIR /workspace
 
@@ -20,8 +20,13 @@ ARG OPERATOR_VERSION=latest
 ARG DEFAULT_AUTHORINO_IMAGE=quay.io/kuadrant/authorino:latest
 ARG GIT_SHA=unknown
 ARG DIRTY=unknown
+ARG TARGETOS
+ARG TARGETARCH
+ARG TARGETVARIANT
 
-RUN CGO_ENABLED=0 GO111MODULE=on go build -a -ldflags "-X main.version=${OPERATOR_VERSION} -X main.gitSHA=${GIT_SHA} -X main.dirty=${DIRTY} -X github.com/kuadrant/authorino-operator/pkg/reconcilers.DefaultAuthorinoImage=${DEFAULT_AUTHORINO_IMAGE}" -o manager main.go
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} GOARM=${TARGETVARIANT} \
+    go build -a -ldflags "-X main.version=${OPERATOR_VERSION} -X main.gitSHA=${GIT_SHA} -X main.dirty=${DIRTY} -X github.com/kuadrant/authorino-operator/pkg/reconcilers.DefaultAuthorinoImage=${DEFAULT_AUTHORINO_IMAGE}" \
+    -o manager main.go
 
 # Use Red Hat minimal base image to package the binary
 # https://catalog.redhat.com/software/containers/ubi9-minimal
