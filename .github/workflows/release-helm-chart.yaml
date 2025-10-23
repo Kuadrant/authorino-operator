@@ -6,6 +6,9 @@ on:
   release:
     types:
       - published
+  push:
+    tags:
+      - "v*.*.*"
   workflow_dispatch:
     inputs:
       operatorTag:
@@ -19,6 +22,19 @@ jobs:
       contents: write
 
     steps:
+      - name: Validate semver tag
+        id: validate
+        if: github.event_name == 'push'
+        run: |
+          TAG="${{ github.ref }}"
+          if [[ "$TAG" =~ ^refs/tags/v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.-]+)?$ ]]; then
+            echo "Valid semver tag: $TAG"
+          else
+            echo "::error::Invalid semver tag: $TAG"
+            echo "Expected a valid SemVer (https://semver.org/) format, i.e.: v1.2.3, v1.2.3-alpha1, v1.2.3-dev"
+            exit 1  
+          fi
+
       - name: Checkout
         uses: actions/checkout@v4
         with:
@@ -39,7 +55,7 @@ jobs:
 
       - name: Parse Tag
         run: |
-          tag=${{ github.event.release.tag_name || inputs.operatorTag }}
+          tag=${{ github.event.release.tag_name || github.ref_name || inputs.operatorTag }}
           echo "OPERATOR_VERSION=${tag#v}" >> $GITHUB_ENV
           echo "OPERATOR_TAG=${tag}" >> $GITHUB_ENV
 
