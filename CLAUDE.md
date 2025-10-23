@@ -95,9 +95,6 @@ make kind-create-cluster
 # Delete the local Kind cluster
 make kind-delete-cluster
 
-# Install dependencies (cert-manager required for webhooks)
-make install-cert-manager
-
 # Install the operator CRDs
 make install
 
