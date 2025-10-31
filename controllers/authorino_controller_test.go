@@ -81,8 +81,8 @@ var _ = Describe("Authorino controller", func() {
 				// Check owner reference
 				Expect(clusterService.GetOwnerReferences()).To(HaveLen(1))
 				ownerRef := clusterService.GetOwnerReferences()[0]
-				Expect(ownerRef.APIVersion).To(Equal(authorinoInstance.APIVersion))
-				Expect(ownerRef.Kind).To(Equal(authorinoInstance.Kind))
+				Expect(ownerRef.APIVersion).To(Equal(api.GroupVersion.String()))
+				Expect(ownerRef.Kind).To(Equal("Authorino"))
 				Expect(ownerRef.Name).To(Equal(authorinoInstance.Name))
 				Expect(ownerRef.UID).To(Equal(authorinoInstance.UID))
 				Expect(ownerRef.Controller).ToNot(BeNil())
@@ -106,8 +106,8 @@ var _ = Describe("Authorino controller", func() {
 			// Check owner reference
 			Expect(clusterService.GetOwnerReferences()).To(HaveLen(1))
 			ownerRef := clusterService.GetOwnerReferences()[0]
-			Expect(ownerRef.APIVersion).To(Equal(authorinoInstance.APIVersion))
-			Expect(ownerRef.Kind).To(Equal(authorinoInstance.Kind))
+			Expect(ownerRef.APIVersion).To(Equal(api.GroupVersion.String()))
+			Expect(ownerRef.Kind).To(Equal("Authorino"))
 			Expect(ownerRef.Name).To(Equal(authorinoInstance.Name))
 			Expect(ownerRef.UID).To(Equal(authorinoInstance.UID))
 			Expect(ownerRef.Controller).ToNot(BeNil())
@@ -189,8 +189,8 @@ var _ = Describe("Authorino controller", func() {
 			// Check deployment owner reference
 			Expect(deployment.GetOwnerReferences()).To(HaveLen(1))
 			deploymentOwnerRef := deployment.GetOwnerReferences()[0]
-			Expect(deploymentOwnerRef.APIVersion).To(Equal(authorinoInstance.APIVersion))
-			Expect(deploymentOwnerRef.Kind).To(Equal(authorinoInstance.Kind))
+			Expect(deploymentOwnerRef.APIVersion).To(Equal(api.GroupVersion.String()))
+			Expect(deploymentOwnerRef.Kind).To(Equal("Authorino"))
 			Expect(deploymentOwnerRef.Name).To(Equal(authorinoInstance.Name))
 			Expect(deploymentOwnerRef.UID).To(Equal(authorinoInstance.UID))
 			Expect(deploymentOwnerRef.Controller).ToNot(BeNil())
@@ -209,8 +209,8 @@ var _ = Describe("Authorino controller", func() {
 			// Check service account owner reference
 			Expect(sa.GetOwnerReferences()).To(HaveLen(1))
 			saOwnerRef := sa.GetOwnerReferences()[0]
-			Expect(saOwnerRef.APIVersion).To(Equal(authorinoInstance.APIVersion))
-			Expect(saOwnerRef.Kind).To(Equal(authorinoInstance.Kind))
+			Expect(saOwnerRef.APIVersion).To(Equal(api.GroupVersion.String()))
+			Expect(saOwnerRef.Kind).To(Equal("Authorino"))
 			Expect(saOwnerRef.Name).To(Equal(authorinoInstance.Name))
 			Expect(saOwnerRef.UID).To(Equal(authorinoInstance.UID))
 			Expect(saOwnerRef.Controller).ToNot(BeNil())
@@ -369,8 +369,8 @@ var _ = Describe("Authorino controller", func() {
 			// Check service account owner reference
 			Expect(sa.GetOwnerReferences()).To(HaveLen(1))
 			saOwnerRef := sa.GetOwnerReferences()[0]
-			Expect(saOwnerRef.APIVersion).To(Equal(authorinoInstance.APIVersion))
-			Expect(saOwnerRef.Kind).To(Equal(authorinoInstance.Kind))
+			Expect(saOwnerRef.APIVersion).To(Equal(api.GroupVersion.String()))
+			Expect(saOwnerRef.Kind).To(Equal("Authorino"))
 			Expect(saOwnerRef.Name).To(Equal(authorinoInstance.Name))
 			Expect(saOwnerRef.UID).To(Equal(authorinoInstance.UID))
 			Expect(saOwnerRef.Controller).ToNot(BeNil())
@@ -482,6 +482,10 @@ func newFullAuthorinoInstance() *api.Authorino {
 	cacheSize := 10
 	label := "authorino"
 	return &api.Authorino{
+		TypeMeta: v1.TypeMeta{
+			APIVersion: api.GroupVersion.String(),
+			Kind:       "Authorino",
+		},
 		ObjectMeta: v1.ObjectMeta{
 			Name:      name,
 			Namespace: testAuthorinoNamespace,
