@@ -77,6 +77,16 @@ var _ = Describe("Authorino controller", func() {
 
 				Expect(clusterService.Spec.Selector).Should(HaveKeyWithValue("control-plane", "controller-manager"))
 				Expect(clusterService.Spec.Selector).Should(HaveKeyWithValue("authorino-resource", authorinoInstance.Name))
+
+				// Check owner reference
+				Expect(clusterService.GetOwnerReferences()).To(HaveLen(1))
+				ownerRef := clusterService.GetOwnerReferences()[0]
+				Expect(ownerRef.APIVersion).To(Equal(authorinoInstance.APIVersion))
+				Expect(ownerRef.Kind).To(Equal(authorinoInstance.Kind))
+				Expect(ownerRef.Name).To(Equal(authorinoInstance.Name))
+				Expect(ownerRef.UID).To(Equal(authorinoInstance.UID))
+				Expect(ownerRef.Controller).ToNot(BeNil())
+				Expect(*ownerRef.Controller).To(BeTrue())
 			}
 
 			metricsService := authorinoResources.NewMetricsService(authorinoInstance.Name, authorinoInstance.Namespace, reconcilers.DefaultMetricsServicePort, authorinoInstance.Labels)
@@ -92,17 +102,19 @@ var _ = Describe("Authorino controller", func() {
 			Expect(clusterService.Labels).Should(HaveKeyWithValue("thisLabel", "willPropagate"))
 			Expect(clusterService.Spec.Selector).Should(HaveKeyWithValue("control-plane", "controller-manager"))
 			Expect(clusterService.Spec.Selector).Should(HaveKeyWithValue("authorino-resource", authorinoInstance.Name))
+
+			// Check owner reference
+			Expect(clusterService.GetOwnerReferences()).To(HaveLen(1))
+			ownerRef := clusterService.GetOwnerReferences()[0]
+			Expect(ownerRef.APIVersion).To(Equal(authorinoInstance.APIVersion))
+			Expect(ownerRef.Kind).To(Equal(authorinoInstance.Kind))
+			Expect(ownerRef.Name).To(Equal(authorinoInstance.Name))
+			Expect(ownerRef.UID).To(Equal(authorinoInstance.UID))
+			Expect(ownerRef.Controller).ToNot(BeNil())
+			Expect(*ownerRef.Controller).To(BeTrue())
 		})
 
 		It("Should create authorino permission", func(ctx context.Context) {
-			// service account
-			sa := authorinoResources.GetAuthorinoServiceAccount(testAuthorinoNamespace, authorinoInstance.Name, authorinoInstance.Labels)
-			nsdName := namespacedName(sa.GetNamespace(), sa.GetName())
-			Eventually(func(ctx context.Context) bool {
-				err := k8sClient.Get(ctx, nsdName, sa)
-				return err == nil
-			}).WithContext(ctx).Should(BeTrue())
-
 			// Authorino ClusterRoleBinding
 			var binding client.Object
 			var bindingNsdName types.NamespacedName
@@ -173,6 +185,37 @@ var _ = Describe("Authorino controller", func() {
 				}
 			}
 			Expect(existContainer).To(BeTrue())
+
+			// Check deployment owner reference
+			Expect(deployment.GetOwnerReferences()).To(HaveLen(1))
+			deploymentOwnerRef := deployment.GetOwnerReferences()[0]
+			Expect(deploymentOwnerRef.APIVersion).To(Equal(authorinoInstance.APIVersion))
+			Expect(deploymentOwnerRef.Kind).To(Equal(authorinoInstance.Kind))
+			Expect(deploymentOwnerRef.Name).To(Equal(authorinoInstance.Name))
+			Expect(deploymentOwnerRef.UID).To(Equal(authorinoInstance.UID))
+			Expect(deploymentOwnerRef.Controller).ToNot(BeNil())
+			Expect(*deploymentOwnerRef.Controller).To(BeTrue())
+		})
+
+		It("Should create authorino serviceaccount", func(ctx context.Context) {
+			// service account
+			sa := authorinoResources.GetAuthorinoServiceAccount(testAuthorinoNamespace, authorinoInstance.Name, authorinoInstance.Labels)
+			nsdName := namespacedName(sa.GetNamespace(), sa.GetName())
+			Eventually(func(ctx context.Context) bool {
+				err := k8sClient.Get(ctx, nsdName, sa)
+				return err == nil
+			}).WithContext(ctx).Should(BeTrue())
+
+			// Check service account owner reference
+			Expect(sa.GetOwnerReferences()).To(HaveLen(1))
+			saOwnerRef := sa.GetOwnerReferences()[0]
+			Expect(saOwnerRef.APIVersion).To(Equal(authorinoInstance.APIVersion))
+			Expect(saOwnerRef.Kind).To(Equal(authorinoInstance.Kind))
+			Expect(saOwnerRef.Name).To(Equal(authorinoInstance.Name))
+			Expect(saOwnerRef.UID).To(Equal(authorinoInstance.UID))
+			Expect(saOwnerRef.Controller).ToNot(BeNil())
+			Expect(*saOwnerRef.Controller).To(BeTrue())
+
 		})
 	})
 
@@ -322,6 +365,16 @@ var _ = Describe("Authorino controller", func() {
 			Eventually(func(g Gomega, ctx context.Context) {
 				g.Expect(k8sClient.Get(ctx, nsdName, sa)).ToNot(HaveOccurred())
 			}).WithContext(ctx).Should(Succeed())
+
+			// Check service account owner reference
+			Expect(sa.GetOwnerReferences()).To(HaveLen(1))
+			saOwnerRef := sa.GetOwnerReferences()[0]
+			Expect(saOwnerRef.APIVersion).To(Equal(authorinoInstance.APIVersion))
+			Expect(saOwnerRef.Kind).To(Equal(authorinoInstance.Kind))
+			Expect(saOwnerRef.Name).To(Equal(authorinoInstance.Name))
+			Expect(saOwnerRef.UID).To(Equal(authorinoInstance.UID))
+			Expect(saOwnerRef.Controller).ToNot(BeNil())
+			Expect(*saOwnerRef.Controller).To(BeTrue())
 
 			// Authorino ClusterRoleBinding
 			binding := &k8srbac.ClusterRoleBinding{}
