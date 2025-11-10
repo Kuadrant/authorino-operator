@@ -529,6 +529,10 @@ func (r *AuthorinoReconciler) ReconcileAuthorinoServiceAccount(ctx context.Conte
 
 	sa := authorinoResources.GetAuthorinoServiceAccount(authorino.Namespace, authorino.Name, authorino.Labels)
 
+	if err := ctrl.SetControllerReference(authorino, sa, r.Scheme); err != nil {
+		return err
+	}
+
 	crud, _, err := r.reconcileResource(ctx, &k8score.ServiceAccount{}, sa, CreateOnlyMutator)
 	if err != nil {
 		switch crud {
