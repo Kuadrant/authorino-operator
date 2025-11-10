@@ -59,10 +59,11 @@ const (
 	FlagMaxHttpRequestBodySize         string = "max-http-request-body-size"
 
 	// defaults
-	DefaultTlsCertPath         string = "/etc/ssl/certs/tls.crt"
-	DefaultTlsCertKeyPath      string = "/etc/ssl/private/tls.key"
-	DefaultOidcTlsCertPath     string = "/etc/ssl/certs/oidc.crt"
-	DefaultOidcTlsCertKeyPath  string = "/etc/ssl/private/oidc.key"
+	DefaultConfigPath          string = "/etc/authorino"
+	DefaultTlsCertPath         string = DefaultConfigPath + "/tls.crt"
+	DefaultTlsCertKeyPath      string = DefaultConfigPath + "/tls.key"
+	DefaultOidcTlsCertPath     string = DefaultConfigPath + "/oidc.crt"
+	DefaultOidcTlsCertKeyPath  string = DefaultConfigPath + "/oidc.key"
 	DefaultAuthGRPCServicePort int32  = 50051
 	DefaultAuthHTTPServicePort int32  = 5001
 	DefaultOIDCServicePort     int32  = 8083
