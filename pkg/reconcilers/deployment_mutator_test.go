@@ -10,6 +10,71 @@ import (
 	"k8s.io/utils/ptr"
 )
 
+func TestFindContainerByName(t *testing.T) {
+	tests := []struct {
+		name          string
+		containers    []corev1.Container
+		containerName string
+		wantNil       bool
+		wantImage     string
+	}{
+		{
+			name: "find authorino container at index 0",
+			containers: []corev1.Container{
+				{Name: "authorino", Image: "authorino:latest"},
+			},
+			containerName: "authorino",
+			wantNil:       false,
+			wantImage:     "authorino:latest",
+		},
+		{
+			name: "find authorino container with sidecar at index 0",
+			containers: []corev1.Container{
+				{Name: "sidecar", Image: "sidecar:latest"},
+				{Name: "authorino", Image: "authorino:v1"},
+			},
+			containerName: "authorino",
+			wantNil:       false,
+			wantImage:     "authorino:v1",
+		},
+		{
+			name: "container not found",
+			containers: []corev1.Container{
+				{Name: "other", Image: "other:latest"},
+			},
+			containerName: "authorino",
+			wantNil:       true,
+		},
+		{
+			name:          "empty container list",
+			containers:    []corev1.Container{},
+			containerName: "authorino",
+			wantNil:       true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := findContainerByName(tt.containers, tt.containerName)
+			if tt.wantNil {
+				if got != nil {
+					t.Errorf("expected nil, got container with name %s", got.Name)
+				}
+			} else {
+				if got == nil {
+					t.Fatal("expected container, got nil")
+				}
+				if got.Name != tt.containerName {
+					t.Errorf("expected container name %s, got %s", tt.containerName, got.Name)
+				}
+				if got.Image != tt.wantImage {
+					t.Errorf("expected image %s, got %s", tt.wantImage, got.Image)
+				}
+			}
+		})
+	}
+}
+
 func TestDeploymentMutatorFunctions(t *testing.T) {
 	deployment := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
@@ -94,21 +159,72 @@ func TestDeploymentMutatorFunctions(t *testing.T) {
 			want: false,
 		},
 		{
-			name:    "ContainerListMutator - change",
+			name:    "ContainerListMutator - empty existing containers",
 			mutator: DeploymentContainerListMutator,
-			desired: func() *appsv1.Deployment {
+			desired: deployment.DeepCopy(),
+			existing: func() *appsv1.Deployment {
+				d := deployment.DeepCopy()
+				d.Spec.Template.Spec.Containers = []corev1.Container{}
+				return d
+			}(),
+			want: true,
+			verify: func(t *testing.T, existing *appsv1.Deployment) {
+				if len(existing.Spec.Template.Spec.Containers) != 1 {
+					t.Errorf("expected 1 container, got %d", len(existing.Spec.Template.Spec.Containers))
+				}
+				if existing.Spec.Template.Spec.Containers[0].Name != "authorino" {
+					t.Errorf("expected authorino container, got %s", existing.Spec.Template.Spec.Containers[0].Name)
+				}
+			},
+		},
+		{
+			name:    "ContainerListMutator - preserves sidecars",
+			mutator: DeploymentContainerListMutator,
+			desired: deployment.DeepCopy(),
+			existing: func() *appsv1.Deployment {
 				d := deployment.DeepCopy()
 				d.Spec.Template.Spec.Containers = []corev1.Container{
-					{Name: "authorino", Image: "authorino/image:new"},
+					{Name: "authorino", Image: "authorino/image:latest"},
 					{Name: "sidecar", Image: "sidecar/image"},
 				}
 				return d
 			}(),
-			existing: deployment.DeepCopy(),
-			want:     true,
+			want: false,
 			verify: func(t *testing.T, existing *appsv1.Deployment) {
 				if len(existing.Spec.Template.Spec.Containers) != 2 {
-					t.Errorf("expected 2 containers, got %d", len(existing.Spec.Template.Spec.Containers))
+					t.Errorf("expected 2 containers (sidecar should be preserved), got %d", len(existing.Spec.Template.Spec.Containers))
+				}
+				if existing.Spec.Template.Spec.Containers[0].Name != "authorino" {
+					t.Errorf("expected authorino container at index 0, got %s", existing.Spec.Template.Spec.Containers[0].Name)
+				}
+				if existing.Spec.Template.Spec.Containers[1].Name != "sidecar" {
+					t.Errorf("expected sidecar container at index 1, got %s", existing.Spec.Template.Spec.Containers[1].Name)
+				}
+			},
+		},
+		{
+			name:    "ContainerListMutator - sidecar at index 0",
+			mutator: DeploymentContainerListMutator,
+			desired: deployment.DeepCopy(),
+			existing: func() *appsv1.Deployment {
+				d := deployment.DeepCopy()
+				d.Spec.Template.Spec.Containers = []corev1.Container{
+					{Name: "sidecar", Image: "sidecar/image"},
+					{Name: "authorino", Image: "authorino/image:latest"},
+				}
+				return d
+			}(),
+			want: false,
+			verify: func(t *testing.T, existing *appsv1.Deployment) {
+				if len(existing.Spec.Template.Spec.Containers) != 2 {
+					t.Errorf("expected 2 containers (both should be preserved), got %d", len(existing.Spec.Template.Spec.Containers))
+				}
+				// Order should be preserved - sidecar stays at index 0
+				if existing.Spec.Template.Spec.Containers[0].Name != "sidecar" {
+					t.Errorf("expected sidecar container at index 0, got %s", existing.Spec.Template.Spec.Containers[0].Name)
+				}
+				if existing.Spec.Template.Spec.Containers[1].Name != "authorino" {
+					t.Errorf("expected authorino container at index 1, got %s", existing.Spec.Template.Spec.Containers[1].Name)
 				}
 			},
 		},
@@ -371,7 +487,7 @@ func TestDeploymentMutator(t *testing.T) {
 				Template: corev1.PodTemplateSpec{
 					Spec: corev1.PodSpec{
 						Containers: []corev1.Container{
-							{Image: "new-image"},
+							{Name: "authorino", Image: "new-image"},
 						},
 					},
 				},
@@ -383,7 +499,7 @@ func TestDeploymentMutator(t *testing.T) {
 				Template: corev1.PodTemplateSpec{
 					Spec: corev1.PodSpec{
 						Containers: []corev1.Container{
-							{Image: "old-image"},
+							{Name: "authorino", Image: "old-image"},
 						},
 					},
 				},
@@ -486,12 +602,14 @@ func TestDeploymentImagePullPolicyMutator(t *testing.T) {
 		desired := &appsv1.Deployment{}
 		desired.Spec.Template.Spec.Containers = []corev1.Container{
 			{
+				Name:            "authorino",
 				ImagePullPolicy: corev1.PullAlways,
 			},
 		}
 		existing := &appsv1.Deployment{}
 		existing.Spec.Template.Spec.Containers = []corev1.Container{
 			{
+				Name:            "authorino",
 				ImagePullPolicy: corev1.PullNever,
 			},
 		}
@@ -511,7 +629,7 @@ func TestDeploymentContainerArgsMutator(t *testing.T) {
 	deployment := &appsv1.Deployment{
 		Spec: appsv1.DeploymentSpec{
 			Template: corev1.PodTemplateSpec{
-				Spec: corev1.PodSpec{Containers: []corev1.Container{{}}},
+				Spec: corev1.PodSpec{Containers: []corev1.Container{{Name: "authorino"}}},
 			},
 		},
 	}

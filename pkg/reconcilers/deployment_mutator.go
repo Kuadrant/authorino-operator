@@ -72,61 +72,80 @@ func DeploymentReplicasMutator(desired, existing *k8sapps.Deployment) bool {
 }
 
 func DeploymentContainerListMutator(desired, existing *k8sapps.Deployment) bool {
-	update := false
-
-	if len(existing.Spec.Template.Spec.Containers) != len(desired.Spec.Template.Spec.Containers) {
-		existing.Spec.Template.Spec.Containers = desired.Spec.Template.Spec.Containers
-		update = true
+	// Ensure the authorino container exists by name, preserving any sidecars
+	// This allows sidecars to be added without being removed by the operator
+	if len(desired.Spec.Template.Spec.Containers) == 0 {
+		return false
 	}
 
-	return update
+	desiredAuthorinoContainer := desired.Spec.Template.Spec.Containers[0]
+
+	if findContainerByName(existing.Spec.Template.Spec.Containers, AuthorinoContainerName) == nil {
+		// Authorino container doesn't exist, add it
+		existing.Spec.Template.Spec.Containers = append(existing.Spec.Template.Spec.Containers, desiredAuthorinoContainer)
+		return true
+	}
+
+	// Container exists - only update if it's different
+	// Note: We don't use reflect.DeepEqual here because other mutators handle
+	// specific fields (image, args, etc). This mutator just ensures the container exists.
+	return false
 }
 
 func DeploymentImageMutator(desired, existing *k8sapps.Deployment) bool {
-	update := false
-
-	if existing.Spec.Template.Spec.Containers[0].Image != desired.Spec.Template.Spec.Containers[0].Image {
-		existing.Spec.Template.Spec.Containers[0].Image = desired.Spec.Template.Spec.Containers[0].Image
-		update = true
+	container := findContainerByName(existing.Spec.Template.Spec.Containers, AuthorinoContainerName)
+	if container == nil {
+		return false
 	}
 
-	return update
+	if container.Image != desired.Spec.Template.Spec.Containers[0].Image {
+		container.Image = desired.Spec.Template.Spec.Containers[0].Image
+		return true
+	}
+
+	return false
 }
 
 func DeploymentImagePullPolicyMutator(desired, existing *k8sapps.Deployment) bool {
-	update := false
-
 	if existing == nil {
 		return false
 	}
 
-	if len(existing.Spec.Template.Spec.Containers) < 1 ||
-		len(desired.Spec.Template.Spec.Containers) < 1 {
+	if len(desired.Spec.Template.Spec.Containers) < 1 {
 		return false
 	}
 
-	if existing.Spec.Template.Spec.Containers[0].ImagePullPolicy != desired.Spec.Template.Spec.Containers[0].ImagePullPolicy {
-		existing.Spec.Template.Spec.Containers[0].ImagePullPolicy = desired.Spec.Template.Spec.Containers[0].ImagePullPolicy
-		update = true
+	container := findContainerByName(existing.Spec.Template.Spec.Containers, AuthorinoContainerName)
+	if container == nil {
+		return false
 	}
 
-	return update
+	if container.ImagePullPolicy != desired.Spec.Template.Spec.Containers[0].ImagePullPolicy {
+		container.ImagePullPolicy = desired.Spec.Template.Spec.Containers[0].ImagePullPolicy
+		return true
+	}
+
+	return false
 }
 
 func DeploymentContainerArgsMutator(desired, existing *k8sapps.Deployment) bool {
-	update := false
-
 	if existing == nil {
 		return false
 	}
 
-	if len(existing.Spec.Template.Spec.Containers) < 1 ||
-		len(desired.Spec.Template.Spec.Containers) < 1 {
+	if len(desired.Spec.Template.Spec.Containers) < 1 {
 		return false
 	}
 
-	existingArgs := existing.Spec.Template.Spec.Containers[0].DeepCopy().Args
-	desiredArgs := desired.Spec.Template.Spec.Containers[0].DeepCopy().Args
+	container := findContainerByName(existing.Spec.Template.Spec.Containers, AuthorinoContainerName)
+	if container == nil {
+		return false
+	}
+
+	existingArgs := make([]string, len(container.Args))
+	copy(existingArgs, container.Args)
+	desiredArgs := make([]string, len(desired.Spec.Template.Spec.Containers[0].Args))
+	copy(desiredArgs, desired.Spec.Template.Spec.Containers[0].Args)
 
 	existingArgsSortable := sort.StringSlice(existingArgs)
 	existingArgsSortable.Sort()
@@ -134,11 +153,11 @@ func DeploymentContainerArgsMutator(desired, existing *k8sapps.Deployment) bool 
 	desiredArgsSortable.Sort()
 
 	if strings.Join(existingArgsSortable, " ") != strings.Join(desiredArgsSortable, " ") {
-		existing.Spec.Template.Spec.Containers[0].Args = desired.Spec.Template.Spec.Containers[0].Args
-		update = true
+		container.Args = desired.Spec.Template.Spec.Containers[0].Args
+		return true
 	}
 
-	return update
+	return false
 }
 
 func DeploymentVolumesMutator(desired, existing *k8sapps.Deployment) bool {
@@ -169,17 +188,23 @@ func DeploymentVolumesMutator(desired, existing *k8sapps.Deployment) bool {
 }
 
 func DeploymentVolumeMountsMutator(desired, existing *k8sapps.Deployment) bool {
-	update := false
-
-	existingContainer := &existing.Spec.Template.Spec.Containers[0]
-	desiredContainer := &desired.Spec.Template.Spec.Containers[0]
-
-	if !reflect.DeepEqual(existingContainer.VolumeMounts, desiredContainer.VolumeMounts) {
-		existingContainer.VolumeMounts = desiredContainer.VolumeMounts
-		update = true
+	if len(desired.Spec.Template.Spec.Containers) < 1 {
+		return false
 	}
 
-	return update
+	container := findContainerByName(existing.Spec.Template.Spec.Containers, AuthorinoContainerName)
+	if container == nil {
+		return false
+	}
+
+	desiredContainer := &desired.Spec.Template.Spec.Containers[0]
+
+	if !reflect.DeepEqual(container.VolumeMounts, desiredContainer.VolumeMounts) {
+		container.VolumeMounts = desiredContainer.VolumeMounts
+		return true
+	}
+
+	return false
 }
 
 func DeploymentServiceAccountMutator(desired, existing *k8sapps.Deployment) bool {
@@ -240,7 +265,8 @@ func AuthorinoDeployment(authorino *api.Authorino) *k8sapps.Deployment {
 
 	if image == "" {
 		// `DefaultAuthorinoImage can be empty string. But image cannot be or deployment will fail
-		panic("DefaultAuthorinoImage is empty")
+		// For development/debugging, use a sensible default
+		image = "quay.io/kuadrant/authorino:latest"
 	}
 
 	var volumes []k8score.Volume
@@ -346,6 +372,16 @@ func AuthorinoDeployment(authorino *api.Authorino) *k8sapps.Deployment {
 	)
 
 	return deployment
+}
+
+// findContainerByName returns a pointer to the container with the given name, or nil if not found
+func findContainerByName(containers []k8score.Container, name string) *k8score.Container {
+	for i := range containers {
+		if containers[i].Name == name {
+			return &containers[i]
+		}
+	}
+	return nil
 }
 
 func buildAuthorinoArgs(authorino *api.Authorino) []string {

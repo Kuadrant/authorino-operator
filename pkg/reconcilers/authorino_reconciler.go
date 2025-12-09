@@ -336,16 +336,19 @@ func (r *AuthorinoReconciler) reconcileResource(ctx context.Context, obj, desire
 		return "delete", desired, nil
 	}
 
+	// For Server-Side Apply, we check if update is needed but apply the desired state
 	update, err := mutateFn(desired, obj)
 	if err != nil {
 		return "", obj, err
 	}
 
 	if update {
-		if err = r.UpdateResource(ctx, obj); err != nil {
-			return "update", obj, err
+		// Use Server-Side Apply with the desired object (not the mutated existing)
+		// SSA will merge our desired state with any other field managers' changes
+		if err = r.UpdateResource(ctx, desired); err != nil {
+			return "update", desired, err
 		}
-		return "update", obj, nil
+		return "update", desired, nil
 	}
 
 	return "", obj, nil
@@ -368,7 +371,18 @@ func (r *AuthorinoReconciler) UpdateResource(ctx context.Context, obj client.Obj
 	}
 
 	logger.Info("update object", "kind", strings.Replace(fmt.Sprintf("%T", obj), "*", "", 1), "name", obj.GetName(), "namespace", obj.GetNamespace())
-	return r.Client.Update(ctx, obj)
+
+	// Use Server-Side Apply to allow multiple managers (operator + user sidecars)
+	// IMPORTANT: SSA requires the GVK to be set on the object
+	gvks, _, err := r.Scheme.ObjectKinds(obj)
+	if err != nil {
+		return err
+	}
+	if len(gvks) > 0 {
+		obj.GetObjectKind().SetGroupVersionKind(gvks[0])
+	}
+
+	return r.Client.Patch(ctx, obj, client.Apply, client.ForceOwnership, client.FieldOwner("authorino-operator"))
 }
 
 func (r *AuthorinoReconciler) DeleteResource(ctx context.Context, obj client.Object, options ...client.DeleteOption) error {

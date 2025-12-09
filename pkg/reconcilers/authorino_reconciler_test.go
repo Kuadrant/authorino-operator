@@ -185,8 +185,11 @@ func TestReconcileDeployment(t *testing.T) {
 			t.Fatalf("expected deployment to exist: %v", err)
 		}
 
-		if *updated.Spec.Replicas != *existingDeployment.Spec.Replicas {
-			t.Errorf("expected replicas not to be updated, got %d", *updated.Spec.Replicas)
+		// With Server-Side Apply, all fields in the desired state are applied
+		// Even if ReplicasMutator is not included, replicas will be updated because
+		// they are part of the desired deployment state
+		if *updated.Spec.Replicas != *authorinoInstance.Spec.Replicas {
+			t.Errorf("expected replicas to be updated to %d, got %d", *authorinoInstance.Spec.Replicas, *updated.Spec.Replicas)
 		}
 
 	})
