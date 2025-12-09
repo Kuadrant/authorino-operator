@@ -44,15 +44,6 @@ rules:
   - ""
   resources:
   - serviceaccounts
-  verbs:
-  - create
-  - get
-  - list
-  - update
-  - watch
-- apiGroups:
-  - ""
-  resources:
   - services
   verbs:
   - create
@@ -143,35 +134,8 @@ rules:
   - rbac.authorization.k8s.io
   resources:
   - clusterrolebindings
-  verbs:
-  - create
-  - get
-  - list
-  - update
-  - watch
-- apiGroups:
-  - rbac.authorization.k8s.io
-  resources:
   - clusterroles
-  verbs:
-  - create
-  - get
-  - list
-  - update
-  - watch
-- apiGroups:
-  - rbac.authorization.k8s.io
-  resources:
   - rolebindings
-  verbs:
-  - create
-  - get
-  - list
-  - update
-  - watch
-- apiGroups:
-  - rbac.authorization.k8s.io
-  resources:
   - roles
   verbs:
   - create
