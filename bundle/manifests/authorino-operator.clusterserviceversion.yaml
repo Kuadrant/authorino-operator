@@ -83,7 +83,7 @@ metadata:
     capabilities: Basic Install
     categories: Integration & Delivery
     containerImage: quay.io/kuadrant/authorino-operator:latest
-    createdAt: "2025-12-11T15:05:20Z"
+    createdAt: "2025-12-11T15:45:31Z"
     operators.operatorframework.io/builder: operator-sdk-v1.32.0
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
     repository: https://github.com/Kuadrant/authorino-operator
@@ -164,16 +164,6 @@ spec:
                 - ""
               resources:
                 - serviceaccounts
-              verbs:
-                - create
-                - get
-                - list
-                - patch
-                - update
-                - watch
-            - apiGroups:
-                - ""
-              resources:
                 - services
               verbs:
                 - create
@@ -265,6 +255,8 @@ spec:
                 - rbac.authorization.k8s.io
               resources:
                 - clusterrolebindings
+                - rolebindings
+                - roles
               verbs:
                 - create
                 - get
@@ -280,28 +272,6 @@ spec:
                 - create
                 - get
                 - list
-                - update
-                - watch
-            - apiGroups:
-                - rbac.authorization.k8s.io
-              resources:
-                - rolebindings
-              verbs:
-                - create
-                - get
-                - list
-                - patch
-                - update
-                - watch
-            - apiGroups:
-                - rbac.authorization.k8s.io
-              resources:
-                - roles
-              verbs:
-                - create
-                - get
-                - list
-                - patch
                 - update
                 - watch
           serviceAccountName: authorino-operator
