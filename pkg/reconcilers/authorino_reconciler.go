@@ -32,23 +32,6 @@ func (r *AuthorinoReconciler) ReconcileAuthorinoDeployment(ctx context.Context, 
 		return err
 	}
 
-	deploymentMutators := make([]DeploymentMutateFn, 0)
-	if authorinoInstance.Spec.Replicas != nil {
-		deploymentMutators = append(deploymentMutators, DeploymentReplicasMutator)
-	}
-
-	deploymentMutators = append(deploymentMutators,
-		DeploymentContainerListMutator,
-		DeploymentContainerArgsMutator,
-		DeploymentImageMutator,
-		DeploymentImagePullPolicyMutator,
-		DeploymentServiceAccountMutator,
-		DeploymentLabelsMutator,
-		DeploymentSpecTemplateLabelsMutator,
-		DeploymentVolumesMutator,
-		DeploymentVolumeMountsMutator,
-	)
-
 	deployment := AuthorinoDeployment(authorinoInstance)
 
 	err = ctrl.SetControllerReference(authorinoInstance, deployment, r.Scheme)
@@ -58,7 +41,7 @@ func (r *AuthorinoReconciler) ReconcileAuthorinoDeployment(ctx context.Context, 
 		)
 	}
 
-	err = r.reconcileDeployment(ctx, logger, deployment, DeploymentMutator(deploymentMutators...), authorinoInstance)
+	err = r.reconcileDeployment(ctx, logger, deployment, authorinoInstance)
 	if err != nil {
 		return fmt.Errorf("failed to reconcile %s Deployment resource, err: %v", authorinoInstance.Name, err)
 	}
@@ -122,15 +105,7 @@ func (r *AuthorinoReconciler) ReconcileAuthorinoServices(ctx context.Context, au
 	for _, desiredService := range desiredServices {
 		_ = ctrl.SetControllerReference(authorinoInstance, desiredService, r.Scheme)
 
-		serviceMutators := make([]ServiceMutateFn, 0)
-
-		serviceMutators = append(serviceMutators,
-			LabelsMutator,
-			PortMutator,
-			SelectorMutator,
-		)
-
-		err := r.reconcileService(ctx, desiredService, ServiceMutator(serviceMutators...), authorinoInstance)
+		err := r.reconcileService(ctx, desiredService, authorinoInstance)
 		if err != nil {
 			return err
 		}
@@ -182,11 +157,7 @@ func (r *AuthorinoReconciler) reconcileManagerClusterRoleBinding(ctx context.Con
 	// if cluster scoped, ensure service account is in the binding
 	if authorinoInstance.Spec.ClusterWide {
 		binding := authorinoResources.GetAuthorinoClusterRoleBinding(AuthorinoManagerClusterRoleBindingName, AuthorinoManagerClusterRoleName, sa)
-		return r.reconcileClusterRoleBinding(
-			ctx, binding,
-			ClusterRoleBindingMutator(ClusterRoleBindingLabelsMutator, ClusterRoleBindingSubjectMutator),
-			authorinoInstance,
-		)
+		return r.reconcileClusterRoleBinding(ctx, binding, authorinoInstance)
 	}
 
 	// local namespace scope
@@ -210,11 +181,7 @@ func (r *AuthorinoReconciler) reconcileManagerRoleBinding(ctx context.Context, a
 		TagObjectToDelete(binding)
 	}
 
-	return r.reconcileRoleBinding(
-		ctx, binding,
-		RoleBindingMutator(RoleBindingLabelsMutator, RoleBindingSubjectMutator),
-		authorinoInstance,
-	)
+	return r.reconcileRoleBinding(ctx, binding, authorinoInstance)
 }
 
 func (r *AuthorinoReconciler) reconcileManagerAuthClusterRoleBinding(ctx context.Context, authorinoInstance *api.Authorino) error {
@@ -226,11 +193,7 @@ func (r *AuthorinoReconciler) reconcileManagerAuthClusterRoleBinding(ctx context
 	sa := authorinoResources.GetAuthorinoServiceAccount(authorinoInstance.Namespace, authorinoInstance.Name, authorinoInstance.Labels)
 
 	binding := authorinoResources.GetAuthorinoClusterRoleBinding(AuthorinoK8sAuthClusterRoleBindingName, AuthorinoK8sAuthClusterRoleName, sa)
-	return r.reconcileClusterRoleBinding(
-		ctx, binding,
-		ClusterRoleBindingMutator(ClusterRoleBindingLabelsMutator, ClusterRoleBindingSubjectMutator),
-		authorinoInstance,
-	)
+	return r.reconcileClusterRoleBinding(ctx, binding, authorinoInstance)
 }
 
 func (r *AuthorinoReconciler) reconcileLeaderElectionRole(ctx context.Context, authorinoInstance *api.Authorino) error {
@@ -240,7 +203,7 @@ func (r *AuthorinoReconciler) reconcileLeaderElectionRole(ctx context.Context, a
 	}
 
 	role := &k8srbac.Role{
-		TypeMeta:   k8smeta.TypeMeta{APIVersion: k8srbac.SchemeGroupVersion.Version, Kind: "Role"},
+		TypeMeta:   k8smeta.TypeMeta{APIVersion: k8srbac.SchemeGroupVersion.String(), Kind: "Role"},
 		ObjectMeta: k8smeta.ObjectMeta{Name: AuthorinoLeaderElectionRoleName, Namespace: authorinoInstance.Namespace},
 		Rules:      authorinoResources.GetLeaderElectionRules(),
 	}
@@ -249,7 +212,7 @@ func (r *AuthorinoReconciler) reconcileLeaderElectionRole(ctx context.Context, a
 		return err
 	}
 
-	crud, _, err := r.reconcileResource(ctx, &k8srbac.Role{}, role, CreateOnlyMutator)
+	crud, _, err := r.reconcileResource(ctx, &k8srbac.Role{}, role)
 	if err != nil {
 		if crud == "read" {
 			return r.WrapErrorWithStatusUpdate(
@@ -284,11 +247,7 @@ func (r *AuthorinoReconciler) reconcileLeaderElectionRoleBinding(ctx context.Con
 		authorinoInstance.Labels,
 	)
 
-	return r.reconcileRoleBinding(
-		ctx, binding,
-		RoleBindingMutator(RoleBindingLabelsMutator, RoleBindingSubjectMutator),
-		authorinoInstance,
-	)
+	return r.reconcileRoleBinding(ctx, binding, authorinoInstance)
 }
 
 func (r *AuthorinoReconciler) checkClusterRoleExists(ctx context.Context, key client.ObjectKey, authorino *api.Authorino) error {
@@ -309,7 +268,7 @@ func (r *AuthorinoReconciler) checkClusterRoleExists(ctx context.Context, key cl
 	return nil
 }
 
-func (r *AuthorinoReconciler) reconcileResource(ctx context.Context, obj, desired client.Object, mutateFn MutateFn) (string, client.Object, error) {
+func (r *AuthorinoReconciler) reconcileResource(ctx context.Context, obj, desired client.Object) (string, client.Object, error) {
 	key := client.ObjectKeyFromObject(desired)
 
 	if err := r.Client.Get(ctx, key, obj); err != nil {
@@ -336,19 +295,12 @@ func (r *AuthorinoReconciler) reconcileResource(ctx context.Context, obj, desire
 		return "delete", desired, nil
 	}
 
-	update, err := mutateFn(desired, obj)
-	if err != nil {
-		return "", obj, err
+	// Apply the desired state using Server-Side Apply
+	if err := r.ApplyResource(ctx, desired); err != nil {
+		return "update", desired, err
 	}
 
-	if update {
-		if err = r.UpdateResource(ctx, obj); err != nil {
-			return "update", obj, err
-		}
-		return "update", obj, nil
-	}
-
-	return "", obj, nil
+	return "update", obj, nil
 }
 
 func (r *AuthorinoReconciler) CreateResource(ctx context.Context, obj client.Object) error {
@@ -371,6 +323,16 @@ func (r *AuthorinoReconciler) UpdateResource(ctx context.Context, obj client.Obj
 	return r.Client.Update(ctx, obj)
 }
 
+func (r *AuthorinoReconciler) ApplyResource(ctx context.Context, obj client.Object) error {
+	logger, err := logr.FromContext(ctx)
+	if err != nil {
+		return err
+	}
+
+	logger.Info("apply object", "kind", strings.Replace(fmt.Sprintf("%T", obj), "*", "", 1), "name", obj.GetName(), "namespace", obj.GetNamespace())
+	return r.Client.Patch(ctx, obj, client.Apply, client.ForceOwnership, client.FieldOwner("authorino-operator"))
+}
+
 func (r *AuthorinoReconciler) DeleteResource(ctx context.Context, obj client.Object, options ...client.DeleteOption) error {
 	logger, err := logr.FromContext(ctx)
 	if err != nil {
@@ -381,8 +343,8 @@ func (r *AuthorinoReconciler) DeleteResource(ctx context.Context, obj client.Obj
 	return r.Client.Delete(ctx, obj, options...)
 }
 
-func (r *AuthorinoReconciler) reconcileDeployment(ctx context.Context, logger logr.Logger, desired *k8sapps.Deployment, mutatefn MutateFn, authorino *api.Authorino) error {
-	crud, obj, err := r.reconcileResource(ctx, &k8sapps.Deployment{}, desired, mutatefn)
+func (r *AuthorinoReconciler) reconcileDeployment(ctx context.Context, logger logr.Logger, desired *k8sapps.Deployment, authorino *api.Authorino) error {
+	crud, obj, err := r.reconcileResource(ctx, &k8sapps.Deployment{}, desired)
 
 	if crud == "read" && err != nil {
 		return r.WrapErrorWithStatusUpdate(logger, authorino, r.SetStatusFailed(statusUnableToGetDeployment),
@@ -428,13 +390,13 @@ func (r *AuthorinoReconciler) reconcileDeployment(ctx context.Context, logger lo
 	return nil
 }
 
-func (r *AuthorinoReconciler) reconcileService(ctx context.Context, desired *k8score.Service, mutatefn MutateFn, authorino *api.Authorino) error {
+func (r *AuthorinoReconciler) reconcileService(ctx context.Context, desired *k8score.Service, authorino *api.Authorino) error {
 	logger, err := logr.FromContext(ctx)
 	if err != nil {
 		return err
 	}
 
-	crud, _, err := r.reconcileResource(ctx, &k8score.Service{}, desired, mutatefn)
+	crud, _, err := r.reconcileResource(ctx, &k8score.Service{}, desired)
 
 	if crud == "read" && err != nil {
 		return r.WrapErrorWithStatusUpdate(
@@ -458,7 +420,7 @@ func (r *AuthorinoReconciler) reconcileService(ctx context.Context, desired *k8s
 	return nil
 }
 
-func (r *AuthorinoReconciler) reconcileRoleBinding(ctx context.Context, desired *k8srbac.RoleBinding, mutatefn MutateFn, authorino *api.Authorino) error {
+func (r *AuthorinoReconciler) reconcileRoleBinding(ctx context.Context, desired *k8srbac.RoleBinding, authorino *api.Authorino) error {
 	logger, err := logr.FromContext(ctx)
 	if err != nil {
 		return err
@@ -468,7 +430,7 @@ func (r *AuthorinoReconciler) reconcileRoleBinding(ctx context.Context, desired 
 		return err
 	}
 
-	crud, _, err := r.reconcileResource(ctx, &k8srbac.RoleBinding{}, desired, mutatefn)
+	crud, _, err := r.reconcileResource(ctx, &k8srbac.RoleBinding{}, desired)
 
 	if err = r.clusterRoleStatus(logger, authorino, crud, desired.Name, err); err != nil {
 		return err
@@ -477,13 +439,13 @@ func (r *AuthorinoReconciler) reconcileRoleBinding(ctx context.Context, desired 
 	return nil
 }
 
-func (r *AuthorinoReconciler) reconcileClusterRoleBinding(ctx context.Context, desired *k8srbac.ClusterRoleBinding, mutatefn MutateFn, authorino *api.Authorino) error {
+func (r *AuthorinoReconciler) reconcileClusterRoleBinding(ctx context.Context, desired *k8srbac.ClusterRoleBinding, authorino *api.Authorino) error {
 	logger, err := logr.FromContext(ctx)
 	if err != nil {
 		return err
 	}
 
-	crud, _, err := r.reconcileResource(ctx, &k8srbac.ClusterRoleBinding{}, desired, mutatefn)
+	crud, _, err := r.reconcileResource(ctx, &k8srbac.ClusterRoleBinding{}, desired)
 
 	if err = r.clusterRoleStatus(logger, authorino, crud, desired.Name, err); err != nil {
 		return err
@@ -517,10 +479,6 @@ func (r *AuthorinoReconciler) clusterRoleStatus(logger logr.Logger, authorino *a
 	return nil
 }
 
-func namespacedName(namespace, name string) types.NamespacedName {
-	return types.NamespacedName{Namespace: namespace, Name: name}
-}
-
 func (r *AuthorinoReconciler) ReconcileAuthorinoServiceAccount(ctx context.Context, authorino *api.Authorino) error {
 	logger, err := logr.FromContext(ctx)
 	if err != nil {
@@ -533,7 +491,7 @@ func (r *AuthorinoReconciler) ReconcileAuthorinoServiceAccount(ctx context.Conte
 		return err
 	}
 
-	crud, _, err := r.reconcileResource(ctx, &k8score.ServiceAccount{}, sa, CreateOnlyMutator)
+	crud, _, err := r.reconcileResource(ctx, &k8score.ServiceAccount{}, sa)
 	if err != nil {
 		switch crud {
 		case "read":

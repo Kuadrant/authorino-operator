@@ -7,6 +7,7 @@ import (
 	api "github.com/kuadrant/authorino-operator/api/v1beta1"
 	"github.com/kuadrant/authorino-operator/pkg/condition"
 	k8score "k8s.io/api/core/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 type statusUpdater func(logger logr.Logger, authorino *api.Authorino, message string) error
@@ -33,13 +34,19 @@ func (r *AuthorinoReconciler) SetStatusFailed(reason string) statusUpdater {
 }
 
 func (r *AuthorinoReconciler) updateStatusConditions(logger logr.Logger, authorino *api.Authorino, newConditions ...api.Condition) error {
+	// Re-fetch the latest version to avoid conflicts
+	latest := &api.Authorino{}
+	if err := r.Client.Get(context.TODO(), client.ObjectKeyFromObject(authorino), latest); err != nil {
+		return err
+	}
+
 	var updated bool
-	authorino.Status.Conditions, updated = condition.AddOrUpdateStatusConditions(authorino.Status.Conditions, newConditions...)
+	latest.Status.Conditions, updated = condition.AddOrUpdateStatusConditions(latest.Status.Conditions, newConditions...)
 	if !updated {
 		logger.V(1).Info("Authorino status conditions not changed")
 		return nil
 	}
-	return r.Client.Status().Update(context.TODO(), authorino)
+	return r.Client.Status().Patch(context.TODO(), latest, client.Apply, client.ForceOwnership, client.FieldOwner("authorino-operator"))
 }
 
 func statusReady() api.Condition {
