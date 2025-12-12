@@ -366,7 +366,7 @@ func (r *AuthorinoReconciler) reconcileDeployment(ctx context.Context, logger lo
 	}
 
 	if crud == "update" {
-		if err = r.updateStatusConditions(logger, authorino, statusNotReady(statusUpdated, "Authorino Deployment resource updated")); err != nil {
+		if err = r.updateStatusConditions(authorino, statusNotReady(statusUpdated, "Authorino Deployment resource updated")); err != nil {
 			return err
 		}
 		return nil
@@ -378,13 +378,13 @@ func (r *AuthorinoReconciler) reconcileDeployment(ctx context.Context, logger lo
 	}
 
 	if !DeploymentAvailable(deployment) {
-		if err = r.updateStatusConditions(logger, authorino, statusNotReady(statusDeploymentNotReady, "Authorino Deployment resource not ready")); err != nil {
+		if err = r.updateStatusConditions(authorino, statusNotReady(statusDeploymentNotReady, "Authorino Deployment resource not ready")); err != nil {
 			return err
 		}
 		return nil
 	}
 
-	if err = r.updateStatusConditions(logger, authorino, statusReady()); err != nil {
+	if err = r.updateStatusConditions(authorino, statusReady()); err != nil {
 		return err
 	}
 	return nil
