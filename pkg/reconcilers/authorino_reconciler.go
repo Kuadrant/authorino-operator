@@ -300,7 +300,7 @@ func (r *AuthorinoReconciler) reconcileResource(ctx context.Context, obj, desire
 		return "update", desired, err
 	}
 
-	return "update", obj, nil
+	return "", obj, nil
 }
 
 func (r *AuthorinoReconciler) CreateResource(ctx context.Context, obj client.Object) error {
