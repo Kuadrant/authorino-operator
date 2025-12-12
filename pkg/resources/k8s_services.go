@@ -5,6 +5,7 @@ import (
 	"sort"
 
 	k8score "k8s.io/api/core/v1"
+	k8smeta "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
@@ -63,6 +64,7 @@ func EqualServices(s1, s2 *k8score.Service) bool {
 func newService(serviceName, serviceNamespace, authorinoName string, labels map[string]string, servicePorts ...k8score.ServicePort) *k8score.Service {
 	objMeta := getObjectMeta(serviceNamespace, authorinoName+"-"+serviceName, labels)
 	return &k8score.Service{
+		TypeMeta:   k8smeta.TypeMeta{APIVersion: k8score.SchemeGroupVersion.String(), Kind: "Service"},
 		ObjectMeta: objMeta,
 		Spec:       newServiceSpec(defaultAuthorinoLabels(authorinoName), servicePorts...),
 	}

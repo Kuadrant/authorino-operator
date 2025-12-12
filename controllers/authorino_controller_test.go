@@ -458,6 +458,70 @@ var _ = Describe("Authorino controller", func() {
 			}).WithContext(ctx).Should(Succeed())
 		})
 	})
+
+	Context("Server-Side Apply preserves sidecars", func() {
+		var authorinoInstance *api.Authorino
+
+		BeforeEach(func(ctx context.Context) {
+			authorinoInstance = newFullAuthorinoInstance()
+			Expect(k8sClient.Create(ctx, authorinoInstance)).Should(Succeed())
+		})
+
+		It("Should preserve sidecar containers when reconciling", func(ctx context.Context) {
+			// Wait for deployment to be created
+			deployment := &k8sapps.Deployment{}
+			nsdName := namespacedName(testAuthorinoNamespace, authorinoInstance.Name)
+			Eventually(func(ctx context.Context) error {
+				return k8sClient.Get(ctx, nsdName, deployment)
+			}).WithContext(ctx).Should(Succeed())
+
+			Expect(deployment.Spec.Template.Spec.Containers).To(HaveLen(1))
+			Expect(deployment.Spec.Template.Spec.Containers[0].Name).To(Equal(reconcilers.AuthorinoContainerName))
+
+			sidecarContainer := k8score.Container{
+				Name:    "envoy-sidecar",
+				Image:   "envoyproxy/envoy:v1.28.0",
+				Command: []string{"envoy", "-c", "/etc/envoy/envoy.yaml"},
+			}
+			deployment.Spec.Template.Spec.Containers = append(deployment.Spec.Template.Spec.Containers, sidecarContainer)
+			Expect(k8sClient.Update(ctx, deployment)).Should(Succeed())
+
+			Eventually(func(ctx context.Context) int {
+				err := k8sClient.Get(ctx, nsdName, deployment)
+				if err != nil {
+					return 0
+				}
+				return len(deployment.Spec.Template.Spec.Containers)
+			}).WithContext(ctx).Should(Equal(2))
+
+			Eventually(func(ctx context.Context) error {
+				if err := k8sClient.Get(ctx, nsdName, authorinoInstance); err != nil {
+					return err
+				}
+				newReplicas := int32(2)
+				authorinoInstance.Spec.Replicas = &newReplicas
+				return k8sClient.Update(ctx, authorinoInstance)
+			}).WithContext(ctx).Should(Succeed())
+
+			Eventually(func(ctx context.Context) int32 {
+				err := k8sClient.Get(ctx, nsdName, deployment)
+				if err != nil || deployment.Spec.Replicas == nil {
+					return 0
+				}
+				return *deployment.Spec.Replicas
+			}).WithContext(ctx).Should(Equal(int32(2)))
+
+			Expect(k8sClient.Get(ctx, nsdName, deployment)).Should(Succeed())
+			Expect(deployment.Spec.Template.Spec.Containers).To(HaveLen(2))
+
+			containerNames := []string{}
+			for _, container := range deployment.Spec.Template.Spec.Containers {
+				containerNames = append(containerNames, container.Name)
+			}
+			Expect(containerNames).To(ContainElement(reconcilers.AuthorinoContainerName))
+			Expect(containerNames).To(ContainElement("envoy-sidecar"))
+		})
+	})
 })
 
 func newExtServerConfigMap() *k8score.ConfigMap {

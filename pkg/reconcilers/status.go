@@ -2,11 +2,12 @@ package reconcilers
 
 import (
 	"context"
-
 	"github.com/go-logr/logr"
 	api "github.com/kuadrant/authorino-operator/api/v1beta1"
 	"github.com/kuadrant/authorino-operator/pkg/condition"
 	k8score "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 type statusUpdater func(logger logr.Logger, authorino *api.Authorino, message string) error
@@ -25,21 +26,29 @@ func (r *AuthorinoReconciler) WrapErrorWithStatusUpdate(logger logr.Logger, auth
 func (r *AuthorinoReconciler) SetStatusFailed(reason string) statusUpdater {
 	return func(logger logr.Logger, authorino *api.Authorino, message string) error {
 		return r.updateStatusConditions(
-			logger,
 			authorino,
 			statusNotReady(reason, message),
 		)
 	}
 }
 
-func (r *AuthorinoReconciler) updateStatusConditions(logger logr.Logger, authorino *api.Authorino, newConditions ...api.Condition) error {
-	var updated bool
-	authorino.Status.Conditions, updated = condition.AddOrUpdateStatusConditions(authorino.Status.Conditions, newConditions...)
-	if !updated {
-		logger.V(1).Info("Authorino status conditions not changed")
-		return nil
+func (r *AuthorinoReconciler) updateStatusConditions(authorino *api.Authorino, newConditions ...api.Condition) error {
+	newStatus := api.AuthorinoStatus{}
+	newStatus.Conditions, _ = condition.AddOrUpdateStatusConditions(authorino.Status.Conditions, newConditions...)
+
+	patch := &api.Authorino{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: api.GroupVersion.String(),
+			Kind:       "Authorino",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      authorino.Name,
+			Namespace: authorino.Namespace,
+		},
+		Status: newStatus,
 	}
-	return r.Client.Status().Update(context.TODO(), authorino)
+
+	return r.Client.Status().Patch(context.TODO(), patch, client.Apply, client.ForceOwnership, client.FieldOwner("authorino-operator"))
 }
 
 func statusReady() api.Condition {

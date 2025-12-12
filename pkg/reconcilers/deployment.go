@@ -2,9 +2,7 @@ package reconcilers
 
 import (
 	"fmt"
-	"reflect"
 	"regexp"
-	"sort"
 	"strconv"
 	"strings"
 
@@ -16,197 +14,6 @@ import (
 	api "github.com/kuadrant/authorino-operator/api/v1beta1"
 	authorinoResources "github.com/kuadrant/authorino-operator/pkg/resources"
 )
-
-// MutateFn is a function which mutates the existing object into it's desired state.
-type MutateFn func(desired, existing client.Object) (bool, error)
-
-func CreateOnlyMutator(_, _ client.Object) (bool, error) {
-	return false, nil
-}
-
-// DeploymentMutateFn is a function which mutates the existing Deployment into it's desired state.
-type DeploymentMutateFn func(desired, existing *k8sapps.Deployment) bool
-
-func DeploymentMutator(opts ...DeploymentMutateFn) MutateFn {
-	return func(desiredObj, existingObj client.Object) (bool, error) {
-		existing, ok := existingObj.(*k8sapps.Deployment)
-		if !ok {
-			return false, fmt.Errorf("%T is not a *appsv1.Deployment", existingObj)
-		}
-		desired, ok := desiredObj.(*k8sapps.Deployment)
-		if !ok {
-			return false, fmt.Errorf("%T is not a *appsv1.Deployment", desiredObj)
-		}
-
-		update := false
-
-		// Loop through each option
-		for _, opt := range opts {
-			tmpUpdate := opt(desired, existing)
-			update = update || tmpUpdate
-		}
-
-		return update, nil
-	}
-}
-
-func DeploymentReplicasMutator(desired, existing *k8sapps.Deployment) bool {
-	update := false
-
-	var existingReplicas int32 = 1
-	if existing.Spec.Replicas != nil {
-		existingReplicas = *existing.Spec.Replicas
-	}
-
-	var desiredReplicas int32 = 1
-	if desired.Spec.Replicas != nil {
-		desiredReplicas = *desired.Spec.Replicas
-	}
-
-	if desiredReplicas != existingReplicas {
-		existing.Spec.Replicas = &desiredReplicas
-		update = true
-	}
-
-	return update
-}
-
-func DeploymentContainerListMutator(desired, existing *k8sapps.Deployment) bool {
-	update := false
-
-	if len(existing.Spec.Template.Spec.Containers) != len(desired.Spec.Template.Spec.Containers) {
-		existing.Spec.Template.Spec.Containers = desired.Spec.Template.Spec.Containers
-		update = true
-	}
-
-	return update
-}
-
-func DeploymentImageMutator(desired, existing *k8sapps.Deployment) bool {
-	update := false
-
-	if existing.Spec.Template.Spec.Containers[0].Image != desired.Spec.Template.Spec.Containers[0].Image {
-		existing.Spec.Template.Spec.Containers[0].Image = desired.Spec.Template.Spec.Containers[0].Image
-		update = true
-	}
-
-	return update
-}
-
-func DeploymentImagePullPolicyMutator(desired, existing *k8sapps.Deployment) bool {
-	update := false
-
-	if existing == nil {
-		return false
-	}
-
-	if len(existing.Spec.Template.Spec.Containers) < 1 ||
-		len(desired.Spec.Template.Spec.Containers) < 1 {
-		return false
-	}
-
-	if existing.Spec.Template.Spec.Containers[0].ImagePullPolicy != desired.Spec.Template.Spec.Containers[0].ImagePullPolicy {
-		existing.Spec.Template.Spec.Containers[0].ImagePullPolicy = desired.Spec.Template.Spec.Containers[0].ImagePullPolicy
-		update = true
-	}
-
-	return update
-}
-
-func DeploymentContainerArgsMutator(desired, existing *k8sapps.Deployment) bool {
-	update := false
-
-	if existing == nil {
-		return false
-	}
-
-	if len(existing.Spec.Template.Spec.Containers) < 1 ||
-		len(desired.Spec.Template.Spec.Containers) < 1 {
-		return false
-	}
-
-	existingArgs := existing.Spec.Template.Spec.Containers[0].DeepCopy().Args
-	desiredArgs := desired.Spec.Template.Spec.Containers[0].DeepCopy().Args
-
-	existingArgsSortable := sort.StringSlice(existingArgs)
-	existingArgsSortable.Sort()
-	desiredArgsSortable := sort.StringSlice(desiredArgs)
-	desiredArgsSortable.Sort()
-
-	if strings.Join(existingArgsSortable, " ") != strings.Join(desiredArgsSortable, " ") {
-		existing.Spec.Template.Spec.Containers[0].Args = desired.Spec.Template.Spec.Containers[0].Args
-		update = true
-	}
-
-	return update
-}
-
-func DeploymentVolumesMutator(desired, existing *k8sapps.Deployment) bool {
-	existingVolumes := existing.Spec.Template.Spec.DeepCopy().Volumes
-	desiredVolumes := desired.Spec.Template.Spec.DeepCopy().Volumes
-
-	if len(existingVolumes) != len(desiredVolumes) {
-		existing.Spec.Template.Spec.Volumes = desired.Spec.Template.Spec.Volumes
-		return true
-	}
-
-	sort.Slice(existingVolumes, func(i, j int) bool {
-		return existingVolumes[i].Name < existingVolumes[j].Name
-	})
-
-	sort.Slice(desiredVolumes, func(i, j int) bool {
-		return desiredVolumes[i].Name < desiredVolumes[j].Name
-	})
-
-	for i, desiredVolume := range desiredVolumes {
-		if existingVolumes[i].Name != desiredVolume.Name { // comparing only the names has limitation, but more reliable than using reflect.DeepEqual or comparing the marshalled version of the resources
-			existing.Spec.Template.Spec.Volumes = desired.Spec.Template.Spec.Volumes
-			return true
-		}
-	}
-
-	return false
-}
-
-func DeploymentVolumeMountsMutator(desired, existing *k8sapps.Deployment) bool {
-	update := false
-
-	existingContainer := &existing.Spec.Template.Spec.Containers[0]
-	desiredContainer := &desired.Spec.Template.Spec.Containers[0]
-
-	if !reflect.DeepEqual(existingContainer.VolumeMounts, desiredContainer.VolumeMounts) {
-		existingContainer.VolumeMounts = desiredContainer.VolumeMounts
-		update = true
-	}
-
-	return update
-}
-
-func DeploymentServiceAccountMutator(desired, existing *k8sapps.Deployment) bool {
-	update := false
-
-	if existing.Spec.Template.Spec.ServiceAccountName != desired.Spec.Template.Spec.ServiceAccountName {
-		existing.Spec.Template.Spec.ServiceAccountName = desired.Spec.Template.Spec.ServiceAccountName
-		update = true
-	}
-
-	return update
-}
-
-func DeploymentLabelsMutator(desired, existing *k8sapps.Deployment) bool {
-	update := false
-
-	if !reflect.DeepEqual(existing.ObjectMeta.Labels, desired.ObjectMeta.Labels) {
-		existing.ObjectMeta.Labels = desired.ObjectMeta.Labels
-		update = true
-	}
-
-	return update
-}
-
-func DeploymentSpecTemplateLabelsMutator(desired, existing *k8sapps.Deployment) bool {
-	return authorinoResources.MergeMapStringString(&existing.Spec.Template.Labels, desired.Spec.Template.Labels)
-}
 
 func IsObjectTaggedToDelete(obj client.Object) bool {
 	annotations := obj.GetAnnotations()
@@ -585,7 +392,7 @@ func buildAuthorinoEnv(authorino *api.Authorino) []k8score.EnvVar {
 	return envVar
 }
 
-// Detects possible old Authorino version (<= v0.10.x) configurable with deprecated environemnt variables (instead of command-line args)
+// Detects possible old Authorino version (<= v0.10.x) configurable with deprecated environment variables (instead of command-line args)
 func detectEnvVarAuthorinoVersion(version string) bool {
 	if match, err := regexp.MatchString(`v0\.(\d)+\..+`, version); err != nil || !match {
 		return false
