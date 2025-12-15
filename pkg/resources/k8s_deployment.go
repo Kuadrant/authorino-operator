@@ -10,6 +10,10 @@ func GetDeployment(name, namespace, saName string, replicas *int32, containers [
 	objMeta := getObjectMeta(namespace, name, labels)
 
 	return &k8sapps.Deployment{
+		TypeMeta: v1.TypeMeta{
+			APIVersion: k8sapps.SchemeGroupVersion.String(),
+			Kind:       "Deployment",
+		},
 		ObjectMeta: objMeta,
 		Spec: k8sapps.DeploymentSpec{
 			Replicas: replicas,

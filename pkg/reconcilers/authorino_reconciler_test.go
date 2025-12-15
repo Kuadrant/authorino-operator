@@ -81,7 +81,7 @@ func TestReconcileService(t *testing.T) {
 		desiredService := existingService.DeepCopy()
 		desiredService.Spec.Selector = newLabels
 		desiredService.Labels = newLabels
-		err := r.reconcileService(ctx, desiredService, ServiceMutator(LabelsMutator, PortMutator, SelectorMutator), authorinoInstance)
+		err := r.reconcileService(ctx, desiredService, authorinoInstance)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -108,7 +108,7 @@ func TestReconcileDeployment(t *testing.T) {
 		logger := log.FromContext(ctx)
 
 		deployment := AuthorinoDeployment(authorinoInstance)
-		err := r.reconcileDeployment(ctx, logger, deployment, DeploymentMutator(DeploymentReplicasMutator), authorinoInstance)
+		err := r.reconcileDeployment(ctx, logger, deployment, authorinoInstance)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -137,7 +137,7 @@ func TestReconcileDeployment(t *testing.T) {
 		authorinoInstance.Spec.Replicas = pointer.Int32(3)
 		authorinoInstance.Labels = map[string]string{"test": "test1"}
 		desiredDeployment := AuthorinoDeployment(authorinoInstance)
-		err := r.reconcileDeployment(ctx, logger, desiredDeployment, DeploymentMutator(DeploymentReplicasMutator, DeploymentLabelsMutator), authorinoInstance)
+		err := r.reconcileDeployment(ctx, logger, desiredDeployment, authorinoInstance)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -174,7 +174,7 @@ func TestReconcileDeployment(t *testing.T) {
 		authorinoInstance.Spec.Replicas = pointer.Int32(3)
 		authorinoInstance.Labels = map[string]string{"test": "test1"}
 		desiredDeployment := AuthorinoDeployment(authorinoInstance)
-		err := r.reconcileDeployment(ctx, logger, desiredDeployment, DeploymentMutator(DeploymentLabelsMutator), authorinoInstance)
+		err := r.reconcileDeployment(ctx, logger, desiredDeployment, authorinoInstance)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -185,8 +185,11 @@ func TestReconcileDeployment(t *testing.T) {
 			t.Fatalf("expected deployment to exist: %v", err)
 		}
 
-		if *updated.Spec.Replicas != *existingDeployment.Spec.Replicas {
-			t.Errorf("expected replicas not to be updated, got %d", *updated.Spec.Replicas)
+		// With Server-Side Apply, all fields in the desired state are applied
+		// Even if ReplicasMutator is not included, replicas will be updated because
+		// they are part of the desired deployment state
+		if *updated.Spec.Replicas != *authorinoInstance.Spec.Replicas {
+			t.Errorf("expected replicas to be updated to %d, got %d", *authorinoInstance.Spec.Replicas, *updated.Spec.Replicas)
 		}
 
 	})
@@ -204,7 +207,7 @@ func TestReconcileDeployment(t *testing.T) {
 		logger := log.FromContext(ctx)
 
 		desiredDeployment := AuthorinoDeployment(authorinoInstance)
-		err := r.reconcileDeployment(ctx, logger, desiredDeployment, DeploymentMutator(DeploymentLabelsMutator), authorinoInstance)
+		err := r.reconcileDeployment(ctx, logger, desiredDeployment, authorinoInstance)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}

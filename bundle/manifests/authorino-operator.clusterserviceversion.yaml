@@ -169,6 +169,7 @@ spec:
                 - create
                 - get
                 - list
+                - patch
                 - update
                 - watch
             - apiGroups:
@@ -254,9 +255,19 @@ spec:
                 - rbac.authorization.k8s.io
               resources:
                 - clusterrolebindings
-                - clusterroles
                 - rolebindings
                 - roles
+              verbs:
+                - create
+                - get
+                - list
+                - patch
+                - update
+                - watch
+            - apiGroups:
+                - rbac.authorization.k8s.io
+              resources:
+                - clusterroles
               verbs:
                 - create
                 - get

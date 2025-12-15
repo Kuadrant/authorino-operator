@@ -5877,6 +5877,7 @@ rules:
   - create
   - get
   - list
+  - patch
   - update
   - watch
 - apiGroups:
@@ -5962,9 +5963,19 @@ rules:
   - rbac.authorization.k8s.io
   resources:
   - clusterrolebindings
-  - clusterroles
   - rolebindings
   - roles
+  verbs:
+  - create
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - rbac.authorization.k8s.io
+  resources:
+  - clusterroles
   verbs:
   - create
   - get
