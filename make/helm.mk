@@ -6,7 +6,7 @@ CHART_NAME ?= authorino-operator
 CHART_DIRECTORY ?= charts/$(CHART_NAME)
 
 .PHONY: helm-build
-helm-build: $(YQ) kustomize manifests ## Build the helm chart from kustomize manifests
+helm-build: yq kustomize manifests ## Build the helm chart from kustomize manifests
 	# Set desired authorino image
 	V="$(ACTUAL_DEFAULT_AUTHORINO_IMAGE)" $(YQ) eval '(select(.kind == "Deployment").spec.template.spec.containers[].env[] | select(.name == "RELATED_IMAGE_AUTHORINO").value) = strenv(V)' -i config/manager/manager.yaml
 	# Replace the controller image
@@ -23,22 +23,22 @@ helm-build: $(YQ) kustomize manifests ## Build the helm chart from kustomize man
 	cd config/authorino/webhook && $(KUSTOMIZE) edit set namespace $(CHART_NAME)
 
 .PHONY: helm-install
-helm-install: $(HELM) ## Install the helm chart
+helm-install: helm ## Install the helm chart
 	# Install the helm chart in the cluster
 	$(HELM) install $(CHART_NAME) $(CHART_DIRECTORY)
 
 .PHONY: helm-uninstall
-helm-uninstall: $(HELM) ## Uninstall the helm chart
+helm-uninstall: helm ## Uninstall the helm chart
 	# Uninstall the helm chart from the cluster
 	$(HELM) uninstall $(CHART_NAME)
 
 .PHONY: helm-upgrade
-helm-upgrade: $(HELM) ## Upgrade the helm chart
+helm-upgrade: helm ## Upgrade the helm chart
 	# Upgrade the helm chart in the cluster
 	$(HELM) upgrade $(CHART_NAME) $(CHART_DIRECTORY)
 
 .PHONY: helm-package
-helm-package: $(HELM) ## Package the helm chart
+helm-package: helm ## Package the helm chart
 	# Package the helm chart
 	$(HELM) package $(CHART_DIRECTORY)
 
@@ -46,7 +46,7 @@ helm-package: $(HELM) ## Package the helm chart
 GPG_KEY_UID ?= 'Kuadrant Development Team'
 # The keyring should've been imported before running this target
 .PHONY: helm-package-sign
-helm-package-sign: $(HELM) ## Package the helm chart and GPG sign it
+helm-package-sign: helm ## Package the helm chart and GPG sign it
 	# Package the helm chart and sign it
 	$(HELM) package --sign --key "$(GPG_KEY_UID)" $(CHART_DIRECTORY)
 
