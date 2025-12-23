@@ -7,14 +7,14 @@ CATALOG_FILE = $(PROJECT_DIR)/catalog/authorino-operator-catalog/operator.yaml
 CATALOG_DOCKERFILE = $(PROJECT_DIR)/catalog/authorino-operator-catalog.Dockerfile
 
 OPM_DOCKERFILE_TAG ?= latest
-$(CATALOG_DOCKERFILE): $(OPM)
+$(CATALOG_DOCKERFILE): opm
 	-mkdir -p $(PROJECT_DIR)/catalog/authorino-operator-catalog
 	cd $(PROJECT_DIR)/catalog && $(OPM) generate dockerfile authorino-operator-catalog -b "quay.io/operator-framework/opm:${OPM_DOCKERFILE_TAG}" -i "quay.io/operator-framework/opm:${OPM_DOCKERFILE_TAG}"
 	# Inject --pprof-addr="" into both RUN and CMD serve invocations to disable running the pprof server
 	sed -i.bak -E '/(opm".*"serve|^CMD \["serve)/s#\]$$#, "--pprof-addr="]#' $(CATALOG_DOCKERFILE) && rm -f $(CATALOG_DOCKERFILE).bak
 catalog-dockerfile: $(CATALOG_DOCKERFILE) ## Generate catalog dockerfile.
 
-$(CATALOG_FILE): $(OPM) $(YQ)
+$(CATALOG_FILE): opm yq
 	@echo "************************************************************"
 	@echo Build authorino operator catalog
 	@echo
@@ -27,7 +27,7 @@ $(CATALOG_FILE): $(OPM) $(YQ)
 	$(PROJECT_DIR)/utils/generate-catalog.sh $(OPM) $(YQ) $(BUNDLE_IMG) $@ $(CHANNELS)
 
 .PHONY: catalog
-catalog: $(OPM) ## Generate catalog content and validate.
+catalog: opm ## Generate catalog content and validate.
 	# Initializing the Catalog
 	-rm -rf $(PROJECT_DIR)/catalog/authorino-operator-catalog
 	-rm -rf $(PROJECT_DIR)/catalog/authorino-operator-catalog.Dockerfile
@@ -47,9 +47,9 @@ catalog-build: ## Build a catalog image.
 catalog-push: ## Push a catalog image.
 	$(MAKE) docker-push IMG=$(CATALOG_IMG)
 
-deploy-catalog: $(KUSTOMIZE) $(YQ) ## Deploy operator to the K8s cluster specified in ~/.kube/config using OLM catalog image.
+deploy-catalog: kustomize yq ## Deploy operator to the K8s cluster specified in ~/.kube/config using OLM catalog image.
 	V="$(CATALOG_IMG)" $(YQ) eval '.spec.image = strenv(V)' -i config/deploy/olm/catalogsource.yaml
 	$(KUSTOMIZE) build config/deploy/olm | kubectl apply -f -
 
-undeploy-catalog: $(KUSTOMIZE) ## Undeploy controller from the K8s cluster specified in ~/.kube/config using OLM catalog image.
+undeploy-catalog: kustomize ## Undeploy controller from the K8s cluster specified in ~/.kube/config using OLM catalog image.
 	$(KUSTOMIZE) build config/deploy/olm | kubectl delete -f -

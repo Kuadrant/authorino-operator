@@ -16,6 +16,11 @@ MKFILE_PATH := $(abspath $(lastword $(MAKEFILE_LIST)))
 
 PROJECT_DIR := $(shell dirname $(abspath $(lastword $(MAKEFILE_LIST))))
 
+## Location to install dependencies to
+LOCALBIN ?= $(shell pwd)/bin
+$(LOCALBIN):
+	mkdir -p $(LOCALBIN)
+
 # VERSION defines the project version for the bundle.
 VERSION ?= $(shell git rev-parse HEAD)
 
@@ -106,90 +111,90 @@ help: ## Display this help.
 
 ##@ Tools
 
-# go-install-tool will 'go install' any package $2 and install it to $1.
+# go-install-tool will 'go install' a package $2 with version $3 to $1 creating a versioned binary.
 define go-install-tool
-@[ -f $(1) ] || { \
-set -e ;\
-TMP_DIR=$$(mktemp -d) ;\
-cd $$TMP_DIR ;\
-go mod init tmp ;\
-echo "Downloading $(2)" ;\
-GOBIN=$(PROJECT_DIR)/bin go install $(2) ;\
-rm -rf $$TMP_DIR ;\
-}
+@[ -f "$(1)-$(3)" ] || { \
+set -e; \
+package=$(2)@$(3) ;\
+echo "Downloading $${package}" ;\
+rm -f $(1) || true ;\
+GOBIN=$(LOCALBIN) go install $${package} ;\
+mv $(1) $(1)-$(3) ;\
+} ;\
+ln -sf $(shell basename $(1))-$(3) $(1)
 endef
 
-OPERATOR_SDK = $(shell pwd)/bin/operator-sdk
-OPERATOR_SDK_VERSION = v1.32.0
-operator-sdk: ## Download operator-sdk locally if necessary.
-	./utils/install-operator-sdk.sh $(OPERATOR_SDK) $(OPERATOR_SDK_VERSION)
+## Tool Binaries
+OPERATOR_SDK ?= $(LOCALBIN)/operator-sdk
+CONTROLLER_GEN ?= $(LOCALBIN)/controller-gen
+KUSTOMIZE ?= $(LOCALBIN)/kustomize
+YQ ?= $(LOCALBIN)/yq
+OPM ?= $(LOCALBIN)/opm
+HELM ?= $(LOCALBIN)/helm
+KIND ?= $(LOCALBIN)/kind
+ENVTEST ?= $(LOCALBIN)/setup-envtest
 
-CONTROLLER_GEN = $(shell pwd)/bin/controller-gen
-controller-gen: ## Download controller-gen locally if necessary.
-	$(call go-install-tool,$(CONTROLLER_GEN),sigs.k8s.io/controller-tools/cmd/controller-gen@v0.19.0)
+## Tool Versions
+OPERATOR_SDK_VERSION ?= v1.32.0
+CONTROLLER_GEN_VERSION ?= v0.19.0
+KUSTOMIZE_VERSION ?= v4.5.5
+YQ_VERSION ?= v4.34.2
+OPM_VERSION ?= v1.48.0
+HELM_VERSION ?= v3.15.0
+KIND_VERSION ?= v0.23.0
+# ENVTEST_VERSION is the version of controller-runtime release branch to fetch the envtest setup script (i.e. release-0.16)
+ENVTEST_VERSION ?= $(shell go list -m -f "{{ .Version }}" sigs.k8s.io/controller-runtime 2>/dev/null | awk -F'[v.]' '{printf "release-%d.%d", $$2, $$3}')
 
-KUSTOMIZE = $(PROJECT_DIR)/bin/kustomize
-$(KUSTOMIZE):
-	$(call go-install-tool,$(KUSTOMIZE),sigs.k8s.io/kustomize/kustomize/v4@v4.5.5)
+## Versioned Binaries (the actual files that 'make' will check for)
+OPERATOR_SDK_V_BINARY := $(LOCALBIN)/operator-sdk-$(OPERATOR_SDK_VERSION)
+CONTROLLER_GEN_V_BINARY := $(LOCALBIN)/controller-gen-$(CONTROLLER_GEN_VERSION)
+KUSTOMIZE_V_BINARY := $(LOCALBIN)/kustomize-$(KUSTOMIZE_VERSION)
+YQ_V_BINARY := $(LOCALBIN)/yq-$(YQ_VERSION)
+OPM_V_BINARY := $(LOCALBIN)/opm-$(OPM_VERSION)
+HELM_V_BINARY := $(LOCALBIN)/helm-$(HELM_VERSION)
+KIND_V_BINARY := $(LOCALBIN)/kind-$(KIND_VERSION)
+ENVTEST_V_BINARY := $(LOCALBIN)/setup-envtest-$(ENVTEST_VERSION)
+
+.PHONY: operator-sdk
+operator-sdk: $(OPERATOR_SDK_V_BINARY) ## Download operator-sdk locally if necessary.
+$(OPERATOR_SDK_V_BINARY): $(LOCALBIN)
+	@./utils/install-operator-sdk.sh $(OPERATOR_SDK)-$(OPERATOR_SDK_VERSION) $(OPERATOR_SDK_VERSION)
+	@ln -sf $(shell basename $(OPERATOR_SDK))-$(OPERATOR_SDK_VERSION) $(OPERATOR_SDK)
+
+.PHONY: controller-gen
+controller-gen: $(CONTROLLER_GEN_V_BINARY) ## Download controller-gen locally if necessary.
+$(CONTROLLER_GEN_V_BINARY): $(LOCALBIN)
+	$(call go-install-tool,$(CONTROLLER_GEN),sigs.k8s.io/controller-tools/cmd/controller-gen,$(CONTROLLER_GEN_VERSION))
 
 .PHONY: kustomize
-kustomize: $(KUSTOMIZE) ## Download kustomize locally if necessary.
-
-YQ = $(shell pwd)/bin/yq
-YQ_VERSION := v4.34.2
-$(YQ):
-	$(call go-install-tool,$(YQ),github.com/mikefarah/yq/v4@$(YQ_VERSION))
+kustomize: $(KUSTOMIZE_V_BINARY) ## Download kustomize locally if necessary.
+$(KUSTOMIZE_V_BINARY): $(LOCALBIN)
+	$(call go-install-tool,$(KUSTOMIZE),sigs.k8s.io/kustomize/kustomize/v4,$(KUSTOMIZE_VERSION))
 
 .PHONY: yq
-yq: $(YQ) ## Download yq locally if necessary.
-
-ARCH ?= $(shell go env GOARCH)
-OPM = $(PROJECT_DIR)/bin/opm
-OPM_VERSION ?= 1.48.0
-$(OPM):
-	@{ \
-	set -e ;\
-	mkdir -p $(dir $(OPM)) ;\
-	OS=$(shell go env GOOS) && \
-	curl -sSLo $(OPM) https://github.com/operator-framework/operator-registry/releases/download/v$(OPM_VERSION)/$${OS}-$(ARCH)-opm ;\
-	chmod +x $(OPM) ;\
-	}
+yq: $(YQ_V_BINARY) ## Download yq locally if necessary.
+$(YQ_V_BINARY): $(LOCALBIN)
+	$(call go-install-tool,$(YQ),github.com/mikefarah/yq/v4,$(YQ_VERSION))
 
 .PHONY: opm
-opm: $(OPM) ## Download opm locally if necessary.
-
-HELM = ./bin/helm
-HELM_VERSION = v3.15.0
-$(HELM):
-	@{ \
-	set -e ;\
-	mkdir -p $(dir $(HELM)) ;\
-	OS=$(shell go env GOOS) && ARCH=$(shell go env GOARCH) && \
-	curl -sL -o helm.tar.gz https://get.helm.sh/helm-$(HELM_VERSION)-$${OS}-$${ARCH}.tar.gz ;\
-	tar -zxvf helm.tar.gz ;\
-	mv $${OS}-$${ARCH}/helm $(HELM) ;\
-	chmod +x $(HELM) ;\
-	rm -rf $${OS}-$${ARCH} helm.tar.gz ;\
-	}
+opm: $(OPM_V_BINARY) ## Download opm locally if necessary.
+$(OPM_V_BINARY): $(LOCALBIN)
+	$(call go-install-tool,$(OPM),github.com/operator-framework/operator-registry/cmd/opm,$(OPM_VERSION))
 
 .PHONY: helm
-helm: $(HELM) ## Download helm locally if necessary.
-
-KIND = $(PROJECT_DIR)/bin/kind
-KIND_VERSION = v0.23.0
-$(KIND):
-	$(call go-install-tool,$(KIND),sigs.k8s.io/kind@$(KIND_VERSION))
+helm: $(HELM_V_BINARY) ## Download helm locally if necessary.
+$(HELM_V_BINARY): $(LOCALBIN)
+	$(call go-install-tool,$(HELM),helm.sh/helm/v3/cmd/helm,$(HELM_VERSION))
 
 .PHONY: kind
-kind: $(KIND) ## Download kind locally if necessary.
+kind: $(KIND_V_BINARY) ## Download kind locally if necessary.
+$(KIND_V_BINARY): $(LOCALBIN)
+	$(call go-install-tool,$(KIND),sigs.k8s.io/kind,$(KIND_VERSION))
 
-setup-envtest: ## Setup envtest.
-ifeq (, $(shell which setup-envtest))
-	go install sigs.k8s.io/controller-runtime/tools/setup-envtest@release-0.16
-SETUP_ENVTEST=$(GOBIN)/setup-envtest
-else
-SETUP_ENVTEST=$(shell which setup-envtest)
-endif
+.PHONY: envtest
+envtest: $(ENVTEST_V_BINARY) ## Download setup-envtest locally if necessary.
+$(ENVTEST_V_BINARY): $(LOCALBIN)
+	$(call go-install-tool,$(ENVTEST),sigs.k8s.io/controller-runtime/tools/setup-envtest,$(ENVTEST_VERSION))
 
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.29.0
@@ -220,9 +225,9 @@ fmt: ## Run go fmt against code.
 vet: ## Run go vet against code.
 	go vet ./...
 
-test: manifests generate fmt vet setup-envtest ## Run the tests.
-	echo $(SETUP_ENVTEST)
-	KUBEBUILDER_ASSETS='$(strip $(shell $(SETUP_ENVTEST)  use -p path $(ENVTEST_K8S_VERSION)))' \
+test: manifests generate fmt vet envtest ## Run the tests.
+	echo $(ENVTEST)
+	KUBEBUILDER_ASSETS='$(strip $(shell $(ENVTEST) use -p path $(ENVTEST_K8S_VERSION)))' \
 		go test -ldflags="-X github.com/kuadrant/authorino-operator/pkg/reconcilers.DefaultAuthorinoImage=$(ACTUAL_DEFAULT_AUTHORINO_IMAGE)" \
 		-coverprofile cover.out \
 	  	--coverpkg $(COVER_PKGS) \
@@ -232,7 +237,7 @@ test: manifests generate fmt vet setup-envtest ## Run the tests.
 
 build: GIT_SHA=$(shell git rev-parse HEAD || echo "unknown")
 build: DIRTY=$(shell $(PROJECT_DIR)/utils/check-git-dirty.sh || echo "unknown")
-build: generate fmt vet $(YQ) ## Build manager binary.
+build: generate fmt vet ## Build manager binary.
 	go build -ldflags "-X main.version=$(VERSION) -X main.gitSHA=${GIT_SHA} -X main.dirty=${DIRTY} -X github.com/kuadrant/authorino-operator/pkg/reconcilers.DefaultAuthorinoImage=$(ACTUAL_DEFAULT_AUTHORINO_IMAGE)" -o bin/manager main.go
 
 run: GIT_SHA=$(shell git rev-parse HEAD || echo "unknown")
@@ -269,10 +274,10 @@ install-operator: manifests kustomize ## Install CRDs into the K8s cluster speci
 uninstall-operator: manifests kustomize ## Uninstall CRDs from the K8s cluster specified in ~/.kube/config.
 	kubectl delete -f $(OPERATOR_MANIFESTS) --ignore-not-found
 
-install-authorino: $(KUSTOMIZE) create-namespace ## install RBAC and CRD for authorino
+install-authorino: kustomize create-namespace ## install RBAC and CRD for authorino
 	$(KUSTOMIZE) build config/authorino | kubectl apply -f -
 
-uninstall-authorino: $(KUSTOMIZE) ## uninstall RBAC and CRD for authorino
+uninstall-authorino: kustomize ## uninstall RBAC and CRD for authorino
 	$(KUSTOMIZE) build config/authorino | kubectl delete -f - --ignore-not-found
 
 install-cert-manager: ## install the cert manager need for the web hooks
@@ -291,7 +296,7 @@ delete-namespace:
 DEPLOYMENT_DIR = $(PROJECT_DIR)/config/deploy
 DEPLOYMENT_FILE = $(DEPLOYMENT_DIR)/manifests.yaml
 .PHONY: deploy-manifest
-deploy-manifest: $(KUSTOMIZE)
+deploy-manifest: kustomize
 	mkdir -p $(DEPLOYMENT_DIR)
 	cd $(PROJECT_DIR)/config/manager && $(KUSTOMIZE) edit set image controller=$(OPERATOR_IMAGE) ;\
 	cd $(PROJECT_DIR) && $(KUSTOMIZE) build config/deploy > $(DEPLOYMENT_FILE)
@@ -303,7 +308,7 @@ deploy-manifest: $(KUSTOMIZE)
 .PHONY: bundle
 bundle: export IMAGE_TAG := $(IMAGE_TAG)
 bundle: export BUNDLE_VERSION := $(BUNDLE_VERSION)
-bundle: manifests kustomize operator-sdk $(YQ) ## Generate bundle manifests and metadata, then validate generated files.
+bundle: manifests kustomize operator-sdk yq ## Generate bundle manifests and metadata, then validate generated files.
 	$(OPERATOR_SDK) generate kustomize manifests -q
 	V="$(ACTUAL_DEFAULT_AUTHORINO_IMAGE)" $(YQ) eval '(select(.kind == "Deployment").spec.template.spec.containers[].env[] | select(.name == "RELATED_IMAGE_AUTHORINO").value) = strenv(V)' -i config/manager/manager.yaml
 	cd config/manager && $(KUSTOMIZE) edit set image controller=$(OPERATOR_IMAGE)
@@ -343,17 +348,17 @@ bundle-push: ## Push the bundle image.
 ##@ Release
 
 .PHONY: create-build-file
-create-build-file: $(YQ) ## Creates the build info file.
+create-build-file: yq ## Creates the build info file.
 	$(YQ) -n '.config' > $(BUILD_CONFIG_FILE)
 
 .PHONY: set-authorino-default-image
-set-authorino-default-image: $(YQ) ## Sets the default Authorino image in the build file.
+set-authorino-default-image: yq ## Sets the default Authorino image in the build file.
 	@if [ "$(AUTHORINO_VERSION)" != "latest" ]; then\
 		V="$(DEFAULT_REGISTRY)/$(DEFAULT_ORG)/authorino:$(AUTHORINO_IMAGE_TAG)" $(YQ) eval '.config.authorinoImage = strenv(V)' -i $(BUILD_CONFIG_FILE); \
 	fi
 
 .PHONY: set-replaces-directive
-set-replaces-directive: $(YQ) ## Sets the value for the OLM replaces directive in the build file.
+set-replaces-directive: yq ## Sets the value for the OLM replaces directive in the build file.
 	$(eval REPLACES_VERSION=$(shell curl -sSL -H "Accept: application/vnd.github+json" \
                https://api.github.com/repos/Kuadrant/authorino-operator/releases/latest | \
                jq -r '.name'))
@@ -375,7 +380,7 @@ OPERATOR_IMAGE_REPO = $(shell echo $(OPERATOR_IMAGE) | cut -d: -f1)
 DEFAULT_AUTHORINO_IMAGE_REPO = $(shell echo $(DEFAULT_AUTHORINO_IMAGE) | cut -d: -f1)
 
 .PHONY: verify-manifests
-verify-manifests: manifests $(YQ) ## Verify manifests update.
+verify-manifests: manifests yq ## Verify manifests update.
 	git diff -I'^    createdAt:' -I'$(OPERATOR_IMAGE_REPO)' -I'$(DEFAULT_AUTHORINO_IMAGE_REPO)' --exit-code -- ./config ':(exclude)config/authorino/kustomization.yaml'
 	[ -z "$$(git ls-files --other --exclude-standard --directory --no-empty-directory ./config)" ]
 	$(YQ) ea -e 'select([.][].kind == "Deployment") | select([.][].metadata.name == "authorino-operator").spec.template.spec.containers[0].image | . == "$(OPERATOR_IMAGE)"' config/deploy/manifests.yaml
@@ -384,7 +389,7 @@ verify-manifests: manifests $(YQ) ## Verify manifests update.
 	$(YQ) e -e '.metadata.annotations.containerImage == "$(OPERATOR_IMAGE)"' config/manifests/bases/authorino-operator.clusterserviceversion.yaml
 
 .PHONY: verify-bundle
-verify-bundle: bundle $(YQ) ## Verify bundle update.
+verify-bundle: bundle yq ## Verify bundle update.
 	git diff -I'^    createdAt:' -I'$(OPERATOR_IMAGE_REPO)' -I'$(DEFAULT_AUTHORINO_IMAGE_REPO)' --exit-code -- ./bundle ':(exclude)config/authorino/kustomization.yaml'
 	[ -z "$$(git ls-files --other --exclude-standard --directory --no-empty-directory ./bundle)" ]
 	$(YQ) e -e '.metadata.annotations.containerImage == "$(OPERATOR_IMAGE)"' $(BUNDLE_CSV)
