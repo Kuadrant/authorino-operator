@@ -149,8 +149,17 @@ func (r *AuthorinoReconciler) cleanupClusterScopedPermissions(ctx context.Contex
 
 	// we only care about cluster-scoped role bindings for the cleanup
 	// namespaced ones are garbage collected automatically by k8s because of the owner reference
-	r.UnboundAuthorinoServiceAccountFromClusterRole(ctx, reconcilers.AuthorinoManagerClusterRoleBindingName, sa)
-	r.UnboundAuthorinoServiceAccountFromClusterRole(ctx, reconcilers.AuthorinoK8sAuthClusterRoleBindingName, sa)
+
+	// Delete instance-specific ClusterRoleBindings
+	managerBinding := authorinoResources.GetAuthorinoClusterRoleBinding(crName, reconcilers.AuthorinoManagerClusterRoleBindingName, reconcilers.AuthorinoManagerClusterRoleName, sa, labels)
+	if err := r.Client.Delete(ctx, managerBinding); err != nil && !errors.IsNotFound(err) {
+		r.Log.Error(err, "failed to delete ClusterRoleBinding", "name", managerBinding.Name)
+	}
+
+	k8sAuthBinding := authorinoResources.GetAuthorinoClusterRoleBinding(crName, reconcilers.AuthorinoK8sAuthClusterRoleBindingName, reconcilers.AuthorinoK8sAuthClusterRoleName, sa, labels)
+	if err := r.Client.Delete(ctx, k8sAuthBinding); err != nil && !errors.IsNotFound(err) {
+		r.Log.Error(err, "failed to delete ClusterRoleBinding", "name", k8sAuthBinding.Name)
+	}
 }
 
 func (r *AuthorinoReconciler) installationPreflightCheck(authorino *api.Authorino) error {

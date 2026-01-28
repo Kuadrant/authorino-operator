@@ -120,7 +120,7 @@ var _ = Describe("Authorino controller", func() {
 			var bindingNsdName types.NamespacedName
 			if authorinoInstance.Spec.ClusterWide {
 				binding = &k8srbac.ClusterRoleBinding{}
-				bindingNsdName = types.NamespacedName{Name: "authorino"}
+				bindingNsdName = types.NamespacedName{Name: authorinoInstance.Name + "-" + reconcilers.AuthorinoManagerClusterRoleBindingName}
 			} else {
 				binding = &k8srbac.RoleBinding{}
 				bindingNsdName = namespacedName(testAuthorinoNamespace, authorinoInstance.Name+"-authorino")
@@ -132,7 +132,7 @@ var _ = Describe("Authorino controller", func() {
 
 			// Authorino Auth ClusterRoleBinding
 			k8sAuthBinding := &k8srbac.ClusterRoleBinding{}
-			k8sAuthBindingNsdName := types.NamespacedName{Name: reconcilers.AuthorinoK8sAuthClusterRoleBindingName}
+			k8sAuthBindingNsdName := types.NamespacedName{Name: authorinoInstance.Name + "-" + reconcilers.AuthorinoK8sAuthClusterRoleBindingName}
 
 			Eventually(func(ctx context.Context) error {
 				return k8sClient.Get(ctx, k8sAuthBindingNsdName, k8sAuthBinding)
@@ -378,7 +378,7 @@ var _ = Describe("Authorino controller", func() {
 
 			// Authorino ClusterRoleBinding
 			binding := &k8srbac.ClusterRoleBinding{}
-			bindingNsdName := types.NamespacedName{Name: "authorino"}
+			bindingNsdName := types.NamespacedName{Name: authorinoInstance.Name + "-" + reconcilers.AuthorinoManagerClusterRoleBindingName}
 
 			Eventually(func(g Gomega, ctx context.Context) {
 				g.Expect(k8sClient.Get(ctx, bindingNsdName, binding)).ToNot(HaveOccurred())
@@ -389,7 +389,7 @@ var _ = Describe("Authorino controller", func() {
 
 			// Authorino Auth ClusterRoleBinding
 			k8sAuthBinding := &k8srbac.ClusterRoleBinding{}
-			k8sAuthBindingNsdName := types.NamespacedName{Name: reconcilers.AuthorinoK8sAuthClusterRoleBindingName}
+			k8sAuthBindingNsdName := types.NamespacedName{Name: authorinoInstance.Name + "-" + reconcilers.AuthorinoK8sAuthClusterRoleBindingName}
 
 			Eventually(func(g Gomega, ctx context.Context) {
 				g.Expect(k8sClient.Get(ctx, k8sAuthBindingNsdName, k8sAuthBinding)).ToNot(HaveOccurred())

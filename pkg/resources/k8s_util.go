@@ -24,3 +24,7 @@ func authorinoServiceAccountName(crName string) string {
 func authorinoRoleBindingName(crName, roleBindingNameSuffix string) string {
 	return fmt.Sprintf("%s-%s", crName, roleBindingNameSuffix)
 }
+
+func authorinoClusterRoleBindingName(crName, clusterRoleBindingNameSuffix string) string {
+	return fmt.Sprintf("%s-%s", crName, clusterRoleBindingNameSuffix)
+}
