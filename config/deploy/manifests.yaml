@@ -5974,6 +5974,7 @@ rules:
   - roles
   verbs:
   - create
+  - delete
   - get
   - list
   - patch
