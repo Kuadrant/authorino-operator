@@ -416,6 +416,9 @@ var _ = Describe("Authorino controller", func() {
 			authorinoInstance.Spec.ClusterWide = true
 			Expect(k8sClient.Create(ctx, authorinoInstance)).Should(Succeed())
 
+			// Update binding name for the new instance
+			bindingNsdName = types.NamespacedName{Name: authorinoInstance.Name + "-" + reconcilers.AuthorinoManagerClusterRoleBindingName}
+
 			// manager cluster role binding should get service account added
 			Eventually(func(g Gomega, ctx context.Context) {
 				sa := authorinoResources.GetAuthorinoServiceAccount(testAuthorinoNamespace, authorinoInstance.Name, authorinoInstance.Labels)
