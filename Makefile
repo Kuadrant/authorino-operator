@@ -231,6 +231,7 @@ test: manifests generate fmt vet envtest ## Run the tests.
 		go test -ldflags="-X github.com/kuadrant/authorino-operator/pkg/reconcilers.DefaultAuthorinoImage=$(ACTUAL_DEFAULT_AUTHORINO_IMAGE)" \
 		-coverprofile cover.out \
 	  	--coverpkg $(COVER_PKGS) \
+		-race \
 		./...
 
 ##@ Build
