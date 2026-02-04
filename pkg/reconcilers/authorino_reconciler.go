@@ -156,13 +156,15 @@ func (r *AuthorinoReconciler) reconcileManagerClusterRoleBinding(ctx context.Con
 
 	// if cluster scoped, ensure service account is in the binding
 	if authorinoInstance.Spec.ClusterWide {
-		binding := authorinoResources.GetAuthorinoClusterRoleBinding(AuthorinoManagerClusterRoleBindingName, AuthorinoManagerClusterRoleName, sa)
+		binding := authorinoResources.GetAuthorinoClusterRoleBinding(authorinoInstance.Name, AuthorinoManagerClusterRoleBindingName, AuthorinoManagerClusterRoleName, sa, authorinoInstance.Labels)
 		return r.reconcileClusterRoleBinding(ctx, binding, authorinoInstance)
 	}
 
 	// local namespace scope
-	// ensure the service account is NOT in the binding
-	r.UnboundAuthorinoServiceAccountFromClusterRole(ctx, AuthorinoManagerClusterRoleBindingName, sa)
+	// if switching from cluster-wide to namespaced, delete the ClusterRoleBinding
+	binding := authorinoResources.GetAuthorinoClusterRoleBinding(authorinoInstance.Name, AuthorinoManagerClusterRoleBindingName, AuthorinoManagerClusterRoleName, sa, authorinoInstance.Labels)
+	TagObjectToDelete(binding)
+	r.reconcileClusterRoleBinding(ctx, binding, authorinoInstance)
 
 	return nil
 }
@@ -192,7 +194,7 @@ func (r *AuthorinoReconciler) reconcileManagerAuthClusterRoleBinding(ctx context
 
 	sa := authorinoResources.GetAuthorinoServiceAccount(authorinoInstance.Namespace, authorinoInstance.Name, authorinoInstance.Labels)
 
-	binding := authorinoResources.GetAuthorinoClusterRoleBinding(AuthorinoK8sAuthClusterRoleBindingName, AuthorinoK8sAuthClusterRoleName, sa)
+	binding := authorinoResources.GetAuthorinoClusterRoleBinding(authorinoInstance.Name, AuthorinoK8sAuthClusterRoleBindingName, AuthorinoK8sAuthClusterRoleName, sa, authorinoInstance.Labels)
 	return r.reconcileClusterRoleBinding(ctx, binding, authorinoInstance)
 }
 

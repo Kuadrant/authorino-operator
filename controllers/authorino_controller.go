@@ -45,10 +45,10 @@ type AuthorinoReconciler struct {
 // +kubebuilder:rbac:groups="apps",resources=deployments,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch;create;update;patch
 // +kubebuilder:rbac:groups="rbac.authorization.k8s.io",resources=clusterroles,verbs=get;list;watch;create;update;
-// +kubebuilder:rbac:groups="rbac.authorization.k8s.io",resources=rolebindings,verbs=get;list;watch;create;update;patch
-// +kubebuilder:rbac:groups="rbac.authorization.k8s.io",resources=clusterrolebindings,verbs=get;list;watch;create;update;patch
+// +kubebuilder:rbac:groups="rbac.authorization.k8s.io",resources=rolebindings,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups="rbac.authorization.k8s.io",resources=clusterrolebindings,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=serviceaccounts,verbs=get;list;watch;create;update;patch
-// +kubebuilder:rbac:groups="rbac.authorization.k8s.io",resources=roles,verbs=get;list;watch;create;update;patch
+// +kubebuilder:rbac:groups="rbac.authorization.k8s.io",resources=roles,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="authentication.k8s.io",resources=tokenreviews,verbs=create;
 // +kubebuilder:rbac:groups="authorization.k8s.io",resources=subjectaccessreviews,verbs=create;
 // +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;create;update;patch;delete
@@ -149,8 +149,17 @@ func (r *AuthorinoReconciler) cleanupClusterScopedPermissions(ctx context.Contex
 
 	// we only care about cluster-scoped role bindings for the cleanup
 	// namespaced ones are garbage collected automatically by k8s because of the owner reference
-	r.UnboundAuthorinoServiceAccountFromClusterRole(ctx, reconcilers.AuthorinoManagerClusterRoleBindingName, sa)
-	r.UnboundAuthorinoServiceAccountFromClusterRole(ctx, reconcilers.AuthorinoK8sAuthClusterRoleBindingName, sa)
+
+	// Delete instance-specific ClusterRoleBindings
+	managerBinding := authorinoResources.GetAuthorinoClusterRoleBinding(crName, reconcilers.AuthorinoManagerClusterRoleBindingName, reconcilers.AuthorinoManagerClusterRoleName, sa, labels)
+	if err := r.Client.Delete(ctx, managerBinding); err != nil && !errors.IsNotFound(err) {
+		r.Log.Error(err, "failed to delete ClusterRoleBinding", "name", managerBinding.Name)
+	}
+
+	k8sAuthBinding := authorinoResources.GetAuthorinoClusterRoleBinding(crName, reconcilers.AuthorinoK8sAuthClusterRoleBindingName, reconcilers.AuthorinoK8sAuthClusterRoleName, sa, labels)
+	if err := r.Client.Delete(ctx, k8sAuthBinding); err != nil && !errors.IsNotFound(err) {
+		r.Log.Error(err, "failed to delete ClusterRoleBinding", "name", k8sAuthBinding.Name)
+	}
 }
 
 func (r *AuthorinoReconciler) installationPreflightCheck(authorino *api.Authorino) error {
