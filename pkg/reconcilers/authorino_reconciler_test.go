@@ -70,6 +70,10 @@ func TestReconcileService(t *testing.T) {
 				Name:      "test-authorino",
 				Namespace: namespace,
 			},
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "Service",
+				APIVersion: k8score.SchemeGroupVersion.String(),
+			},
 			Spec: k8score.ServiceSpec{
 				Selector: map[string]string{"old-label": "old-value"},
 			},
