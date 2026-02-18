@@ -143,7 +143,9 @@ OPM_VERSION ?= v1.48.0
 HELM_VERSION ?= v3.15.0
 KIND_VERSION ?= v0.23.0
 # ENVTEST_VERSION is the version of controller-runtime release branch to fetch the envtest setup script (i.e. release-0.16)
-ENVTEST_VERSION ?= $(shell go list -m -f "{{ .Version }}" sigs.k8s.io/controller-runtime 2>/dev/null | awk -F'[v.]' '{printf "release-%d.%d", $$2, $$3}')
+# ENVTEST_VERSION ?= $(shell go list -m -f "{{ .Version }}" sigs.k8s.io/controller-runtime 2>/dev/null | awk -F'[v.]' '{printf "release-%d.%d", $$2, $$3}')
+# ENVTEST_VERSION is currently hardcoded to a newer version as the release-0.16 GCS bucket access has been revoked
+ENVTEST_VERSION ?= release-0.21
 
 ## Versioned Binaries (the actual files that 'make' will check for)
 OPERATOR_SDK_V_BINARY := $(LOCALBIN)/operator-sdk-$(OPERATOR_SDK_VERSION)
