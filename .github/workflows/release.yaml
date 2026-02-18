@@ -58,7 +58,7 @@ jobs:
           git add -A && git commit -m "Prepared release v${{ github.event.inputs.operatorVersion }}"
           git push origin release-v${{ github.event.inputs.operatorVersion }}
       - name: Create release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           name: v${{ github.event.inputs.operatorVersion }}
           tag_name: v${{ github.event.inputs.operatorVersion }}
@@ -66,3 +66,4 @@ jobs:
           generate_release_notes: true
           target_commitish: release-v${{ github.event.inputs.operatorVersion }}
           prerelease: ${{ github.event.inputs.prerelease }}
+          token: ${{ secrets.KUADRANT_DEV_PAT }}
