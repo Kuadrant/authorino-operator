@@ -1,16 +1,18 @@
-name: Build images for main branch
+name: Build images for main
 
 on:
   push:
     branches:
       - main
+  workflow_dispatch: {}
 
 jobs:
-  build:
+  build-main:
     name: Calls build-images-base workflow
     uses: ./.github/workflows/build-images-base.yaml
     secrets: inherit
     with:
-      operatorVersion: ${{ github.sha }}
-      operatorTag: ${{ github.sha }}
+      operatorVersion: 0.0.0
+      operatorTag: latest
       authorinoVersion: latest
+      relatedImageAuthorino: quay.io/kuadrant/authorino:latest

@@ -4,55 +4,59 @@ on:
   workflow_call:
     inputs:
       operatorVersion:
-        description: Operator version (semver like 0.0.1, or SHA for dev builds)
-        default: ""
+        description: Operator bundle version
+        default: 0.0.0
         type: string
       operatorTag:
-        description: Image tag to apply to built images (e.g. latest, SHA, v0.0.1, branch name)
+        description: Image tag
         default: latest
         type: string
       authorinoVersion:
-        description: Authorino version (semver, SHA, branch name, or 'latest')
+        description: Authorino version used to resolve the git ref for manifests (semver, SHA, branch name, or 'latest')
         default: latest
         type: string
+      relatedImageAuthorino:
+        description: Full Authorino image reference to embed in the bundle (e.g. quay.io/kuadrant/authorino:latest or quay.io/kuadrant/authorino@sha256:...)
+        default: quay.io/kuadrant/authorino:latest
+        type: string
       channels:
-        description: Bundle and catalog channels, comma separated (omit to use the default from bundle metadata)
-        default: ""
+        description: Bundle and catalog channels, comma separated
+        default: preview
         type: string
       defaultChannel:
-        description: Bundle default channel (omit to use the default from bundle metadata)
-        default: ""
+        description: Bundle default channel
+        default: preview
         type: string
-      skipBundleAndCatalog:
-        description: Skip building bundle and catalog images
-        default: false
-        type: boolean
   workflow_dispatch:
     inputs:
       operatorVersion:
-        description: Operator version (semver like 0.0.1, or SHA for dev builds)
-        default: ""
+        description: Operator bundle version
+        default: 0.0.0
         type: string
       operatorTag:
-        description: Image tag to apply to built images (e.g. latest, SHA, v0.0.1, branch name)
+        description: Image tag
         default: latest
         type: string
       authorinoVersion:
-        description: Authorino version (semver, SHA, branch name, or 'latest')
+        description: Authorino version used to resolve the git ref for manifests (semver, SHA, branch name, or 'latest')
         default: latest
         type: string
+      relatedImageAuthorino:
+        description: Full Authorino image reference to embed in the bundle (e.g. quay.io/kuadrant/authorino:latest or quay.io/kuadrant/authorino@sha256:...)
+        default: quay.io/kuadrant/authorino:latest
+        type: string
       channels:
-        description: Bundle and catalog channels, comma separated (omit to use the default from bundle metadata)
-        default: ""
+        description: Bundle and catalog channels, comma separated
+        default: preview
         type: string
       defaultChannel:
-        description: Bundle default channel (omit to use the default from bundle metadata)
-        default: ""
+        description: Bundle default channel
+        default: preview
         type: string
 
 env:
   IMG_REGISTRY_HOST: quay.io
-  IMG_REGISTRY_ORG: kuadrant
+  IMG_REGISTRY_ORG: kevfan
   OPERATOR_NAME: authorino-operator
   BUILD_CONFIG_FILE: build.yaml
 
@@ -65,11 +69,13 @@ jobs:
         uses: actions/checkout@v4
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+        id: go
       - name: Install yq
         run: make yq
-      - name: Set default authorino image
-        run: |
-          echo "DEFAULT_AUTHORINO_IMAGE=$(./bin/yq e -e '.config.authorinoImage' ${{ env.BUILD_CONFIG_FILE }} || echo ${{ env.IMG_REGISTRY_HOST }}/${{ env.IMG_REGISTRY_ORG }}/authorino:${{ inputs.authorinoVersion }})" >> $GITHUB_ENV
       - name: Extract metadata
         id: meta
         uses: docker/metadata-action@v5
@@ -95,7 +101,7 @@ jobs:
             OPERATOR_VERSION=${{ inputs.operatorVersion }}
             GIT_SHA=${{ github.sha }}
             DIRTY=false
-            DEFAULT_AUTHORINO_IMAGE=${{ env.DEFAULT_AUTHORINO_IMAGE }}
+            DEFAULT_AUTHORINO_IMAGE=${{ inputs.relatedImageAuthorino }}
           provenance: false
       - name: Print image URL
         run: |
@@ -106,10 +112,11 @@ jobs:
     name: Build and push bundle image
     needs: build
     runs-on: ubuntu-latest
-    if: ${{ !inputs.skipBundleAndCatalog }}
     steps:
       - name: Check out code
         uses: actions/checkout@v4
+      - name: Install gettext
+        run: sudo apt-get update && sudo apt-get install -y gettext-base
       - name: Set up Go
         id: go
         uses: actions/setup-go@v5
@@ -117,31 +124,32 @@ jobs:
           go-version-file: go.mod
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-      - name: Set channel args
-        run: |
-          if [[ -n "${{ inputs.channels }}" ]]; then
-            echo "BUNDLE_CHANNEL_ARGS=CHANNELS=${{ inputs.channels }} DEFAULT_CHANNEL=${{ inputs.defaultChannel }}" >> $GITHUB_ENV
-          fi
       - name: Run make bundle
         run: |
           make bundle \
+            OPERATOR_IMAGE=${{ env.IMG_REGISTRY_HOST }}/${{ env.IMG_REGISTRY_ORG }}/${{ env.OPERATOR_NAME }}:${{ inputs.operatorTag }} \
             REGISTRY=${{ env.IMG_REGISTRY_HOST }} \
             ORG=${{ env.IMG_REGISTRY_ORG }} \
-            VERSION=${{ inputs.operatorVersion }} \
             IMAGE_TAG=${{ inputs.operatorTag }} \
+            VERSION=${{ inputs.operatorVersion }} \
             AUTHORINO_VERSION=${{ inputs.authorinoVersion }} \
-            $BUNDLE_CHANNEL_ARGS
+            ACTUAL_DEFAULT_AUTHORINO_IMAGE=${{ inputs.relatedImageAuthorino }} \
+            CHANNELS=${{ inputs.channels }} \
+            DEFAULT_CHANNEL=${{ inputs.defaultChannel }}
       - name: Git diff
-        run: git diff
+        run: git --no-pager diff
       - name: Verify manifests and bundle
         run: |
           make verify-manifests verify-bundle \
+            OPERATOR_IMAGE=${{ env.IMG_REGISTRY_HOST }}/${{ env.IMG_REGISTRY_ORG }}/${{ env.OPERATOR_NAME }}:${{ inputs.operatorTag }} \
             REGISTRY=${{ env.IMG_REGISTRY_HOST }} \
             ORG=${{ env.IMG_REGISTRY_ORG }} \
-            VERSION=${{ inputs.operatorVersion }} \
             IMAGE_TAG=${{ inputs.operatorTag }} \
+            VERSION=${{ inputs.operatorVersion }} \
             AUTHORINO_VERSION=${{ inputs.authorinoVersion }} \
-            $BUNDLE_CHANNEL_ARGS
+            ACTUAL_DEFAULT_AUTHORINO_IMAGE=${{ inputs.relatedImageAuthorino }} \
+            CHANNELS=${{ inputs.channels }} \
+            DEFAULT_CHANNEL=${{ inputs.defaultChannel }}
       - name: Extract metadata
         id: meta
         uses: docker/metadata-action@v5
@@ -174,7 +182,6 @@ jobs:
     name: Build and push catalog image
     needs: [build, build-bundle]
     runs-on: ubuntu-latest
-    if: ${{ !inputs.skipBundleAndCatalog }}
     steps:
       - name: Check out code
         uses: actions/checkout@v4
@@ -185,22 +192,13 @@ jobs:
           go-version-file: go.mod
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-      - name: Set channel args
-        run: |
-          if [[ -n "${{ inputs.channels }}" ]]; then
-            echo "BUNDLE_CHANNEL_ARGS=CHANNELS=${{ inputs.channels }} DEFAULT_CHANNEL=${{ inputs.defaultChannel }}" >> $GITHUB_ENV
-          fi
       - name: Run make catalog
         run: |
           make catalog \
-            REGISTRY=${{ env.IMG_REGISTRY_HOST }} \
-            ORG=${{ env.IMG_REGISTRY_ORG }} \
-            VERSION=${{ inputs.operatorVersion }} \
-            IMAGE_TAG=${{ inputs.operatorTag }} \
-            AUTHORINO_VERSION=${{ inputs.authorinoVersion }} \
-            $BUNDLE_CHANNEL_ARGS
+            BUNDLE_IMG=${{ env.IMG_REGISTRY_HOST }}/${{ env.IMG_REGISTRY_ORG }}/${{ env.OPERATOR_NAME }}-bundle:${{ inputs.operatorTag }} \
+            DEFAULT_CHANNEL=${{ inputs.defaultChannel }}
       - name: Git diff
-        run: git diff
+        run: git --no-pager diff
       - name: Extract metadata
         id: meta
         uses: docker/metadata-action@v5

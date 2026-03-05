@@ -1,19 +1,19 @@
-name: Build images for dev branches
+name: Build images for branches
 
 on:
   push:
-    branches-ignore:
-      - main
+    branches:
+      - "*"
+      - "!main"
+  workflow_dispatch: {}
 
 jobs:
-  build:
+  build-branches:
     name: Calls build-images-base workflow
     uses: ./.github/workflows/build-images-base.yaml
     secrets: inherit
     with:
-      operatorVersion: ${{ github.sha }}
+      operatorVersion: 0.0.0
       operatorTag: ${{ github.ref_name }}
       authorinoVersion: latest
-      channels: preview
-      defaultChannel: preview
-      skipBundleAndCatalog: true
+      relatedImageAuthorino: quay.io/kuadrant/authorino:latest

@@ -24,7 +24,7 @@ if [ ! -f "$1" ]; then
 
   echo "Downloading $OPERATOR_SDK_DL_BINARY"
   curl -sLO $OPERATOR_SDK_DL_BINARY
-  gpg --keyserver keyserver.ubuntu.com --recv-keys 052996E2A20B5C7E
+  gpg --keyserver hkps://keyserver.ubuntu.com --recv-keys 052996E2A20B5C7E
   curl -sLO ${OPERATOR_SDK_DL_URL}/checksums.txt
   curl -sLO ${OPERATOR_SDK_DL_URL}/checksums.txt.asc
   gpg -u "Operator SDK (release) <cncf-operator-sdk@cncf.io>" --verify checksums.txt.asc

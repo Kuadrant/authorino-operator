@@ -13,6 +13,7 @@ jobs:
     outputs:
       operatorVersion: ${{ steps.extract-operator-version.outputs.operatorVersion }}
       authorinoVersion: ${{ steps.extract-authorino-version.outputs.authorinoVersion }}
+      relatedImageAuthorino: ${{ steps.extract-authorino-version.outputs.relatedImageAuthorino }}
     steps:
       - name: Check out code
         uses: actions/checkout@v4
@@ -28,11 +29,13 @@ jobs:
           if [[ -n "$IMAGE" ]]; then
             TAG="${IMAGE##*:}"
             echo "authorinoVersion=${TAG#v}" >> $GITHUB_OUTPUT
+            echo "relatedImageAuthorino=${IMAGE}" >> $GITHUB_OUTPUT
           else
             echo "authorinoVersion=latest" >> $GITHUB_OUTPUT
+            echo "relatedImageAuthorino=quay.io/kuadrant/authorino:latest" >> $GITHUB_OUTPUT
           fi
 
-  build:
+  build-release:
     name: Calls build-images-base workflow
     needs: set-vars
     uses: ./.github/workflows/build-images-base.yaml
@@ -41,5 +44,6 @@ jobs:
       operatorVersion: ${{ needs.set-vars.outputs.operatorVersion }}
       operatorTag: ${{ github.ref_name }}
       authorinoVersion: ${{ needs.set-vars.outputs.authorinoVersion }}
+      relatedImageAuthorino: ${{ needs.set-vars.outputs.relatedImageAuthorino }}
       channels: stable
       defaultChannel: stable
