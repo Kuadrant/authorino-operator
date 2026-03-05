@@ -1,0 +1,230 @@
+name: Build Images
+
+on:
+  workflow_call:
+    inputs:
+      operatorVersion:
+        description: Operator version (semver like 0.0.1, or SHA for dev builds)
+        default: ""
+        type: string
+      operatorTag:
+        description: Image tag to apply to built images (e.g. latest, SHA, v0.0.1, branch name)
+        default: latest
+        type: string
+      authorinoVersion:
+        description: Authorino version (semver, SHA, branch name, or 'latest')
+        default: latest
+        type: string
+      channels:
+        description: Bundle and catalog channels, comma separated (omit to use the default from bundle metadata)
+        default: ""
+        type: string
+      defaultChannel:
+        description: Bundle default channel (omit to use the default from bundle metadata)
+        default: ""
+        type: string
+      skipBundleAndCatalog:
+        description: Skip building bundle and catalog images
+        default: false
+        type: boolean
+  workflow_dispatch:
+    inputs:
+      operatorVersion:
+        description: Operator version (semver like 0.0.1, or SHA for dev builds)
+        default: ""
+        type: string
+      operatorTag:
+        description: Image tag to apply to built images (e.g. latest, SHA, v0.0.1, branch name)
+        default: latest
+        type: string
+      authorinoVersion:
+        description: Authorino version (semver, SHA, branch name, or 'latest')
+        default: latest
+        type: string
+      channels:
+        description: Bundle and catalog channels, comma separated (omit to use the default from bundle metadata)
+        default: ""
+        type: string
+      defaultChannel:
+        description: Bundle default channel (omit to use the default from bundle metadata)
+        default: ""
+        type: string
+
+env:
+  IMG_REGISTRY_HOST: quay.io
+  IMG_REGISTRY_ORG: kuadrant
+  OPERATOR_NAME: authorino-operator
+  BUILD_CONFIG_FILE: build.yaml
+
+jobs:
+  build:
+    name: Build and push operator image
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Install yq
+        run: make yq
+      - name: Set default authorino image
+        run: |
+          echo "DEFAULT_AUTHORINO_IMAGE=$(./bin/yq e -e '.config.authorinoImage' ${{ env.BUILD_CONFIG_FILE }} || echo ${{ env.IMG_REGISTRY_HOST }}/${{ env.IMG_REGISTRY_ORG }}/authorino:${{ inputs.authorinoVersion }})" >> $GITHUB_ENV
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMG_REGISTRY_HOST }}/${{ env.IMG_REGISTRY_ORG }}/${{ env.OPERATOR_NAME }}
+          tags: |
+            type=raw,value=${{ inputs.operatorTag }}
+      - name: Login to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.IMG_REGISTRY_HOST }}
+          username: ${{ secrets.IMG_REGISTRY_USERNAME }}
+          password: ${{ secrets.IMG_REGISTRY_TOKEN }}
+      - name: Build and push operator image
+        id: build-image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64,linux/s390x,linux/ppc64le
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          build-args: |
+            OPERATOR_VERSION=${{ inputs.operatorVersion }}
+            GIT_SHA=${{ github.sha }}
+            DIRTY=false
+            DEFAULT_AUTHORINO_IMAGE=${{ env.DEFAULT_AUTHORINO_IMAGE }}
+          provenance: false
+      - name: Print image URL
+        run: |
+          echo "Image(s) pushed:"
+          echo "${{ steps.meta.outputs.tags }}"
+
+  build-bundle:
+    name: Build and push bundle image
+    needs: build
+    runs-on: ubuntu-latest
+    if: ${{ !inputs.skipBundleAndCatalog }}
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+      - name: Set up Go
+        id: go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Set channel args
+        run: |
+          if [[ -n "${{ inputs.channels }}" ]]; then
+            echo "BUNDLE_CHANNEL_ARGS=CHANNELS=${{ inputs.channels }} DEFAULT_CHANNEL=${{ inputs.defaultChannel }}" >> $GITHUB_ENV
+          fi
+      - name: Run make bundle
+        run: |
+          make bundle \
+            REGISTRY=${{ env.IMG_REGISTRY_HOST }} \
+            ORG=${{ env.IMG_REGISTRY_ORG }} \
+            VERSION=${{ inputs.operatorVersion }} \
+            IMAGE_TAG=${{ inputs.operatorTag }} \
+            AUTHORINO_VERSION=${{ inputs.authorinoVersion }} \
+            $BUNDLE_CHANNEL_ARGS
+      - name: Git diff
+        run: git diff
+      - name: Verify manifests and bundle
+        run: |
+          make verify-manifests verify-bundle \
+            REGISTRY=${{ env.IMG_REGISTRY_HOST }} \
+            ORG=${{ env.IMG_REGISTRY_ORG }} \
+            VERSION=${{ inputs.operatorVersion }} \
+            IMAGE_TAG=${{ inputs.operatorTag }} \
+            AUTHORINO_VERSION=${{ inputs.authorinoVersion }} \
+            $BUNDLE_CHANNEL_ARGS
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMG_REGISTRY_HOST }}/${{ env.IMG_REGISTRY_ORG }}/${{ env.OPERATOR_NAME }}-bundle
+          tags: |
+            type=raw,value=${{ inputs.operatorTag }}
+      - name: Login to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.IMG_REGISTRY_HOST }}
+          username: ${{ secrets.IMG_REGISTRY_USERNAME }}
+          password: ${{ secrets.IMG_REGISTRY_TOKEN }}
+      - name: Build and push bundle image
+        id: build-image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./bundle.Dockerfile
+          platforms: linux/amd64,linux/arm64,linux/s390x,linux/ppc64le
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          provenance: false
+      - name: Print image URL
+        run: |
+          echo "Image(s) pushed:"
+          echo "${{ steps.meta.outputs.tags }}"
+
+  build-catalog:
+    name: Build and push catalog image
+    needs: [build, build-bundle]
+    runs-on: ubuntu-latest
+    if: ${{ !inputs.skipBundleAndCatalog }}
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+      - name: Set up Go
+        id: go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Set channel args
+        run: |
+          if [[ -n "${{ inputs.channels }}" ]]; then
+            echo "BUNDLE_CHANNEL_ARGS=CHANNELS=${{ inputs.channels }} DEFAULT_CHANNEL=${{ inputs.defaultChannel }}" >> $GITHUB_ENV
+          fi
+      - name: Run make catalog
+        run: |
+          make catalog \
+            REGISTRY=${{ env.IMG_REGISTRY_HOST }} \
+            ORG=${{ env.IMG_REGISTRY_ORG }} \
+            VERSION=${{ inputs.operatorVersion }} \
+            IMAGE_TAG=${{ inputs.operatorTag }} \
+            AUTHORINO_VERSION=${{ inputs.authorinoVersion }} \
+            $BUNDLE_CHANNEL_ARGS
+      - name: Git diff
+        run: git diff
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMG_REGISTRY_HOST }}/${{ env.IMG_REGISTRY_ORG }}/${{ env.OPERATOR_NAME }}-catalog
+          tags: |
+            type=raw,value=${{ inputs.operatorTag }}
+      - name: Login to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.IMG_REGISTRY_HOST }}
+          username: ${{ secrets.IMG_REGISTRY_USERNAME }}
+          password: ${{ secrets.IMG_REGISTRY_TOKEN }}
+      - name: Build and push catalog image
+        id: build-image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./catalog
+          file: ./catalog/${{ env.OPERATOR_NAME }}-catalog.Dockerfile
+          platforms: linux/amd64,linux/arm64,linux/s390x,linux/ppc64le
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          provenance: false
+      - name: Print image URL
+        run: |
+          echo "Image(s) pushed:"
+          echo "${{ steps.meta.outputs.tags }}"

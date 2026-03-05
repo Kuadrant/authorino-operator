@@ -1,0 +1,45 @@
+name: Build images for tag release
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+      - 'v[0-9]+.[0-9]+.[0-9]+-*'
+
+jobs:
+  set-vars:
+    name: Set release variables
+    runs-on: ubuntu-latest
+    outputs:
+      operatorVersion: ${{ steps.extract-operator-version.outputs.operatorVersion }}
+      authorinoVersion: ${{ steps.extract-authorino-version.outputs.authorinoVersion }}
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+      - name: Install yq
+        run: make yq
+      - name: Extract operator version from tag
+        id: extract-operator-version
+        run: echo "operatorVersion=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
+      - name: Extract authorino version from build config
+        id: extract-authorino-version
+        run: |
+          IMAGE=$(./bin/yq e -e '.config.authorinoImage' build.yaml 2>/dev/null || echo "")
+          if [[ -n "$IMAGE" ]]; then
+            TAG="${IMAGE##*:}"
+            echo "authorinoVersion=${TAG#v}" >> $GITHUB_OUTPUT
+          else
+            echo "authorinoVersion=latest" >> $GITHUB_OUTPUT
+          fi
+
+  build:
+    name: Calls build-images-base workflow
+    needs: set-vars
+    uses: ./.github/workflows/build-images-base.yaml
+    secrets: inherit
+    with:
+      operatorVersion: ${{ needs.set-vars.outputs.operatorVersion }}
+      operatorTag: ${{ github.ref_name }}
+      authorinoVersion: ${{ needs.set-vars.outputs.authorinoVersion }}
+      channels: stable
+      defaultChannel: stable
