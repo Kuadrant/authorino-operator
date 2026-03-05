@@ -30,15 +30,10 @@ jobs:
       - name: Extract authorino version from build config
         id: extract-authorino-version
         run: |
-          IMAGE=$(./bin/yq e -e '.config.authorinoImage' build.yaml 2>/dev/null || echo "")
-          if [[ -n "$IMAGE" ]]; then
-            TAG="${IMAGE##*:}"
-            echo "authorinoVersion=${TAG#v}" >> $GITHUB_OUTPUT
-            echo "relatedImageAuthorino=${IMAGE}" >> $GITHUB_OUTPUT
-          else
-            echo "authorinoVersion=latest" >> $GITHUB_OUTPUT
-            echo "relatedImageAuthorino=quay.io/kuadrant/authorino:latest" >> $GITHUB_OUTPUT
-          fi
+          IMAGE=$(./bin/yq e -e '.config.authorinoImage' build.yaml)
+          TAG="${IMAGE##*:}"
+          echo "authorinoVersion=${TAG#v}" >> $GITHUB_OUTPUT
+          echo "relatedImageAuthorino=${IMAGE}" >> $GITHUB_OUTPUT
 
   build-release:
     name: Calls build-images-base workflow

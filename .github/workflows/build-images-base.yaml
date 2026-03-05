@@ -56,7 +56,7 @@ on:
 
 env:
   IMG_REGISTRY_HOST: quay.io
-  IMG_REGISTRY_ORG: kevfan
+  IMG_REGISTRY_ORG: kuadrant
   OPERATOR_NAME: authorino-operator
   BUILD_CONFIG_FILE: build.yaml
 
