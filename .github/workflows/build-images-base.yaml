@@ -20,12 +20,12 @@ on:
         default: quay.io/kuadrant/authorino:latest
         type: string
       channels:
-        description: Bundle and catalog channels, comma separated
-        default: preview
+        description: Bundle and catalog channels, comma separated (leave empty to keep existing annotations)
+        default: ""
         type: string
       defaultChannel:
-        description: Bundle default channel
-        default: preview
+        description: Bundle default channel (leave empty to keep existing annotations)
+        default: ""
         type: string
   workflow_dispatch:
     inputs:
@@ -46,12 +46,12 @@ on:
         default: quay.io/kuadrant/authorino:latest
         type: string
       channels:
-        description: Bundle and catalog channels, comma separated
-        default: preview
+        description: Bundle and catalog channels, comma separated (leave empty to keep existing annotations)
+        default: ""
         type: string
       defaultChannel:
-        description: Bundle default channel
-        default: preview
+        description: Bundle default channel (leave empty to keep existing annotations)
+        default: ""
         type: string
 
 env:
@@ -126,6 +126,10 @@ jobs:
         uses: docker/setup-buildx-action@v3
       - name: Run make bundle
         run: |
+          CHANNEL_ARGS=""
+          if [[ -n "${{ inputs.channels }}" ]]; then
+            CHANNEL_ARGS="CHANNELS=${{ inputs.channels }} DEFAULT_CHANNEL=${{ inputs.defaultChannel }}"
+          fi
           make bundle \
             OPERATOR_IMAGE=${{ env.IMG_REGISTRY_HOST }}/${{ env.IMG_REGISTRY_ORG }}/${{ env.OPERATOR_NAME }}:${{ inputs.operatorTag }} \
             REGISTRY=${{ env.IMG_REGISTRY_HOST }} \
@@ -134,12 +138,15 @@ jobs:
             VERSION=${{ inputs.operatorVersion }} \
             AUTHORINO_VERSION=${{ inputs.authorinoVersion }} \
             ACTUAL_DEFAULT_AUTHORINO_IMAGE=${{ inputs.relatedImageAuthorino }} \
-            CHANNELS=${{ inputs.channels }} \
-            DEFAULT_CHANNEL=${{ inputs.defaultChannel }}
+            $CHANNEL_ARGS
       - name: Git diff
         run: git --no-pager diff
       - name: Verify manifests and bundle
         run: |
+          CHANNEL_ARGS=""
+          if [[ -n "${{ inputs.channels }}" ]]; then
+            CHANNEL_ARGS="CHANNELS=${{ inputs.channels }} DEFAULT_CHANNEL=${{ inputs.defaultChannel }}"
+          fi
           make verify-manifests verify-bundle \
             OPERATOR_IMAGE=${{ env.IMG_REGISTRY_HOST }}/${{ env.IMG_REGISTRY_ORG }}/${{ env.OPERATOR_NAME }}:${{ inputs.operatorTag }} \
             REGISTRY=${{ env.IMG_REGISTRY_HOST }} \
@@ -148,8 +155,7 @@ jobs:
             VERSION=${{ inputs.operatorVersion }} \
             AUTHORINO_VERSION=${{ inputs.authorinoVersion }} \
             ACTUAL_DEFAULT_AUTHORINO_IMAGE=${{ inputs.relatedImageAuthorino }} \
-            CHANNELS=${{ inputs.channels }} \
-            DEFAULT_CHANNEL=${{ inputs.defaultChannel }}
+            $CHANNEL_ARGS
       - name: Extract metadata
         id: meta
         uses: docker/metadata-action@v5
