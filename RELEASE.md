@@ -17,12 +17,6 @@ sure to fill all the fields:
    * If the release is a prerelease
    * Bundle and catalog channels (comma-separated) – usually: `stable`
 
-3. Run the GHA [Build and push images](https://github.com/Kuadrant/authorino-operator/actions/workflows/build-images.yaml)
-for the _“v0.W.Z”_ tag, specifying ‘Authorino version’ equals to _“0.X.Y”_ (without the leading “v”). This will cause the
-new images (bundle and catalog included) to be built and pushed to the corresponding repos in
-[quay.io/kuadrant](https://quay.io/organization/kuadrant).
-
-
 ### Publishing the Operator in OpenShift Community Operators
 Open a PR in the [OpenShift Community Operators repo](http://github.com/redhat-openshift-ecosystem/community-operators-prod)
 ([example](https://github.com/redhat-openshift-ecosystem/community-operators-prod/pull/1595) |
