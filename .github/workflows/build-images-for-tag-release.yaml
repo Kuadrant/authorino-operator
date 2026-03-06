@@ -1,0 +1,49 @@
+name: Build images for tag release
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+      - 'v[0-9]+.[0-9]+.[0-9]+-*'
+
+jobs:
+  set-vars:
+    name: Set release variables
+    runs-on: ubuntu-latest
+    outputs:
+      operatorVersion: ${{ steps.extract-operator-version.outputs.operatorVersion }}
+      authorinoVersion: ${{ steps.extract-authorino-version.outputs.authorinoVersion }}
+      relatedImageAuthorino: ${{ steps.extract-authorino-version.outputs.relatedImageAuthorino }}
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+      - name: Set up Go
+        id: go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Install yq
+        run: make yq
+      - name: Extract operator version from tag
+        id: extract-operator-version
+        run: echo "operatorVersion=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
+      - name: Extract authorino version from build config
+        id: extract-authorino-version
+        run: |
+          IMAGE=$(./bin/yq e -e '.config.authorinoImage' build.yaml)
+          TAG="${IMAGE##*:}"
+          echo "authorinoVersion=${TAG#v}" >> $GITHUB_OUTPUT
+          echo "relatedImageAuthorino=${IMAGE}" >> $GITHUB_OUTPUT
+
+  build-release:
+    name: Calls build-images-base workflow
+    needs: set-vars
+    uses: ./.github/workflows/build-images-base.yaml
+    secrets: inherit
+    with:
+      operatorVersion: ${{ needs.set-vars.outputs.operatorVersion }}
+      operatorTag: ${{ github.ref_name }}
+      authorinoVersion: ${{ needs.set-vars.outputs.authorinoVersion }}
+      relatedImageAuthorino: ${{ needs.set-vars.outputs.relatedImageAuthorino }}
+      channels: stable
+      defaultChannel: stable

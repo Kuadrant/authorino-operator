@@ -311,6 +311,8 @@ deploy-manifest: kustomize
 .PHONY: bundle
 bundle: export IMAGE_TAG := $(IMAGE_TAG)
 bundle: export BUNDLE_VERSION := $(BUNDLE_VERSION)
+bundle: export REGISTRY := $(REGISTRY)
+bundle: export ORG := $(ORG)
 bundle: manifests kustomize operator-sdk yq ## Generate bundle manifests and metadata, then validate generated files.
 	$(OPERATOR_SDK) generate kustomize manifests -q
 	V="$(ACTUAL_DEFAULT_AUTHORINO_IMAGE)" $(YQ) eval '(select(.kind == "Deployment").spec.template.spec.containers[].env[] | select(.name == "RELATED_IMAGE_AUTHORINO").value) = strenv(V)' -i config/manager/manager.yaml
@@ -388,7 +390,7 @@ verify-manifests: manifests yq ## Verify manifests update.
 	[ -z "$$(git ls-files --other --exclude-standard --directory --no-empty-directory ./config)" ]
 	$(YQ) ea -e 'select([.][].kind == "Deployment") | select([.][].metadata.name == "authorino-operator").spec.template.spec.containers[0].image | . == "$(OPERATOR_IMAGE)"' config/deploy/manifests.yaml
 # $(YQ) ea -e 'select([.][].kind == "Deployment") | select([.][].metadata.name == "authorino-webhooks").spec.template.spec.containers[0].image | . == "$(DEFAULT_AUTHORINO_IMAGE)"' config/deploy/manifests.yaml
-	$(YQ) ea -e 'select([.][].kind == "Deployment") | select([.][].metadata.name == "authorino-operator").spec.template.spec.containers[0].env | select(.[].name == "RELATED_IMAGE_AUTHORINO") | .[].value == "$(DEFAULT_AUTHORINO_IMAGE)"' config/deploy/manifests.yaml
+	$(YQ) ea -e 'select([.][].kind == "Deployment") | select([.][].metadata.name == "authorino-operator").spec.template.spec.containers[0].env | select(.[].name == "RELATED_IMAGE_AUTHORINO") | .[].value == "$(ACTUAL_DEFAULT_AUTHORINO_IMAGE)"' config/deploy/manifests.yaml
 	$(YQ) e -e '.metadata.annotations.containerImage == "$(OPERATOR_IMAGE)"' config/manifests/bases/authorino-operator.clusterserviceversion.yaml
 
 .PHONY: verify-bundle
@@ -397,7 +399,7 @@ verify-bundle: bundle yq ## Verify bundle update.
 	[ -z "$$(git ls-files --other --exclude-standard --directory --no-empty-directory ./bundle)" ]
 	$(YQ) e -e '.metadata.annotations.containerImage == "$(OPERATOR_IMAGE)"' $(BUNDLE_CSV)
 	$(YQ) e -e '.spec.install.spec.deployments[0].spec.template.spec.containers[0].image == "$(OPERATOR_IMAGE)"' $(BUNDLE_CSV)
-	$(YQ) e -e '.spec.install.spec.deployments[0].spec.template.spec.containers[0].env | select(.[].name == "RELATED_IMAGE_AUTHORINO") | .[].value == "$(DEFAULT_AUTHORINO_IMAGE)"' $(BUNDLE_CSV)
+	$(YQ) e -e '.spec.install.spec.deployments[0].spec.template.spec.containers[0].env | select(.[].name == "RELATED_IMAGE_AUTHORINO") | .[].value == "$(ACTUAL_DEFAULT_AUTHORINO_IMAGE)"' $(BUNDLE_CSV)
 #	$(YQ) e -e '.spec.install.spec.deployments[1].spec.template.spec.containers[0].image == "$(DEFAULT_AUTHORINO_IMAGE)"' $(BUNDLE_CSV)
 
 .PHONY: verify-fmt

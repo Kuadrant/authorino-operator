@@ -1,0 +1,40 @@
+name: Schedule nightly build
+
+on:
+  schedule:
+    - cron: "0 0 * * *"
+  workflow_dispatch: {}
+
+jobs:
+  release-date:
+    name: GetDate
+    runs-on: ubuntu-latest
+    outputs:
+      release_date: ${{ steps.release_date.outputs.release_date }}
+    steps:
+      - id: release_date
+        run: echo "release_date=nightly-$(date +'%d-%m-%Y')" >> $GITHUB_OUTPUT
+  authorino-latest-digest:
+    name: Get the digest sha of the latest authorino image
+    runs-on: ubuntu-latest
+    outputs:
+      authorino_digest: ${{ steps.get-digest.outputs.digest }}
+    steps:
+      - name: Install crane
+        uses: imjasonh/setup-crane@v0.1
+      - id: get-digest
+        name: Get digest of latest authorino image
+        run: |
+          DIGEST=$(crane digest quay.io/kuadrant/authorino:latest)
+          echo "digest=${DIGEST}" >> $GITHUB_OUTPUT
+          echo "Authorino latest digest: ${DIGEST}"
+  build-nightly:
+    needs: [release-date, authorino-latest-digest]
+    name: Calls build-images-base workflow
+    uses: ./.github/workflows/build-images-base.yaml
+    secrets: inherit
+    with:
+      operatorVersion: 0.0.0
+      operatorTag: ${{ needs.release-date.outputs.release_date }}
+      authorinoVersion: latest
+      relatedImageAuthorino: quay.io/kuadrant/authorino@${{ needs.authorino-latest-digest.outputs.authorino_digest }}
