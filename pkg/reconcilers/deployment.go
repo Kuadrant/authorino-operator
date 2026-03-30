@@ -92,10 +92,37 @@ func AuthorinoDeployment(authorino *api.Authorino) *k8sapps.Deployment {
 			},
 		})
 
-		volumeMounts = append(volumeMounts, k8score.VolumeMount{
-			Name:      volume.Name,
-			MountPath: volume.MountPath,
-		})
+		if len(volume.Items) == 0 {
+			volumeMounts = append(volumeMounts, k8score.VolumeMount{
+				Name:      volume.Name,
+				MountPath: volume.MountPath,
+			})
+			continue
+		}
+
+		for _, item := range volume.Items {
+			path := item.Path
+			if path == "" {
+				path = item.Key
+			}
+
+			// Check if mountPath already includes the full path
+			mountPath := volume.MountPath
+			if !strings.HasSuffix(mountPath, "/"+path) {
+				// mountPath is a directory, append the path
+				if !strings.HasSuffix(mountPath, "/") {
+					mountPath = mountPath + "/"
+				}
+				mountPath = mountPath + path
+			}
+
+			volumeMount := k8score.VolumeMount{
+				Name:      volume.Name,
+				MountPath: mountPath,
+				SubPath:   path,
+			}
+			volumeMounts = append(volumeMounts, volumeMount)
+		}
 	}
 
 	// mount tls cert volume for the ext_authz listener if enable
