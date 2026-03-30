@@ -175,7 +175,7 @@ func (r *AuthorinoReconciler) installationPreflightCheck(authorino *api.Authorin
 	for authServerName, tlsCert := range tlsCerts {
 		tlsEnabled := tlsCert.Enabled == nil || *tlsCert.Enabled
 		if tlsEnabled {
-			if tlsCert.CertSecret == nil {
+			if tlsCert.CertSecret == nil || tlsCert.CertSecret.Name == "" {
 				return r.WrapErrorWithStatusUpdate(
 					r.Log, authorino, r.SetStatusFailed(statusTlsSecretNotProvided),
 					fmt.Errorf("%s secret with tls cert not provided", authServerName),
