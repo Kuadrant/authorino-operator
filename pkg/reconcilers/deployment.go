@@ -106,9 +106,10 @@ func AuthorinoDeployment(authorino *api.Authorino) *k8sapps.Deployment {
 				path = item.Key
 			}
 
-			// Check if mountPath already includes the full path
 			mountPath := volume.MountPath
-			if !strings.HasSuffix(mountPath, "/"+path) {
+			// For multiple items, always treat mountPath as a directory.
+			// For a single item, check if mountPath already includes the full path.
+			if len(volume.Items) > 1 || !strings.HasSuffix(mountPath, "/"+path) {
 				// mountPath is a directory, append the path
 				if !strings.HasSuffix(mountPath, "/") {
 					mountPath = mountPath + "/"

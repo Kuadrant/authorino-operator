@@ -24,8 +24,8 @@ func TestAuthorinoDeployment_VolumeMounts(t *testing.T) {
 			volumeSpec: api.VolumesSpec{
 				Items: []api.VolumeSpec{
 					{
-						Name:      "config-volume",
-						MountPath: "/etc/config",
+						Name:       "config-volume",
+						MountPath:  "/etc/config",
 						ConfigMaps: []string{"my-config"},
 					},
 				},
@@ -199,6 +199,36 @@ func TestAuthorinoDeployment_VolumeMounts(t *testing.T) {
 					Name:      "ca-volume",
 					MountPath: "/etc/ssl/certs/tls.crt",
 					SubPath:   "tls.crt",
+				},
+			},
+		},
+		{
+			name: "volume with multiple items and mountPath ending with first item's path",
+			volumeSpec: api.VolumesSpec{
+				Items: []api.VolumeSpec{
+					{
+						Name:      "multi-file-volume",
+						MountPath: "/dir/a.txt",
+						Secrets:   []string{"my-secret"},
+						Items: []k8score.KeyToPath{
+							{Key: "a", Path: "a.txt"},
+							{Key: "b", Path: "b.txt"},
+						},
+					},
+				},
+			},
+			tlsEnabled:     false,
+			oidcTlsEnabled: false,
+			expectedVolumeMounts: []k8score.VolumeMount{
+				{
+					Name:      "multi-file-volume",
+					MountPath: "/dir/a.txt/a.txt",
+					SubPath:   "a.txt",
+				},
+				{
+					Name:      "multi-file-volume",
+					MountPath: "/dir/a.txt/b.txt",
+					SubPath:   "b.txt",
 				},
 			},
 		},
