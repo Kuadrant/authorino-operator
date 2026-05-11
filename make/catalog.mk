@@ -6,10 +6,22 @@ CATALOG_IMG ?= $(IMAGE_TAG_BASE)-catalog:$(IMAGE_TAG)
 CATALOG_FILE = $(PROJECT_DIR)/catalog/authorino-operator-catalog/operator.yaml
 CATALOG_DOCKERFILE = $(PROJECT_DIR)/catalog/authorino-operator-catalog.Dockerfile
 
+# Quay image default expiry
+QUAY_IMAGE_EXPIRY ?= never
+
+# A LABEL that can be appended to a generated Dockerfile to set the Quay image expiration through Docker arguments.
+define QUAY_EXPIRY_TIME_LABEL
+
+# Quay image expiry
+ARG QUAY_IMAGE_EXPIRY=never
+LABEL quay.expires-after=$${QUAY_IMAGE_EXPIRY}
+endef
+export QUAY_EXPIRY_TIME_LABEL
+
 OPM_DOCKERFILE_TAG ?= latest
 $(CATALOG_DOCKERFILE): opm
 	-mkdir -p $(PROJECT_DIR)/catalog/authorino-operator-catalog
-	cd $(PROJECT_DIR)/catalog && $(OPM) generate dockerfile authorino-operator-catalog -b "quay.io/operator-framework/opm:${OPM_DOCKERFILE_TAG}" -i "quay.io/operator-framework/opm:${OPM_DOCKERFILE_TAG}"
+	cd $(PROJECT_DIR)/catalog && $(OPM) generate dockerfile authorino-operator-catalog -l quay.expires-after=$(QUAY_IMAGE_EXPIRY) -b "quay.io/operator-framework/opm:${OPM_DOCKERFILE_TAG}" -i "quay.io/operator-framework/opm:${OPM_DOCKERFILE_TAG}"
 	# Inject --pprof-addr="" into both RUN and CMD serve invocations to disable running the pprof server
 	sed -i.bak -E '/(opm".*"serve|^CMD \["serve)/s#\]$$#, "--pprof-addr="]#' $(CATALOG_DOCKERFILE) && rm -f $(CATALOG_DOCKERFILE).bak
 catalog-dockerfile: $(CATALOG_DOCKERFILE) ## Generate catalog dockerfile.

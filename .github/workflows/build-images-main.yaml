@@ -16,3 +16,4 @@ jobs:
       operatorTag: latest
       authorinoVersion: latest
       relatedImageAuthorino: quay.io/kuadrant/authorino:latest
+      quayImageExpiry: never
