@@ -2745,13 +2745,20 @@ spec:
                       description: |-
                         Defines where credentials are required to be passed in the request for authentication based on this config.
                         If omitted, it defaults to credentials passed in the HTTP Authorization header and the "Bearer" prefix prepended to the secret credential value.
+                      maxProperties: 1
                       properties:
                         authorizationHeader:
+                          description: |-
+                            Extract the credential from the HTTP Authorization header.
+                            The prefix specifies the authentication scheme to strip from the header value (e.g. "Bearer", "APIKEY", "Basic").
+                            Defaults to "Bearer" when prefix is omitted.
                           properties:
                             prefix:
                               type: string
                           type: object
                         cookie:
+                          description: Extract the credential from a cookie specified
+                            by name.
                           properties:
                             name:
                               type: string
@@ -2759,6 +2766,8 @@ spec:
                           - name
                           type: object
                         customHeader:
+                          description: Extract the credential from a custom HTTP header
+                            specified by name.
                           properties:
                             name:
                               type: string
@@ -2766,6 +2775,8 @@ spec:
                           - name
                           type: object
                         queryString:
+                          description: Extract the credential from a query string
+                            parameter specified by name.
                           properties:
                             name:
                               type: string
@@ -2901,14 +2912,19 @@ spec:
                           description: |-
                             A Common Expression Language (CEL) expression that evaluates to a value that represents an identity.
                             String expressions are supported (https://pkg.go.dev/github.com/google/cel-go/ext#Strings).
+                            Use alternatively to 'selector'.
                           type: string
                         selector:
                           description: |-
                             Simple path selector to fetch content from the authorization JSON (e.g. 'request.method') or a string template with variables that resolve to patterns (e.g. "Hello, {auth.identity.name}!").
                             Any pattern supported by https://pkg.go.dev/github.com/tidwall/gjson can be used.
                             The following Authorino custom modifiers are supported: @extract:{sep:" ",pos:0}, @replace{old:"",new:""}, @case:upper|lower, @base64:encode|decode and @strip.
+                            Use alternatively to 'expression'.
                           type: string
                       type: object
+                      x-kubernetes-validations:
+                      - message: 'Use exactly one of: selector, expression'
+                        rule: has(self.selector) != has(self.expression)
                     priority:
                       default: 0
                       description: |-
@@ -3145,11 +3161,14 @@ spec:
                       description: Authorization by Kubernetes SubjectAccessReview
                       properties:
                         authorizationGroups:
-                          description: Groups to check for existing permission in
-                            the Kubernetes RBAC alternatively to a specific user.
-                            This is typically obtained from a list of groups the user
-                            is a member of. Must be a static list of group names or
-                            dynamically resolve to one from the Authorization JSON.
+                          description: |-
+                            Groups to check for existing permission in the Kubernetes RBAC alternatively to a specific user.
+                            This is typically obtained from a list of groups the user is a member of.
+                            Must be a static list of group names or dynamically resolve to one from the Authorization JSON.
+
+                            WARNING: when using dynamic expressions to set groups, the expression may evaluate to an empty list
+                            for specific requests. If both user and groups/authorizationGroups resolve to empty values simultaneously
+                            at runtime, the Kubernetes API may reject the SubjectAccessReview and Authorino will deny access.
                           properties:
                             expression:
                               description: |-
@@ -3299,7 +3318,12 @@ spec:
                         user:
                           description: |-
                             User to check for authorization in the Kubernetes RBAC.
-                            Omit it to check for group authorization only.
+                            Omit it to check for group authorization only (requires groups or authorizationGroups to be specified).
+
+                            WARNING: when using dynamic expressions (e.g., with CEL) to set the value of this field,
+                            the expression may evaluate to an empty string for specific requests. If both user and groups/authorizationGroups
+                            resolve to empty values simultaneously at runtime, the Kubernetes API may reject the SubjectAccessReview
+                            and Authorino will deny access.
                           properties:
                             expression:
                               description: |-
@@ -3317,6 +3341,12 @@ spec:
                               x-kubernetes-preserve-unknown-fields: true
                           type: object
                       type: object
+                      x-kubernetes-validations:
+                      - message: At least one of user, groups, or authorizationGroups
+                          must be specified
+                        rule: has(self.user) || has(self.groups) || has(self.authorizationGroups)
+                      - message: '''groups'' must not be empty'
+                        rule: 'has(self.groups) ? size(self.groups) > 0 : true'
                     metrics:
                       default: false
                       description: Whether this config should generate individual
@@ -3396,13 +3426,20 @@ spec:
                               description: |-
                                 Defines where client credentials will be passed in the request to the service.
                                 If omitted, it defaults to client credentials passed in the HTTP Authorization header and the "Bearer" prefix expected prepended to the secret value.
+                              maxProperties: 1
                               properties:
                                 authorizationHeader:
+                                  description: |-
+                                    Extract the credential from the HTTP Authorization header.
+                                    The prefix specifies the authentication scheme to strip from the header value (e.g. "Bearer", "APIKEY", "Basic").
+                                    Defaults to "Bearer" when prefix is omitted.
                                   properties:
                                     prefix:
                                       type: string
                                   type: object
                                 cookie:
+                                  description: Extract the credential from a cookie
+                                    specified by name.
                                   properties:
                                     name:
                                       type: string
@@ -3410,6 +3447,8 @@ spec:
                                   - name
                                   type: object
                                 customHeader:
+                                  description: Extract the credential from a custom
+                                    HTTP header specified by name.
                                   properties:
                                     name:
                                       type: string
@@ -3417,6 +3456,8 @@ spec:
                                   - name
                                   type: object
                                 queryString:
+                                  description: Extract the credential from a query
+                                    string parameter specified by name.
                                   properties:
                                     name:
                                       type: string
@@ -3545,6 +3586,11 @@ spec:
                                 String expressions are supported (https://pkg.go.dev/github.com/google/cel-go/ext#Strings).
                               type: string
                           type: object
+                          x-kubernetes-validations:
+                          - message: 'Use exactly one of: url, urlExpression'
+                            rule: has(self.url) != has(self.urlExpression)
+                          - message: 'Use one of: body, bodyParameters'
+                            rule: '!has(self.body) || !has(self.bodyParameters)'
                         rego:
                           description: |-
                             Authorization policy as a Rego language document.
@@ -3552,6 +3598,9 @@ spec:
                             The Rego document must NOT include the "package" declaration in line 1.
                           type: string
                       type: object
+                      x-kubernetes-validations:
+                      - message: 'Use exactly one of: rego, externalPolicy'
+                        rule: has(self.rego) != has(self.externalPolicy)
                     patternMatching:
                       description: Pattern-matching authorization rules.
                       properties:
@@ -3944,13 +3993,20 @@ spec:
                           description: |-
                             Defines where client credentials will be passed in the request to the service.
                             If omitted, it defaults to client credentials passed in the HTTP Authorization header and the "Bearer" prefix expected prepended to the secret value.
+                          maxProperties: 1
                           properties:
                             authorizationHeader:
+                              description: |-
+                                Extract the credential from the HTTP Authorization header.
+                                The prefix specifies the authentication scheme to strip from the header value (e.g. "Bearer", "APIKEY", "Basic").
+                                Defaults to "Bearer" when prefix is omitted.
                               properties:
                                 prefix:
                                   type: string
                               type: object
                             cookie:
+                              description: Extract the credential from a cookie specified
+                                by name.
                               properties:
                                 name:
                                   type: string
@@ -3958,6 +4014,8 @@ spec:
                               - name
                               type: object
                             customHeader:
+                              description: Extract the credential from a custom HTTP
+                                header specified by name.
                               properties:
                                 name:
                                   type: string
@@ -3965,6 +4023,8 @@ spec:
                               - name
                               type: object
                             queryString:
+                              description: Extract the credential from a query string
+                                parameter specified by name.
                               properties:
                                 name:
                                   type: string
@@ -4089,6 +4149,11 @@ spec:
                             String expressions are supported (https://pkg.go.dev/github.com/google/cel-go/ext#Strings).
                           type: string
                       type: object
+                      x-kubernetes-validations:
+                      - message: 'Use exactly one of: url, urlExpression'
+                        rule: has(self.url) != has(self.urlExpression)
+                      - message: 'Use one of: body, bodyParameters'
+                        rule: '!has(self.body) || !has(self.bodyParameters)'
                     metrics:
                       default: false
                       description: Whether this config should generate individual
@@ -4276,13 +4341,20 @@ spec:
                           description: |-
                             Defines where client credentials will be passed in the request to the service.
                             If omitted, it defaults to client credentials passed in the HTTP Authorization header and the "Bearer" prefix expected prepended to the secret value.
+                          maxProperties: 1
                           properties:
                             authorizationHeader:
+                              description: |-
+                                Extract the credential from the HTTP Authorization header.
+                                The prefix specifies the authentication scheme to strip from the header value (e.g. "Bearer", "APIKEY", "Basic").
+                                Defaults to "Bearer" when prefix is omitted.
                               properties:
                                 prefix:
                                   type: string
                               type: object
                             cookie:
+                              description: Extract the credential from a cookie specified
+                                by name.
                               properties:
                                 name:
                                   type: string
@@ -4290,6 +4362,8 @@ spec:
                               - name
                               type: object
                             customHeader:
+                              description: Extract the credential from a custom HTTP
+                                header specified by name.
                               properties:
                                 name:
                                   type: string
@@ -4297,6 +4371,8 @@ spec:
                               - name
                               type: object
                             queryString:
+                              description: Extract the credential from a query string
+                                parameter specified by name.
                               properties:
                                 name:
                                   type: string
@@ -4421,6 +4497,11 @@ spec:
                             String expressions are supported (https://pkg.go.dev/github.com/google/cel-go/ext#Strings).
                           type: string
                       type: object
+                      x-kubernetes-validations:
+                      - message: 'Use exactly one of: url, urlExpression'
+                        rule: has(self.url) != has(self.urlExpression)
+                      - message: 'Use one of: body, bodyParameters'
+                        rule: '!has(self.body) || !has(self.bodyParameters)'
                     metrics:
                       default: false
                       description: Whether this config should generate individual
