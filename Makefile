@@ -326,7 +326,6 @@ bundle: manifests kustomize operator-sdk yq ## Generate bundle manifests and met
 	# Roll back edit
 	cd config/manager && $(KUSTOMIZE) edit set image controller=${DEFAULT_OPERATOR_IMAGE}
 	$(MAKE) bundle-custom-modifications
-	echo "$$QUAY_EXPIRY_TIME_LABEL" >> bundle.Dockerfile
 
 .PHONY: bundle-custom-modifications
 OPENSHIFT_VERSIONS_ANNOTATION_KEY="com.redhat.openshift.versions"
@@ -340,6 +339,8 @@ bundle-custom-modifications:
 	@echo "" >> bundle.Dockerfile
 	@echo "# Custom labels" >> bundle.Dockerfile
 	@echo "LABEL $(OPENSHIFT_VERSIONS_ANNOTATION_KEY)=$(OPENSHIFT_SUPPORTED_VERSIONS)" >> bundle.Dockerfile
+	# Set Quay image expiry label in bundle Dockerfile
+	@echo "$$QUAY_EXPIRY_TIME_LABEL" >> bundle.Dockerfile
 
 .PHONY: bundle-build
 bundle-build: ## Build the bundle image.
