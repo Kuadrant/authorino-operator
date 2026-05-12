@@ -17,4 +17,3 @@ jobs:
       operatorTag: ${{ github.ref_name }}
       authorinoVersion: latest
       relatedImageAuthorino: quay.io/kuadrant/authorino:latest
-      quayImageExpiry: 1w
