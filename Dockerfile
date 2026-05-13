@@ -34,4 +34,7 @@ WORKDIR /
 COPY --from=builder /tmp/manager .
 USER 1001
 
+ARG QUAY_IMAGE_EXPIRY=never
+LABEL quay.expires-after=$QUAY_IMAGE_EXPIRY
+
 ENTRYPOINT ["/manager"]

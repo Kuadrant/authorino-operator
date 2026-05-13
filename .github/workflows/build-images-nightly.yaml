@@ -38,3 +38,4 @@ jobs:
       operatorTag: ${{ needs.release-date.outputs.release_date }}
       authorinoVersion: latest
       relatedImageAuthorino: quay.io/kuadrant/authorino@${{ needs.authorino-latest-digest.outputs.authorino_digest }}
+      quayImageExpiry: 2w

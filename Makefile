@@ -249,7 +249,7 @@ run: manifests generate fmt vet ## Run a controller from your host.
 docker-build: GIT_SHA=$(shell git rev-parse HEAD || echo "unknown")
 docker-build: DIRTY=$(shell $(PROJECT_DIR)/utils/check-git-dirty.sh || echo "unknown")
 docker-build:  ## Build docker image with the manager.
-	docker build --build-arg OPERATOR_VERSION=$(VERSION) --build-arg GIT_SHA=$(GIT_SHA) --build-arg DIRTY=$(DIRTY) --build-arg ACTUAL_DEFAULT_AUTHORINO_IMAGE=$(ACTUAL_DEFAULT_AUTHORINO_IMAGE) -t $(OPERATOR_IMAGE) .
+	docker build --build-arg OPERATOR_VERSION=$(VERSION) --build-arg GIT_SHA=$(GIT_SHA) --build-arg DIRTY=$(DIRTY) --build-arg ACTUAL_DEFAULT_AUTHORINO_IMAGE=$(ACTUAL_DEFAULT_AUTHORINO_IMAGE) --build-arg QUAY_IMAGE_EXPIRY=$(QUAY_IMAGE_EXPIRY) -t $(OPERATOR_IMAGE) .
 
 docker-push: ## Push docker image with the manager.
 	docker push ${OPERATOR_IMAGE}
@@ -339,10 +339,12 @@ bundle-custom-modifications:
 	@echo "" >> bundle.Dockerfile
 	@echo "# Custom labels" >> bundle.Dockerfile
 	@echo "LABEL $(OPENSHIFT_VERSIONS_ANNOTATION_KEY)=$(OPENSHIFT_SUPPORTED_VERSIONS)" >> bundle.Dockerfile
+	# Set Quay image expiry label in bundle Dockerfile
+	@echo "$$QUAY_EXPIRY_TIME_LABEL" >> bundle.Dockerfile
 
 .PHONY: bundle-build
 bundle-build: ## Build the bundle image.
-	docker build -f bundle.Dockerfile -t $(BUNDLE_IMG) .
+	docker build --build-arg QUAY_IMAGE_EXPIRY=$(QUAY_IMAGE_EXPIRY) -f bundle.Dockerfile -t $(BUNDLE_IMG) .
 
 .PHONY: bundle-push
 bundle-push: ## Push the bundle image.

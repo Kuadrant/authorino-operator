@@ -27,6 +27,10 @@ on:
         description: Bundle default channel (leave empty to keep existing annotations)
         default: ""
         type: string
+      quayImageExpiry:
+        description: When to expire the built quay images. The time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively, from the time the image is built.
+        default: never
+        type: string
   workflow_dispatch:
     inputs:
       operatorVersion:
@@ -53,12 +57,17 @@ on:
         description: Bundle default channel (leave empty to keep existing annotations)
         default: ""
         type: string
+      quayImageExpiry:
+        description: When to expire the built quay images. The time values could be something like 1h, 2d, 3w for hours, days, and weeks, respectively, from the time the image is built.
+        default: never
+        type: string
 
 env:
   IMG_REGISTRY_HOST: quay.io
   IMG_REGISTRY_ORG: kuadrant
   OPERATOR_NAME: authorino-operator
   BUILD_CONFIG_FILE: build.yaml
+  QUAY_IMAGE_EXPIRY: ${{ inputs.quayImageExpiry }}
 
 jobs:
   build:
@@ -102,6 +111,7 @@ jobs:
             GIT_SHA=${{ github.sha }}
             DIRTY=false
             DEFAULT_AUTHORINO_IMAGE=${{ inputs.relatedImageAuthorino }}
+            QUAY_IMAGE_EXPIRY=${{ inputs.quayImageExpiry }}
           provenance: false
       - name: Print image URL
         run: |
@@ -178,6 +188,7 @@ jobs:
           platforms: linux/amd64,linux/arm64,linux/s390x,linux/ppc64le
           push: true
           tags: ${{ steps.meta.outputs.tags }}
+          build-args: QUAY_IMAGE_EXPIRY=${{ inputs.quayImageExpiry }}
           provenance: false
       - name: Print image URL
         run: |
