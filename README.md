@@ -284,6 +284,19 @@ spec:
             path: keycloak.crt
     defaultMode: 420
 ```
+
+## Profiling
+
+The operator supports runtime profiling via Go's built-in [pprof](https://pkg.go.dev/net/http/pprof) tooling. Enabled by default on `:8082`.
+
+Connect to a running instance:
+
+```bash
+kubectl port-forward -n authorino-operator deploy/authorino-operator-controller-manager 8082:8082
+go tool pprof -http=:8080 http://localhost:8082/debug/pprof/profile?seconds=30
+go tool pprof -http=:8080 http://localhost:8082/debug/pprof/heap
+```
+
 ## Removal
 
 ### Removing the operator installed via manifests
