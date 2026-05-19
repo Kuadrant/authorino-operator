@@ -30,7 +30,7 @@ jobs:
       - name: Validate version input
         run: |
           version="${{ github.event.inputs.operatorVersion }}"
-          if ! echo "$version" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+([+-].*)?$'; then
+          if ! echo "$version" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+([+-].+)?$'; then
             echo "Error: version must be semver format (e.g., 0.24.1, 0.25.0-rc1)"
             exit 1
           fi
