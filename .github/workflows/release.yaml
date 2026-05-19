@@ -43,7 +43,14 @@ jobs:
       - name: Derive release branch name
         id: release-branch
         run: |
-          release_branch=release-$(echo "${{ github.event.inputs.operatorVersion }}" | sed 's/[+-].*//; s/\.[0-9]*$//')
+          version="${{ github.event.inputs.operatorVersion }}"
+          if ! echo "$version" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+([+-].*)?$'; then
+            echo "Error: version must be semver format (e.g., 0.24.1, 0.25.0-rc1)"
+            exit 1
+          fi
+          # Extract major.minor from version (e.g., 0.24.1 → 0.24)
+          # Removes: pre-release suffix ([+-].*) and patch version (\.[0-9]*$)
+          release_branch=release-$(echo "$version" | sed 's/[+-].*//; s/\.[0-9]*$//')
           echo "name=$release_branch" >> $GITHUB_OUTPUT
       - name: Create release branch
         if: ${{ !startsWith(github.event.inputs.gitRef, 'release-') }}
