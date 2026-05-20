@@ -27,6 +27,13 @@ jobs:
     name: Release operator
     runs-on: ubuntu-latest
     steps:
+      - name: Validate version input
+        run: |
+          version="${{ github.event.inputs.operatorVersion }}"
+          if ! echo "$version" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+([+-].+)?$'; then
+            echo "Error: version must be semver format (e.g., 0.24.1, 0.25.0-rc1)"
+            exit 1
+          fi
       - name: Install gettext-base
         run: |
           sudo apt-get update
@@ -40,10 +47,17 @@ jobs:
         with:
           go-version-file: go.mod
         id: go
-      - name: Create release branch
-        if: ${{ !startsWith(github.event.inputs.gitRef, 'release-v') }}
+      - name: Derive release branch name
+        id: release-branch
         run: |
-          git checkout -b release-v${{ github.event.inputs.operatorVersion }}
+          # Extract major.minor from version (e.g., 0.24.1 → 0.24)
+          # Removes: pre-release suffix ([+-].*) and patch version (\.[0-9]*$)
+          release_branch=release-$(echo "${{ github.event.inputs.operatorVersion }}" | sed 's/[+-].*//; s/\.[0-9]*$//')
+          echo "name=$release_branch" >> $GITHUB_OUTPUT
+      - name: Create release branch
+        if: ${{ !startsWith(github.event.inputs.gitRef, 'release-') }}
+        run: |
+          git checkout -b ${{ steps.release-branch.outputs.name }}
       - name: Prepare release
         run: |
           VERSION=${{ github.event.inputs.operatorVersion }} \
@@ -56,7 +70,7 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add -A && git commit -m "Prepared release v${{ github.event.inputs.operatorVersion }}"
-          git push origin release-v${{ github.event.inputs.operatorVersion }}
+          git push origin ${{ steps.release-branch.outputs.name }}
       - name: Create release
         uses: softprops/action-gh-release@v2
         with:
@@ -64,6 +78,6 @@ jobs:
           tag_name: v${{ github.event.inputs.operatorVersion }}
           body: "**This release enables installations of Authorino v${{ github.event.inputs.authorinoVersion }}**"
           generate_release_notes: true
-          target_commitish: release-v${{ github.event.inputs.operatorVersion }}
+          target_commitish: ${{ steps.release-branch.outputs.name }}
           prerelease: ${{ github.event.inputs.prerelease }}
           token: ${{ secrets.KUADRANT_DEV_PAT }}
