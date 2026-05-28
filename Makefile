@@ -347,10 +347,10 @@ bundle: manifests kustomize operator-sdk yq ## Generate bundle manifests and met
 	($(YQ) e -e '.config.replaces' $(BUILD_CONFIG_FILE) && \
 		V="$(shell $(YQ) e -e '.config.replaces' $(BUILD_CONFIG_FILE))" $(YQ) eval '.spec.replaces = strenv(V)' -i $(BUNDLE_CSV)) || \
 		($(YQ) eval '.' -i $(BUNDLE_CSV) && echo "no replaces added")
+	$(MAKE) bundle-custom-modifications
 	$(OPERATOR_SDK) bundle validate ./bundle
 	# Roll back edit
 	cd config/manager && $(KUSTOMIZE) edit set image controller=${DEFAULT_OPERATOR_IMAGE}
-	$(MAKE) bundle-custom-modifications
 
 .PHONY: bundle-custom-modifications
 OPENSHIFT_VERSIONS_ANNOTATION_KEY="com.redhat.openshift.versions"
