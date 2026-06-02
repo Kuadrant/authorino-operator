@@ -22,5 +22,6 @@ COPY bundle/tests/scorecard /tests/scorecard/
 # Custom labels
 LABEL com.redhat.openshift.versions=v4.12
 
+# Quay image expiry
 ARG QUAY_IMAGE_EXPIRY=never
 LABEL quay.expires-after=${QUAY_IMAGE_EXPIRY}

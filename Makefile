@@ -56,6 +56,11 @@ OPERATOR_IMAGE ?= $(IMAGE_TAG_BASE):$(IMAGE_TAG)
 # You can use it as an arg. (E.g make bundle-build BUNDLE_IMG=<some-registry>/<project-name-bundle>:<tag>)
 BUNDLE_IMG ?= $(IMAGE_TAG_BASE)-bundle:$(IMAGE_TAG)
 
+# USE_IMAGE_DIGESTS defines if images are resolved via tags or digests
+# You can enable this value if you would like to use SHA Based Digests
+# To enable set flag to true
+USE_IMAGE_DIGESTS ?= false
+
 # CHANNELS define the bundle channels used in the bundle.
 # Add a new line here if you would like to change its default config. (E.g CHANNELS = "candidate,fast,stable")
 ifneq ($(origin CHANNELS), undefined)
@@ -306,6 +311,12 @@ deploy-manifest: kustomize
 
 ##@ OLM manifest bundle
 
+# BUNDLE_GEN_FLAGS are the flags passed to the operator-sdk generate bundle command
+BUNDLE_GEN_FLAGS ?= -q --overwrite --version $(BUNDLE_VERSION) $(BUNDLE_METADATA_OPTS) --package authorino-operator
+ifeq ($(USE_IMAGE_DIGESTS), true)
+	BUNDLE_GEN_FLAGS += --use-image-digests
+endif
+
 .PHONY: bundle
 bundle: export IMAGE_TAG := $(IMAGE_TAG)
 bundle: export BUNDLE_VERSION := $(BUNDLE_VERSION)
@@ -318,14 +329,14 @@ bundle: manifests kustomize operator-sdk yq ## Generate bundle manifests and met
 	envsubst \
         < config/manifests/bases/authorino-operator.clusterserviceversion.template.yaml \
         > config/manifests/bases/authorino-operator.clusterserviceversion.yaml
-	$(KUSTOMIZE) build config/manifests | $(OPERATOR_SDK) generate bundle -q --overwrite --version $(BUNDLE_VERSION) $(BUNDLE_METADATA_OPTS) --package authorino-operator
+	$(KUSTOMIZE) build config/manifests | $(OPERATOR_SDK) generate bundle $(BUNDLE_GEN_FLAGS)
 	($(YQ) e -e '.config.replaces' $(BUILD_CONFIG_FILE) && \
 		V="$(shell $(YQ) e -e '.config.replaces' $(BUILD_CONFIG_FILE))" $(YQ) eval '.spec.replaces = strenv(V)' -i $(BUNDLE_CSV)) || \
 		($(YQ) eval '.' -i $(BUNDLE_CSV) && echo "no replaces added")
+	$(MAKE) bundle-custom-modifications
 	$(OPERATOR_SDK) bundle validate ./bundle
 	# Roll back edit
 	cd config/manager && $(KUSTOMIZE) edit set image controller=${DEFAULT_OPERATOR_IMAGE}
-	$(MAKE) bundle-custom-modifications
 
 .PHONY: bundle-custom-modifications
 OPENSHIFT_VERSIONS_ANNOTATION_KEY="com.redhat.openshift.versions"
@@ -341,6 +352,10 @@ bundle-custom-modifications:
 	@echo "LABEL $(OPENSHIFT_VERSIONS_ANNOTATION_KEY)=$(OPENSHIFT_SUPPORTED_VERSIONS)" >> bundle.Dockerfile
 	# Set Quay image expiry label in bundle Dockerfile
 	@echo "$$QUAY_EXPIRY_TIME_LABEL" >> bundle.Dockerfile
+ifeq ($(USE_IMAGE_DIGESTS),true)
+	# Deduplicate relatedImages and remove name field (operator-sdk --use-image-digests creates duplicates)
+	$(YQ) -i '.spec.relatedImages |= unique_by(.image) | del(.spec.relatedImages[].name)' bundle/manifests/authorino-operator.clusterserviceversion.yaml
+endif
 
 .PHONY: bundle-build
 bundle-build: ## Build the bundle image.
