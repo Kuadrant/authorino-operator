@@ -489,23 +489,6 @@ spec:
                 type: object
               authorization:
                 additionalProperties:
-                  oneOf:
-                  - properties:
-                      opa: {}
-                    required:
-                    - opa
-                  - properties:
-                      patternMatching: {}
-                    required:
-                    - patternMatching
-                  - properties:
-                      kubernetesSubjectAccessReview: {}
-                    required:
-                    - kubernetesSubjectAccessReview
-                  - properties:
-                      spicedb: {}
-                    required:
-                    - spicedb
                   properties:
                     cache:
                       description: |-
@@ -1120,6 +1103,13 @@ spec:
                         type: object
                       type: array
                   type: object
+                  x-kubernetes-validations:
+                  - message: 'Use exactly one of: patternMatching, opa, kubernetesSubjectAccessReview,
+                      spicedb'
+                    rule: 'has(self.patternMatching) ? !(has(self.opa) || has(self.kubernetesSubjectAccessReview)
+                      || has(self.spicedb)) : has(self.opa) ? !(has(self.kubernetesSubjectAccessReview)
+                      || has(self.spicedb)) : has(self.kubernetesSubjectAccessReview)
+                      != has(self.spicedb)'
                 description: |-
                   Authorization policies.
                   All policies MUST evaluate to "allowed = true" for the auth request be successful.
@@ -1417,19 +1407,6 @@ spec:
                 type: array
               metadata:
                 additionalProperties:
-                  oneOf:
-                  - properties:
-                      userInfo: {}
-                    required:
-                    - userInfo
-                  - properties:
-                      uma: {}
-                    required:
-                    - uma
-                  - properties:
-                      http: {}
-                    required:
-                    - http
                   properties:
                     cache:
                       description: |-
@@ -1762,6 +1739,10 @@ spec:
                         type: object
                       type: array
                   type: object
+                  x-kubernetes-validations:
+                  - message: 'Use exactly one of: http, userInfo, uma'
+                    rule: 'has(self.http) ? !(has(self.userInfo) || has(self.uma))
+                      : has(self.userInfo) != has(self.uma)'
                 description: |-
                   Metadata sources.
                   Authorino fetches auth metadata as JSON from sources specified in this config.
@@ -2841,8 +2822,7 @@ spec:
                       type: object
                       x-kubernetes-validations:
                       - message: 'Use one of: jwksUrl, issuerUrl'
-                        rule: '!(has(self.jwksUrl) && self.jwksUrl != '''' && has(self.issuerUrl)
-                          && self.issuerUrl != '''')'
+                        rule: has(self.jwksUrl) != has(self.issuerUrl)
                     kubernetesTokenReview:
                       description: Authentication by Kubernetes token review.
                       properties:
@@ -3131,23 +3111,6 @@ spec:
                 type: object
               authorization:
                 additionalProperties:
-                  oneOf:
-                  - properties:
-                      opa: {}
-                    required:
-                    - opa
-                  - properties:
-                      patternMatching: {}
-                    required:
-                    - patternMatching
-                  - properties:
-                      kubernetesSubjectAccessReview: {}
-                    required:
-                    - kubernetesSubjectAccessReview
-                  - properties:
-                      spicedb: {}
-                    required:
-                    - spicedb
                   properties:
                     cache:
                       description: |-
@@ -3954,6 +3917,13 @@ spec:
                         type: object
                       type: array
                   type: object
+                  x-kubernetes-validations:
+                  - message: 'Use exactly one of: patternMatching, opa, kubernetesSubjectAccessReview,
+                      spicedb'
+                    rule: 'has(self.patternMatching) ? !(has(self.opa) || has(self.kubernetesSubjectAccessReview)
+                      || has(self.spicedb)) : has(self.opa) ? !(has(self.kubernetesSubjectAccessReview)
+                      || has(self.spicedb)) : has(self.kubernetesSubjectAccessReview)
+                      != has(self.spicedb)'
                 description: |-
                   Authorization policies.
                   All policies MUST evaluate to "allowed = true" for the auth request be successful.
@@ -4324,19 +4294,6 @@ spec:
                 type: array
               metadata:
                 additionalProperties:
-                  oneOf:
-                  - properties:
-                      userInfo: {}
-                    required:
-                    - userInfo
-                  - properties:
-                      uma: {}
-                    required:
-                    - uma
-                  - properties:
-                      http: {}
-                    required:
-                    - http
                   properties:
                     cache:
                       description: |-
@@ -4694,8 +4651,7 @@ spec:
                       type: object
                       x-kubernetes-validations:
                       - message: 'Use one of: identitySource, userInfoUrl'
-                        rule: '!(has(self.identitySource) && self.identitySource !=
-                          '''' && has(self.userInfoUrl) && self.userInfoUrl != '''')'
+                        rule: has(self.identitySource) != has(self.userInfoUrl)
                     when:
                       description: |-
                         Conditions for Authorino to enforce this config.
@@ -4774,6 +4730,10 @@ spec:
                         type: object
                       type: array
                   type: object
+                  x-kubernetes-validations:
+                  - message: 'Use exactly one of: http, userInfo, uma'
+                    rule: 'has(self.http) ? !(has(self.userInfo) || has(self.uma))
+                      : has(self.userInfo) != has(self.uma)'
                 description: |-
                   Metadata sources.
                   Authorino fetches auth metadata as JSON from sources specified in this config.
