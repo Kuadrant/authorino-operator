@@ -2548,7 +2548,7 @@ spec:
                 type: object
             type: object
         type: object
-    served: true
+    served: false
     storage: false
     subresources:
       status: {}
@@ -6105,8 +6105,8 @@ spec:
         - /manager
         env:
         - name: RELATED_IMAGE_AUTHORINO
-          value: quay.io/kuadrant/authorino:v0.25.0
-        image: quay.io/kuadrant/authorino-operator:v0.24.0
+          value: quay.io/kuadrant/authorino:v0.25.1
+        image: quay.io/kuadrant/authorino-operator:v0.24.1
         livenessProbe:
           httpGet:
             path: /healthz
