@@ -16,6 +16,10 @@ MKFILE_PATH := $(abspath $(lastword $(MAKEFILE_LIST)))
 
 PROJECT_DIR := $(shell dirname $(abspath $(lastword $(MAKEFILE_LIST))))
 
+# Include release defaults early so variables like VERSION, AUTHORINO_VERSION,
+# and CHANNELS are available for immediate evaluation below.
+-include $(PROJECT_DIR)/make/release.mk
+
 ## Location to install dependencies to
 LOCALBIN ?= $(shell pwd)/bin
 $(LOCALBIN):
