@@ -32,8 +32,7 @@ BUILD_CONFIG_AUTHORINO_VERSION ?= $(shell test -f $(BUILD_CONFIG_FILE) && grep -
 
 # VERSION defines the project version for the bundle.
 # Priority: command-line > build.yaml > git SHA
-VERSION ?= $(BUILD_CONFIG_VERSION)
-VERSION ?= $(shell git rev-parse HEAD)
+VERSION ?= $(if $(strip $(BUILD_CONFIG_VERSION)),$(BUILD_CONFIG_VERSION),$(shell git rev-parse HEAD))
 
 # AUTHORINO_VERSION priority: command-line > build.yaml > 'latest' (set below)
 ifndef AUTHORINO_VERSION

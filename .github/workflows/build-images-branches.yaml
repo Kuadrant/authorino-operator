@@ -7,10 +7,15 @@ on:
       - "!main"
   workflow_dispatch: {}
 
+permissions:
+  contents: read
+
 jobs:
   detect-config:
     name: Detect build configuration
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     outputs:
       operatorVersion: ${{ steps.config.outputs.operatorVersion }}
       authorinoVersion: ${{ steps.config.outputs.authorinoVersion }}
@@ -19,7 +24,9 @@ jobs:
       defaultChannel: ${{ steps.config.outputs.defaultChannel }}
     steps:
       - name: Check out code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
       - name: Read configuration from build.yaml
         id: config
         run: |
@@ -27,11 +34,18 @@ jobs:
           if [ -f "$BUILD_FILE" ]; then
             echo "build.yaml found, extracting configuration"
             # Read values using grep/sed (same approach as Makefile, with trimming)
-            OPERATOR_VERSION=$(grep -E '^\s+version:' "$BUILD_FILE" 2>/dev/null | sed -E 's/.*version:\s*//;s/^[[:space:]]+//;s/[[:space:]]+$//' || echo "0.0.0")
-            AUTHORINO_VERSION=$(grep -E '^\s+authorinoVersion:' "$BUILD_FILE" 2>/dev/null | sed -E 's/.*authorinoVersion:\s*//;s/^[[:space:]]+//;s/[[:space:]]+$//' || echo "latest")
-            AUTHORINO_IMAGE=$(grep -E '^\s+authorinoImage:' "$BUILD_FILE" 2>/dev/null | sed -E 's/.*authorinoImage:\s*//;s/^[[:space:]]+//;s/[[:space:]]+$//' || echo "quay.io/kuadrant/authorino:latest")
-            CHANNELS="stable"
-            DEFAULT_CHANNEL="stable"
+            # Use parameter expansion for fallback when fields are missing
+            OPERATOR_VERSION=$(grep -E '^\s+version:' "$BUILD_FILE" 2>/dev/null | sed -E 's/.*version:\s*//;s/^[[:space:]]+//;s/[[:space:]]+$//')
+            AUTHORINO_VERSION=$(grep -E '^\s+authorinoVersion:' "$BUILD_FILE" 2>/dev/null | sed -E 's/.*authorinoVersion:\s*//;s/^[[:space:]]+//;s/[[:space:]]+$//')
+            AUTHORINO_IMAGE=$(grep -E '^\s+authorinoImage:' "$BUILD_FILE" 2>/dev/null | sed -E 's/.*authorinoImage:\s*//;s/^[[:space:]]+//;s/[[:space:]]+$//')
+            CHANNELS=$(grep -E '^\s+channels:' "$BUILD_FILE" 2>/dev/null | sed -E 's/.*channels:\s*//;s/^[[:space:]]+//;s/[[:space:]]+$//')
+            DEFAULT_CHANNEL=$(grep -E '^\s+defaultChannel:' "$BUILD_FILE" 2>/dev/null | sed -E 's/.*defaultChannel:\s*//;s/^[[:space:]]+//;s/[[:space:]]+$//')
+            # Apply fallbacks for empty values
+            OPERATOR_VERSION=${OPERATOR_VERSION:-0.0.0}
+            AUTHORINO_VERSION=${AUTHORINO_VERSION:-latest}
+            AUTHORINO_IMAGE=${AUTHORINO_IMAGE:-quay.io/kuadrant/authorino:latest}
+            CHANNELS=${CHANNELS:-stable}
+            DEFAULT_CHANNEL=${DEFAULT_CHANNEL:-stable}
           else
             echo "build.yaml not found, using default values"
             OPERATOR_VERSION="0.0.0"
@@ -50,7 +64,11 @@ jobs:
     name: Calls build-images-base workflow
     needs: detect-config
     uses: ./.github/workflows/build-images-base.yaml
-    secrets: inherit
+    # Only pass secrets actually required by build-images-base.yaml (principle of least privilege)
+    # These are used for docker login to push images to the container registry
+    secrets:
+      IMG_REGISTRY_USERNAME: ${{ secrets.IMG_REGISTRY_USERNAME }}
+      IMG_REGISTRY_TOKEN: ${{ secrets.IMG_REGISTRY_TOKEN }}
     with:
       operatorVersion: ${{ needs.detect-config.outputs.operatorVersion }}
       operatorTag: ${{ github.ref_name }}
