@@ -8,12 +8,53 @@ on:
   workflow_dispatch: {}
 
 jobs:
+  detect-config:
+    name: Detect build configuration
+    runs-on: ubuntu-latest
+    outputs:
+      operatorVersion: ${{ steps.config.outputs.operatorVersion }}
+      authorinoVersion: ${{ steps.config.outputs.authorinoVersion }}
+      authorinoImage: ${{ steps.config.outputs.authorinoImage }}
+      channels: ${{ steps.config.outputs.channels }}
+      defaultChannel: ${{ steps.config.outputs.defaultChannel }}
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+      - name: Read configuration from build.yaml
+        id: config
+        run: |
+          BUILD_FILE="build.yaml"
+          if [ -f "$BUILD_FILE" ]; then
+            echo "build.yaml found, extracting configuration"
+            # Read values using grep/sed (same approach as Makefile, with trimming)
+            OPERATOR_VERSION=$(grep -E '^\s+version:' "$BUILD_FILE" 2>/dev/null | sed -E 's/.*version:\s*//;s/^[[:space:]]+//;s/[[:space:]]+$//' || echo "0.0.0")
+            AUTHORINO_VERSION=$(grep -E '^\s+authorinoVersion:' "$BUILD_FILE" 2>/dev/null | sed -E 's/.*authorinoVersion:\s*//;s/^[[:space:]]+//;s/[[:space:]]+$//' || echo "latest")
+            AUTHORINO_IMAGE=$(grep -E '^\s+authorinoImage:' "$BUILD_FILE" 2>/dev/null | sed -E 's/.*authorinoImage:\s*//;s/^[[:space:]]+//;s/[[:space:]]+$//' || echo "quay.io/kuadrant/authorino:latest")
+            CHANNELS="stable"
+            DEFAULT_CHANNEL="stable"
+          else
+            echo "build.yaml not found, using default values"
+            OPERATOR_VERSION="0.0.0"
+            AUTHORINO_VERSION="latest"
+            AUTHORINO_IMAGE="quay.io/kuadrant/authorino:latest"
+            CHANNELS=""
+            DEFAULT_CHANNEL=""
+          fi
+          echo "operatorVersion=${OPERATOR_VERSION}" >> $GITHUB_OUTPUT
+          echo "authorinoVersion=${AUTHORINO_VERSION}" >> $GITHUB_OUTPUT
+          echo "authorinoImage=${AUTHORINO_IMAGE}" >> $GITHUB_OUTPUT
+          echo "channels=${CHANNELS}" >> $GITHUB_OUTPUT
+          echo "defaultChannel=${DEFAULT_CHANNEL}" >> $GITHUB_OUTPUT
+
   build-branches:
     name: Calls build-images-base workflow
+    needs: detect-config
     uses: ./.github/workflows/build-images-base.yaml
     secrets: inherit
     with:
-      operatorVersion: 0.0.0
+      operatorVersion: ${{ needs.detect-config.outputs.operatorVersion }}
       operatorTag: ${{ github.ref_name }}
-      authorinoVersion: latest
-      relatedImageAuthorino: quay.io/kuadrant/authorino:latest
+      authorinoVersion: ${{ needs.detect-config.outputs.authorinoVersion }}
+      relatedImageAuthorino: ${{ needs.detect-config.outputs.authorinoImage }}
+      channels: ${{ needs.detect-config.outputs.channels }}
+      defaultChannel: ${{ needs.detect-config.outputs.defaultChannel }}
