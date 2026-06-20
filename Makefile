@@ -21,8 +21,34 @@ LOCALBIN ?= $(shell pwd)/bin
 $(LOCALBIN):
 	mkdir -p $(LOCALBIN)
 
+# Build configuration file (created by 'make create-build-file' or 'make prepare-release')
+BUILD_CONFIG_FILE ?= build.yaml
+
+# Read release configuration from build.yaml if present
+# This allows release branches to define VERSION, AUTHORINO_VERSION, and CHANNELS
+# Uses grep/sed for simple YAML parsing without requiring yq at variable definition time
+BUILD_CONFIG_VERSION ?= $(shell test -f $(BUILD_CONFIG_FILE) && grep -E '^\s+version:' $(BUILD_CONFIG_FILE) 2>/dev/null | sed -E 's/.*version:\s*//;s/^[[:space:]]+//;s/[[:space:]]+$$//' || echo "")
+BUILD_CONFIG_AUTHORINO_VERSION ?= $(shell test -f $(BUILD_CONFIG_FILE) && grep -E '^\s+authorinoVersion:' $(BUILD_CONFIG_FILE) 2>/dev/null | sed -E 's/.*authorinoVersion:\s*//;s/^[[:space:]]+//;s/[[:space:]]+$$//' || echo "")
+
 # VERSION defines the project version for the bundle.
+# Priority: command-line > build.yaml > git SHA
+VERSION ?= $(BUILD_CONFIG_VERSION)
 VERSION ?= $(shell git rev-parse HEAD)
+
+# AUTHORINO_VERSION priority: command-line > build.yaml > 'latest' (set below)
+ifndef AUTHORINO_VERSION
+ifneq ($(BUILD_CONFIG_AUTHORINO_VERSION),)
+AUTHORINO_VERSION = $(BUILD_CONFIG_AUTHORINO_VERSION)
+endif
+endif
+
+# CHANNELS defaults to stable if build.yaml has a version field, otherwise left undefined
+ifndef CHANNELS
+ifneq ($(BUILD_CONFIG_VERSION),)
+CHANNELS = stable
+DEFAULT_CHANNEL = stable
+endif
+endif
 
 # Address of the container registry
 DEFAULT_REGISTRY = quay.io
@@ -100,8 +126,7 @@ endif
 # Container Engine to be used for building image and with kind
 CONTAINER_ENGINE ?= docker
 
-# Build file used to store replaces/authorinoImage options.
-BUILD_CONFIG_FILE ?= build.yaml
+# Default and actual Authorino images
 DEFAULT_AUTHORINO_IMAGE = $(DEFAULT_REGISTRY)/$(DEFAULT_ORG)/authorino:$(AUTHORINO_IMAGE_TAG)
 ACTUAL_DEFAULT_AUTHORINO_IMAGE ?= $(shell $(YQ) e -e '.config.authorinoImage' $(BUILD_CONFIG_FILE) || echo $(DEFAULT_AUTHORINO_IMAGE))
 
