@@ -1,5 +1,0 @@
-#Release default values
-VERSION=0.23.2
-AUTHORINO_VERSION=0.24.1
-CHANNELS=stable
-DEFAULT_CHANNEL=stable
