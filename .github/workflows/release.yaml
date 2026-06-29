@@ -39,11 +39,11 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y gettext-base
       - name: Checkout code at git ref
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # ratchet:actions/checkout@v4
         with:
           ref: ${{ github.event.inputs.gitRef }}
       - name: Set up Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # ratchet:actions/setup-go@v6
         with:
           go-version-file: go.mod
         id: go
@@ -78,7 +78,7 @@ jobs:
           git add -A && git commit -m "Prepared release v${{ github.event.inputs.operatorVersion }}"
           git push origin ${{ steps.release-branch.outputs.name }}
       - name: Create release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # ratchet:softprops/action-gh-release@v2
         with:
           name: v${{ github.event.inputs.operatorVersion }}
           tag_name: v${{ github.event.inputs.operatorVersion }}

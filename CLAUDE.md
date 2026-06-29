@@ -202,6 +202,9 @@ The default Authorino image is injected at compile time. When building:
 Before submitting changes:
 
 ```bash
+# Run all verification checks
+make verify-all
+
 # Verify manifests are up to date
 make verify-manifests
 
@@ -210,4 +213,13 @@ make verify-bundle
 
 # Verify code formatting
 make verify-fmt
+
+# Verify GitHub Actions are pinned to commit SHAs
+make verify-ratchet
+```
+
+When adding or updating GitHub Actions in workflow files, pin them to commit SHAs:
+
+```bash
+make ratchet-pin
 ```
