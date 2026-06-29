@@ -138,6 +138,7 @@ OPM ?= $(LOCALBIN)/opm
 HELM ?= $(LOCALBIN)/helm
 KIND ?= $(LOCALBIN)/kind
 ENVTEST ?= $(LOCALBIN)/setup-envtest
+RATCHET ?= $(LOCALBIN)/ratchet
 
 ## Tool Versions
 OPERATOR_SDK_VERSION ?= v1.32.0
@@ -147,6 +148,7 @@ YQ_VERSION ?= v4.34.2
 OPM_VERSION ?= v1.48.0
 HELM_VERSION ?= v3.15.0
 KIND_VERSION ?= v0.23.0
+RATCHET_VERSION ?= v0.11.4
 # ENVTEST_VERSION is the version of controller-runtime release branch to fetch the envtest setup script (i.e. release-0.16)
 ENVTEST_VERSION ?= $(shell go list -m -f "{{ .Version }}" sigs.k8s.io/controller-runtime 2>/dev/null | awk -F'[v.]' '{printf "release-%d.%d", $$2, $$3}')
 
@@ -159,6 +161,7 @@ OPM_V_BINARY := $(LOCALBIN)/opm-$(OPM_VERSION)
 HELM_V_BINARY := $(LOCALBIN)/helm-$(HELM_VERSION)
 KIND_V_BINARY := $(LOCALBIN)/kind-$(KIND_VERSION)
 ENVTEST_V_BINARY := $(LOCALBIN)/setup-envtest-$(ENVTEST_VERSION)
+RATCHET_V_BINARY := $(LOCALBIN)/ratchet-$(RATCHET_VERSION)
 
 .PHONY: operator-sdk
 operator-sdk: $(OPERATOR_SDK_V_BINARY) ## Download operator-sdk locally if necessary.
@@ -200,6 +203,11 @@ $(KIND_V_BINARY): $(LOCALBIN)
 envtest: $(ENVTEST_V_BINARY) ## Download setup-envtest locally if necessary.
 $(ENVTEST_V_BINARY): $(LOCALBIN)
 	$(call go-install-tool,$(ENVTEST),sigs.k8s.io/controller-runtime/tools/setup-envtest,$(ENVTEST_VERSION))
+
+.PHONY: ratchet
+ratchet: $(RATCHET_V_BINARY) ## Download ratchet locally if necessary.
+$(RATCHET_V_BINARY): $(LOCALBIN)
+	$(call go-install-tool,$(RATCHET),github.com/sethvargo/ratchet,$(RATCHET_VERSION))
 
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.29.0
@@ -392,9 +400,18 @@ prepare-release: ## Prepares a release: create build info file, generate manifes
 	$(MAKE) manifests bundle VERSION=$(VERSION) AUTHORINO_VERSION=$(AUTHORINO_VERSION)
 	$(MAKE) helm-build VERSION=$(VERSION) AUTHORINO_VERSION=$(AUTHORINO_VERSION)
 
+##@ Code Style
+
+.PHONY: ratchet-pin
+ratchet-pin: ratchet ## Pin GitHub Actions to commit SHAs.
+	$(RATCHET) pin $$(find .github/workflows -name '*.yaml' -o -name '*.yml')
+
 ##@ Verify
 
 ## Targets to verify actions that generate/modify code have been executed and output committed
+
+.PHONY: verify-all
+verify-all: verify-manifests verify-bundle verify-fmt verify-ratchet ## Run all verification checks.
 
 OPERATOR_IMAGE_REPO = $(shell echo $(OPERATOR_IMAGE) | cut -d: -f1)
 DEFAULT_AUTHORINO_IMAGE_REPO = $(shell echo $(DEFAULT_AUTHORINO_IMAGE) | cut -d: -f1)
@@ -420,6 +437,10 @@ verify-bundle: bundle yq ## Verify bundle update.
 .PHONY: verify-fmt
 verify-fmt: fmt ## Verify fmt update.
 	git diff --exit-code ./api ./controllers
+
+.PHONY: verify-ratchet
+verify-ratchet: ratchet ## Verify GitHub Actions are pinned to commit SHAs.
+	$(RATCHET) lint $$(find .github/workflows -name '*.yaml' -o -name '*.yml')
 
 # Include last to avoid changing MAKEFILE_LIST used above
 include ./make/*.mk
