@@ -32,11 +32,11 @@ jobs:
           else
             echo "::error::Invalid semver tag: $TAG"
             echo "Expected a valid SemVer (https://semver.org/) format, i.e.: v1.2.3, v1.2.3-alpha1, v1.2.3-dev"
-            exit 1  
+            exit 1
           fi
 
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # ratchet:actions/checkout@v4
         with:
           ref: ${{ github.ref }}
           fetch-depth: 0
@@ -60,7 +60,7 @@ jobs:
           echo "OPERATOR_TAG=${tag}" >> $GITHUB_ENV
 
       - name: Upload package to GitHub Release
-        uses: svenstaro/upload-release-action@v2
+        uses: svenstaro/upload-release-action@29e53e917877a24fad85510ded594ab3c9ca12de # ratchet:svenstaro/upload-release-action@v2
         id: upload-chart
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
@@ -70,7 +70,7 @@ jobs:
           overwrite: true
 
       - name: Upload provenance file to GitHub Release
-        uses: svenstaro/upload-release-action@v2
+        uses: svenstaro/upload-release-action@29e53e917877a24fad85510ded594ab3c9ca12de # ratchet:svenstaro/upload-release-action@v2
         id: upload-prov-file
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
@@ -85,3 +85,4 @@ jobs:
             VERSION=${{env.OPERATOR_VERSION}} \
             HELM_WORKFLOWS_TOKEN=${{ secrets.HELM_WORKFLOWS_TOKEN }} \
             BROWSER_DOWNLOAD_URL=${{ steps.upload-chart.outputs.browser_download_url }}
+
