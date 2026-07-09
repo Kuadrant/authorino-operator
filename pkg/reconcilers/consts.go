@@ -57,6 +57,12 @@ const (
 	FlagHealthProbeAddr                string = "health-probe-addr"
 	FlagEnableLeaderElection           string = "enable-leader-election"
 	FlagMaxHttpRequestBodySize         string = "max-http-request-body-size"
+	FlagTlsMinVersion                  string = "tls-min-version"
+	FlagTlsMaxVersion                  string = "tls-max-version"
+	FlagTlsCipherSuites                string = "tls-cipher-suites"
+	FlagOidcTlsMinVersion              string = "oidc-tls-min-version"
+	FlagOidcTlsMaxVersion              string = "oidc-tls-max-version"
+	FlagOidcTlsCipherSuites            string = "oidc-tls-cipher-suites"
 
 	// defaults
 	DefaultTlsCertPath         string = "/etc/ssl/certs/tls.crt"

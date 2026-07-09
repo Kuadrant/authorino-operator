@@ -207,10 +207,19 @@ func buildAuthorinoArgs(authorino *api.Authorino) []string {
 		args = append(args, fmt.Sprintf("--%s=%d", FlagExtAuthHTTPPort, *port))
 	}
 
-	// tls-cert and tls-cert-key
+	// tls-cert, tls-cert-key, tls-min-version, tls-max-version, tls-cipher-suites
 	if enabled := authorino.Spec.Listener.Tls.Enabled; enabled == nil || *enabled {
 		args = append(args, fmt.Sprintf("--%s=%s", FlagTlsCertPath, DefaultTlsCertPath))
 		args = append(args, fmt.Sprintf("--%s=%s", FlagTlsCertKeyPath, DefaultTlsCertKeyPath))
+		if tlsMinVersion := authorino.Spec.Listener.Tls.MinVersion; tlsMinVersion != "" {
+			args = append(args, fmt.Sprintf("--%s=%s", FlagTlsMinVersion, tlsMinVersion))
+		}
+		if tlsMaxVersion := authorino.Spec.Listener.Tls.MaxVersion; tlsMaxVersion != "" {
+			args = append(args, fmt.Sprintf("--%s=%s", FlagTlsMaxVersion, tlsMaxVersion))
+		}
+		if len(authorino.Spec.Listener.Tls.CipherSuites) > 0 {
+			args = append(args, fmt.Sprintf("--%s=%s", FlagTlsCipherSuites, strings.Join(authorino.Spec.Listener.Tls.CipherSuites, ",")))
+		}
 	}
 
 	// oidc-http-port
@@ -218,10 +227,19 @@ func buildAuthorinoArgs(authorino *api.Authorino) []string {
 		args = append(args, fmt.Sprintf("--%s=%d", FlagOidcHTTPPort, *port))
 	}
 
-	// oidc-tls-cert and oidc-tls-cert-key
+	// oidc-tls-cert, oidc-tls-cert-key, oidc-tls-min-version, oidc-tls-max-version, oidc-tls-cipher-suites
 	if enabled := authorino.Spec.OIDCServer.Tls.Enabled; enabled == nil || *enabled {
 		args = append(args, fmt.Sprintf("--%s=%s", FlagOidcTLSCertPath, DefaultOidcTlsCertPath))
 		args = append(args, fmt.Sprintf("--%s=%s", FlagOidcTLSCertKeyPath, DefaultOidcTlsCertKeyPath))
+		if tlsMinVersion := authorino.Spec.OIDCServer.Tls.MinVersion; tlsMinVersion != "" {
+			args = append(args, fmt.Sprintf("--%s=%s", FlagOidcTlsMinVersion, tlsMinVersion))
+		}
+		if tlsMaxVersion := authorino.Spec.OIDCServer.Tls.MaxVersion; tlsMaxVersion != "" {
+			args = append(args, fmt.Sprintf("--%s=%s", FlagOidcTlsMaxVersion, tlsMaxVersion))
+		}
+		if len(authorino.Spec.OIDCServer.Tls.CipherSuites) > 0 {
+			args = append(args, fmt.Sprintf("--%s=%s", FlagOidcTlsCipherSuites, strings.Join(authorino.Spec.OIDCServer.Tls.CipherSuites, ",")))
+		}
 	}
 
 	// evaluator-cache-size

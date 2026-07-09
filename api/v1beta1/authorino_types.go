@@ -121,6 +121,17 @@ type Healthz struct {
 type Tls struct {
 	Enabled    *bool                         `json:"enabled,omitempty"`
 	CertSecret *k8score.LocalObjectReference `json:"certSecretRef,omitempty"`
+	// Minimum TLS version (1.0, 1.1, 1.2, 1.3).
+	// +optional
+	// +kubebuilder:validation:Enum="1.0";"1.1";"1.2";"1.3";""
+	MinVersion string `json:"minVersion,omitempty"`
+	// Maximum TLS version (1.0, 1.1, 1.2, 1.3).
+	// +optional
+	// +kubebuilder:validation:Enum="1.0";"1.1";"1.2";"1.3";""
+	MaxVersion string `json:"maxVersion,omitempty"`
+	// TLS cipher suites (IANA names).
+	// +optional
+	CipherSuites []string `json:"cipherSuites,omitempty"`
 }
 
 type VolumesSpec struct {
