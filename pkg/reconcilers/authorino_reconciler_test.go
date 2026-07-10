@@ -2,6 +2,7 @@ package reconcilers
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -61,6 +62,164 @@ func setupTestEnvironment(t *testing.T, objs []client.Object) (*AuthorinoReconci
 		Log:    logger,
 		Scheme: s,
 	}, ctx
+}
+
+func hasArg(args []string, flag string) bool {
+	prefix := "--" + flag
+	for _, a := range args {
+		if a == prefix || strings.HasPrefix(a, prefix+"=") {
+			return true
+		}
+	}
+	return false
+}
+
+func getArgValue(args []string, flag string) string {
+	prefix := "--" + flag + "="
+	for _, a := range args {
+		if strings.HasPrefix(a, prefix) {
+			return strings.TrimPrefix(a, prefix)
+		}
+	}
+	return ""
+}
+
+func TestBuildAuthorinoArgs(t *testing.T) {
+	t.Run("TLS disabled omits all TLS flags", func(t *testing.T) {
+		a := &api.Authorino{
+			Spec: api.AuthorinoSpec{
+				Listener: api.Listener{
+					Tls: api.Tls{
+						Enabled:    pointer.Bool(false),
+						MinVersion: "1.2",
+						CipherSuites: []string{"TLS_AES_128_GCM_SHA256"},
+					},
+				},
+				OIDCServer: api.OIDCServer{
+					Tls: api.Tls{
+						Enabled:    pointer.Bool(false),
+						MinVersion: "1.3",
+						CipherSuites: []string{"TLS_AES_256_GCM_SHA384"},
+					},
+				},
+			},
+		}
+		args := buildAuthorinoArgs(a)
+		for _, flag := range []string{
+			FlagTlsCertPath, FlagTlsCertKeyPath, FlagTlsMinVersion, FlagTlsMaxVersion, FlagTlsCipherSuites,
+			FlagOidcTLSCertPath, FlagOidcTLSCertKeyPath, FlagOidcTlsMinVersion, FlagOidcTlsMaxVersion, FlagOidcTlsCipherSuites,
+		} {
+			if hasArg(args, flag) {
+				t.Errorf("expected --%s to be absent when TLS is disabled, but it was present", flag)
+			}
+		}
+	})
+
+	t.Run("TLS enabled includes cert and version flags", func(t *testing.T) {
+		a := &api.Authorino{
+			Spec: api.AuthorinoSpec{
+				Listener: api.Listener{
+					Tls: api.Tls{
+						Enabled:    pointer.Bool(true),
+						MinVersion: "1.2",
+						MaxVersion: "1.3",
+						CipherSuites: []string{"TLS_AES_128_GCM_SHA256", "TLS_AES_256_GCM_SHA384"},
+					},
+				},
+				OIDCServer: api.OIDCServer{
+					Tls: api.Tls{
+						Enabled:    pointer.Bool(true),
+						MinVersion: "1.3",
+						CipherSuites: []string{"TLS_CHACHA20_POLY1305_SHA256"},
+					},
+				},
+			},
+		}
+		args := buildAuthorinoArgs(a)
+
+		if v := getArgValue(args, FlagTlsMinVersion); v != "1.2" {
+			t.Errorf("expected --%s=1.2, got %q", FlagTlsMinVersion, v)
+		}
+		if v := getArgValue(args, FlagTlsMaxVersion); v != "1.3" {
+			t.Errorf("expected --%s=1.3, got %q", FlagTlsMaxVersion, v)
+		}
+		if v := getArgValue(args, FlagTlsCipherSuites); v != "TLS_AES_128_GCM_SHA256,TLS_AES_256_GCM_SHA384" {
+			t.Errorf("expected --%s=TLS_AES_128_GCM_SHA256,TLS_AES_256_GCM_SHA384, got %q", FlagTlsCipherSuites, v)
+		}
+		if v := getArgValue(args, FlagOidcTlsMinVersion); v != "1.3" {
+			t.Errorf("expected --%s=1.3, got %q", FlagOidcTlsMinVersion, v)
+		}
+		if hasArg(args, FlagOidcTlsMaxVersion) {
+			t.Errorf("expected --%s to be absent when not set, but it was present", FlagOidcTlsMaxVersion)
+		}
+		if v := getArgValue(args, FlagOidcTlsCipherSuites); v != "TLS_CHACHA20_POLY1305_SHA256" {
+			t.Errorf("expected --%s=TLS_CHACHA20_POLY1305_SHA256, got %q", FlagOidcTlsCipherSuites, v)
+		}
+		if !hasArg(args, FlagTlsCertPath) {
+			t.Errorf("expected --%s to be present when TLS is enabled", FlagTlsCertPath)
+		}
+		if !hasArg(args, FlagOidcTLSCertPath) {
+			t.Errorf("expected --%s to be present when TLS is enabled", FlagOidcTLSCertPath)
+		}
+	})
+
+	t.Run("TLS enabled nil defaults to enabled", func(t *testing.T) {
+		a := &api.Authorino{
+			Spec: api.AuthorinoSpec{
+				Listener: api.Listener{
+					Tls: api.Tls{
+						MinVersion: "1.2",
+					},
+				},
+				OIDCServer: api.OIDCServer{
+					Tls: api.Tls{
+						MinVersion: "1.3",
+					},
+				},
+			},
+		}
+		args := buildAuthorinoArgs(a)
+
+		if !hasArg(args, FlagTlsCertPath) {
+			t.Errorf("expected --%s when Enabled is nil (defaults to true)", FlagTlsCertPath)
+		}
+		if v := getArgValue(args, FlagTlsMinVersion); v != "1.2" {
+			t.Errorf("expected --%s=1.2, got %q", FlagTlsMinVersion, v)
+		}
+		if !hasArg(args, FlagOidcTLSCertPath) {
+			t.Errorf("expected --%s when Enabled is nil (defaults to true)", FlagOidcTLSCertPath)
+		}
+		if v := getArgValue(args, FlagOidcTlsMinVersion); v != "1.3" {
+			t.Errorf("expected --%s=1.3, got %q", FlagOidcTlsMinVersion, v)
+		}
+	})
+
+	t.Run("empty version and cipher fields are omitted", func(t *testing.T) {
+		a := &api.Authorino{
+			Spec: api.AuthorinoSpec{
+				Listener: api.Listener{
+					Tls: api.Tls{
+						Enabled: pointer.Bool(true),
+					},
+				},
+				OIDCServer: api.OIDCServer{
+					Tls: api.Tls{
+						Enabled: pointer.Bool(true),
+					},
+				},
+			},
+		}
+		args := buildAuthorinoArgs(a)
+
+		if !hasArg(args, FlagTlsCertPath) {
+			t.Errorf("expected --%s when TLS is enabled", FlagTlsCertPath)
+		}
+		for _, flag := range []string{FlagTlsMinVersion, FlagTlsMaxVersion, FlagTlsCipherSuites, FlagOidcTlsMinVersion, FlagOidcTlsMaxVersion, FlagOidcTlsCipherSuites} {
+			if hasArg(args, flag) {
+				t.Errorf("expected --%s to be absent when value is empty, but it was present", flag)
+			}
+		}
+	})
 }
 
 func TestReconcileService(t *testing.T) {
