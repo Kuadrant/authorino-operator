@@ -6187,7 +6187,7 @@ spec:
         env:
         - name: RELATED_IMAGE_AUTHORINO
           value: quay.io/kuadrant/authorino:v0.26.2
-        image: quay.io/kuadrant/authorino-operator:v0.25.1
+        image: quay.io/kuadrant/authorino-operator:v0.25.2
         livenessProbe:
           httpGet:
             path: /healthz
