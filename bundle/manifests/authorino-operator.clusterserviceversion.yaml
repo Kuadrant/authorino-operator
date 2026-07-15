@@ -54,8 +54,8 @@ metadata:
       ]
     capabilities: Basic Install
     categories: Integration & Delivery
-    containerImage: quay.io/kuadrant/authorino-operator:v0.25.1
-    createdAt: "2026-07-15T07:14:06Z"
+    containerImage: quay.io/kuadrant/authorino-operator:v0.25.2
+    createdAt: "2026-07-15T08:46:28Z"
     operators.operatorframework.io/builder: operator-sdk-v1.32.0
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v3
     repository: https://github.com/Kuadrant/authorino-operator
@@ -66,7 +66,7 @@ metadata:
     operatorframework.io/arch.ppc64le: supported
     operatorframework.io/arch.s390x: supported
     operatorframework.io/os.linux: supported
-  name: authorino-operator.v0.25.1
+  name: authorino-operator.v0.25.2
   namespace: placeholder
 spec:
   apiservicedefinitions: {}
@@ -256,7 +256,7 @@ spec:
                     env:
                       - name: RELATED_IMAGE_AUTHORINO
                         value: quay.io/kuadrant/authorino:v0.26.2
-                    image: quay.io/kuadrant/authorino-operator:v0.25.1
+                    image: quay.io/kuadrant/authorino-operator:v0.25.2
                     livenessProbe:
                       httpGet:
                         path: /healthz
@@ -361,5 +361,5 @@ spec:
   relatedImages:
     - image: quay.io/kuadrant/authorino:v0.26.2
       name: authorino
-  version: 0.25.1
+  version: 0.25.2
   replaces: authorino-operator.v0.25.0
