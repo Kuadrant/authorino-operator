@@ -54,10 +54,16 @@ jobs:
           # Removes: pre-release suffix ([+-].*) and patch version (\.[0-9]*$)
           release_branch=release-$(echo "${{ github.event.inputs.operatorVersion }}" | sed 's/[+-].*//; s/\.[0-9]*$//')
           echo "name=$release_branch" >> $GITHUB_OUTPUT
-      - name: Create release branch
+      - name: Create or checkout release branch
         if: ${{ !startsWith(github.event.inputs.gitRef, 'release-') }}
         run: |
-          git checkout -b ${{ steps.release-branch.outputs.name }}
+          branch=${{ steps.release-branch.outputs.name }}
+          if git ls-remote --exit-code --heads origin "$branch" > /dev/null 2>&1; then
+            git fetch origin "$branch"
+            git checkout "$branch"
+          else
+            git checkout -b "$branch"
+          fi
       - name: Prepare release
         run: |
           VERSION=${{ github.event.inputs.operatorVersion }} \

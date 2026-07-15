@@ -347,10 +347,10 @@ bundle: manifests kustomize operator-sdk yq ## Generate bundle manifests and met
 	($(YQ) e -e '.config.replaces' $(BUILD_CONFIG_FILE) && \
 		V="$(shell $(YQ) e -e '.config.replaces' $(BUILD_CONFIG_FILE))" $(YQ) eval '.spec.replaces = strenv(V)' -i $(BUNDLE_CSV)) || \
 		($(YQ) eval '.' -i $(BUNDLE_CSV) && echo "no replaces added")
+	$(MAKE) bundle-custom-modifications
 	$(OPERATOR_SDK) bundle validate ./bundle
 	# Roll back edit
 	cd config/manager && $(KUSTOMIZE) edit set image controller=${DEFAULT_OPERATOR_IMAGE}
-	$(MAKE) bundle-custom-modifications
 
 .PHONY: bundle-custom-modifications
 OPENSHIFT_VERSIONS_ANNOTATION_KEY="com.redhat.openshift.versions"
@@ -391,7 +391,7 @@ set-authorino-default-image: yq ## Sets the default Authorino image in the build
 set-replaces-directive: yq ## Sets the value for the OLM replaces directive in the build file.
 	$(eval REPLACES_VERSION=$(shell curl -sSL -H "Accept: application/vnd.github+json" \
                https://api.github.com/repos/Kuadrant/authorino-operator/releases/latest | \
-               jq -r '.name'))
+               jq -r 'if (.name // "" | length) > 0 then .name else .tag_name end'))
 	V="authorino-operator.$(REPLACES_VERSION)" $(YQ) e -i '.config.replaces = strenv(V)' $(BUILD_CONFIG_FILE)
 
 .PHONY: prepare-release
