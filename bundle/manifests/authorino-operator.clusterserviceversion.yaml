@@ -255,7 +255,7 @@ spec:
                       - /manager
                     env:
                       - name: RELATED_IMAGE_AUTHORINO
-                        value: quay.io/kuadrant/authorino:v0.26.1
+                        value: quay.io/kuadrant/authorino:v0.26.2
                     image: quay.io/kuadrant/authorino-operator:v0.25.1
                     livenessProbe:
                       httpGet:
@@ -359,7 +359,7 @@ spec:
   provider:
     name: Red Hat
   relatedImages:
-    - image: quay.io/kuadrant/authorino:v0.26.1
+    - image: quay.io/kuadrant/authorino:v0.26.2
       name: authorino
   version: 0.25.1
   replaces: authorino-operator.v0.25.0
