@@ -21,7 +21,7 @@ jobs:
       authorino_digest: ${{ steps.get-digest.outputs.digest }}
     steps:
       - name: Install crane
-        uses: imjasonh/setup-crane@v0.1
+        uses: imjasonh/setup-crane@5146f708a817ea23476677995bf2133943b9be0b # ratchet:imjasonh/setup-crane@v0.1
       - id: get-digest
         name: Get digest of latest authorino image
         run: |
