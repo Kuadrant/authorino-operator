@@ -115,11 +115,16 @@ jobs:
             DIRTY=false
             DEFAULT_AUTHORINO_IMAGE=${{ inputs.relatedImageAuthorino }}
             QUAY_IMAGE_EXPIRY=${{ inputs.quayImageExpiry }}
-          provenance: false
+          provenance: true
       - name: Print image URL
         run: |
           echo "Image(s) pushed:"
           echo "${{ steps.meta.outputs.tags }}"
+      - name: Install cosign
+        uses: sigstore/cosign-installer@398d4b0eeef1380460a10c8013a76f728fb906ac # ratchet:sigstore/cosign-installer@v3
+      - name: Sign image with cosign
+        run: |
+          cosign sign --yes ${{ env.IMG_REGISTRY_HOST }}/${{ env.IMG_REGISTRY_ORG }}/${{ env.OPERATOR_NAME }}@${{ steps.build-image.outputs.digest }}
 
   build-bundle:
     name: Build and push bundle image
@@ -192,11 +197,16 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           build-args: QUAY_IMAGE_EXPIRY=${{ inputs.quayImageExpiry }}
-          provenance: false
+          provenance: true
       - name: Print image URL
         run: |
           echo "Image(s) pushed:"
           echo "${{ steps.meta.outputs.tags }}"
+      - name: Install cosign
+        uses: sigstore/cosign-installer@398d4b0eeef1380460a10c8013a76f728fb906ac # ratchet:sigstore/cosign-installer@v3
+      - name: Sign image with cosign
+        run: |
+          cosign sign --yes ${{ env.IMG_REGISTRY_HOST }}/${{ env.IMG_REGISTRY_ORG }}/${{ env.OPERATOR_NAME }}-bundle@${{ steps.build-image.outputs.digest }}
 
   build-catalog:
     name: Build and push catalog image
@@ -241,8 +251,13 @@ jobs:
           platforms: linux/amd64,linux/arm64,linux/s390x,linux/ppc64le
           push: true
           tags: ${{ steps.meta.outputs.tags }}
-          provenance: false
+          provenance: true
       - name: Print image URL
         run: |
           echo "Image(s) pushed:"
           echo "${{ steps.meta.outputs.tags }}"
+      - name: Install cosign
+        uses: sigstore/cosign-installer@398d4b0eeef1380460a10c8013a76f728fb906ac # ratchet:sigstore/cosign-installer@v3
+      - name: Sign image with cosign
+        run: |
+          cosign sign --yes ${{ env.IMG_REGISTRY_HOST }}/${{ env.IMG_REGISTRY_ORG }}/${{ env.OPERATOR_NAME }}-catalog@${{ steps.build-image.outputs.digest }}
