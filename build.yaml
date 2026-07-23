@@ -1,5 +1,5 @@
 config:
-  version: 0.23.3
-  replaces: authorino-operator.v0.23.2
-  authorinoVersion: 0.24.2
-  authorinoImage: quay.io/kuadrant/authorino:v0.24.2
+  version: 0.23.4
+  replaces: authorino-operator.v0.23.3
+  authorinoVersion: 0.24.3
+  authorinoImage: quay.io/kuadrant/authorino:v0.24.3
