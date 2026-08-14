@@ -35,10 +35,20 @@ func authorinoRoleBindingName(crName, roleBindingNameSuffix string) string {
 // The namespace and CR name are separated by a "." rather than a "-". A
 // Kubernetes namespace is a DNS-1123 label and cannot contain a ".", so the
 // segment before the first "." is always exactly the namespace. This keeps the
-// name human-readable while staying unambiguous: e.g. namespace "a-b"/name "c"
-// yields "a-b.c-<suffix>" and namespace "a"/name "b-c" yields "a.b-c-<suffix>",
-// which are distinct. ("." is a valid character in a ClusterRoleBinding name,
-// which is an RFC 1123 DNS subdomain.)
+// name human-readable while staying unambiguous between any two instances using
+// this scheme: e.g. namespace "a-b"/name "c" yields "a-b.c-<suffix>" and
+// namespace "a"/name "b-c" yields "a.b-c-<suffix>", which are distinct. ("." is
+// a valid character in a ClusterRoleBinding name, which is an RFC 1123 DNS
+// subdomain.)
+//
+// Migration caveat: the legacy scheme was "<crName>-<suffix>" (no namespace
+// segment). A CR name is a DNS-1123 subdomain and may itself contain a ".", so a
+// legacy name can coincide with a new name -- e.g. legacy CR "team-a.gateway"
+// produced "team-a.gateway-<suffix>", identical to the new name for namespace
+// "team-a"/CR "gateway". Such a collision is only possible between a legacy and
+// a new name (never between two new names), so it is confined to the migration
+// window. The legacy-binding cleanup guards against acting on the wrong object
+// by verifying the binding's subject before deleting it.
 //
 // The generated name is capped at the RFC 1123 DNS subdomain max length. When a
 // long CR name would exceed that limit, the CR name portion is truncated and a
