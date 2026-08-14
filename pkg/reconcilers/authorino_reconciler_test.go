@@ -90,15 +90,15 @@ func TestBuildAuthorinoArgs(t *testing.T) {
 			Spec: api.AuthorinoSpec{
 				Listener: api.Listener{
 					Tls: api.Tls{
-						Enabled:    pointer.Bool(false),
-						MinVersion: "1.2",
+						Enabled:      pointer.Bool(false),
+						MinVersion:   "1.2",
 						CipherSuites: []string{"TLS_AES_128_GCM_SHA256"},
 					},
 				},
 				OIDCServer: api.OIDCServer{
 					Tls: api.Tls{
-						Enabled:    pointer.Bool(false),
-						MinVersion: "1.3",
+						Enabled:      pointer.Bool(false),
+						MinVersion:   "1.3",
 						CipherSuites: []string{"TLS_AES_256_GCM_SHA384"},
 					},
 				},
@@ -120,16 +120,16 @@ func TestBuildAuthorinoArgs(t *testing.T) {
 			Spec: api.AuthorinoSpec{
 				Listener: api.Listener{
 					Tls: api.Tls{
-						Enabled:    pointer.Bool(true),
-						MinVersion: "1.2",
-						MaxVersion: "1.3",
+						Enabled:      pointer.Bool(true),
+						MinVersion:   "1.2",
+						MaxVersion:   "1.3",
 						CipherSuites: []string{"TLS_AES_128_GCM_SHA256", "TLS_AES_256_GCM_SHA384"},
 					},
 				},
 				OIDCServer: api.OIDCServer{
 					Tls: api.Tls{
-						Enabled:    pointer.Bool(true),
-						MinVersion: "1.3",
+						Enabled:      pointer.Bool(true),
+						MinVersion:   "1.3",
 						CipherSuites: []string{"TLS_CHACHA20_POLY1305_SHA256"},
 					},
 				},
