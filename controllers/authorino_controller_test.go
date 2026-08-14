@@ -120,7 +120,7 @@ var _ = Describe("Authorino controller", func() {
 			var bindingNsdName types.NamespacedName
 			if authorinoInstance.Spec.ClusterWide {
 				binding = &k8srbac.ClusterRoleBinding{}
-				bindingNsdName = types.NamespacedName{Name: authorinoInstance.Namespace + "-" + authorinoInstance.Name + "-" + reconcilers.AuthorinoManagerClusterRoleBindingName}
+				bindingNsdName = types.NamespacedName{Name: authorinoInstance.Namespace + "." + authorinoInstance.Name + "-" + reconcilers.AuthorinoManagerClusterRoleBindingName}
 			} else {
 				binding = &k8srbac.RoleBinding{}
 				bindingNsdName = namespacedName(testAuthorinoNamespace, authorinoInstance.Name+"-authorino")
@@ -132,7 +132,7 @@ var _ = Describe("Authorino controller", func() {
 
 			// Authorino Auth ClusterRoleBinding
 			k8sAuthBinding := &k8srbac.ClusterRoleBinding{}
-			k8sAuthBindingNsdName := types.NamespacedName{Name: authorinoInstance.Namespace + "-" + authorinoInstance.Name + "-" + reconcilers.AuthorinoK8sAuthClusterRoleBindingName}
+			k8sAuthBindingNsdName := types.NamespacedName{Name: authorinoInstance.Namespace + "." + authorinoInstance.Name + "-" + reconcilers.AuthorinoK8sAuthClusterRoleBindingName}
 
 			Eventually(func(ctx context.Context) error {
 				return k8sClient.Get(ctx, k8sAuthBindingNsdName, k8sAuthBinding)
@@ -378,7 +378,7 @@ var _ = Describe("Authorino controller", func() {
 
 			// Authorino ClusterRoleBinding
 			binding := &k8srbac.ClusterRoleBinding{}
-			bindingNsdName := types.NamespacedName{Name: authorinoInstance.Namespace + "-" + authorinoInstance.Name + "-" + reconcilers.AuthorinoManagerClusterRoleBindingName}
+			bindingNsdName := types.NamespacedName{Name: authorinoInstance.Namespace + "." + authorinoInstance.Name + "-" + reconcilers.AuthorinoManagerClusterRoleBindingName}
 
 			Eventually(func(g Gomega, ctx context.Context) {
 				g.Expect(k8sClient.Get(ctx, bindingNsdName, binding)).ToNot(HaveOccurred())
@@ -389,7 +389,7 @@ var _ = Describe("Authorino controller", func() {
 
 			// Authorino Auth ClusterRoleBinding
 			k8sAuthBinding := &k8srbac.ClusterRoleBinding{}
-			k8sAuthBindingNsdName := types.NamespacedName{Name: authorinoInstance.Namespace + "-" + authorinoInstance.Name + "-" + reconcilers.AuthorinoK8sAuthClusterRoleBindingName}
+			k8sAuthBindingNsdName := types.NamespacedName{Name: authorinoInstance.Namespace + "." + authorinoInstance.Name + "-" + reconcilers.AuthorinoK8sAuthClusterRoleBindingName}
 
 			Eventually(func(g Gomega, ctx context.Context) {
 				g.Expect(k8sClient.Get(ctx, k8sAuthBindingNsdName, k8sAuthBinding)).ToNot(HaveOccurred())
@@ -417,7 +417,7 @@ var _ = Describe("Authorino controller", func() {
 			Expect(k8sClient.Create(ctx, authorinoInstance)).Should(Succeed())
 
 			// Update binding name for the new instance
-			bindingNsdName = types.NamespacedName{Name: authorinoInstance.Namespace + "-" + authorinoInstance.Name + "-" + reconcilers.AuthorinoManagerClusterRoleBindingName}
+			bindingNsdName = types.NamespacedName{Name: authorinoInstance.Namespace + "." + authorinoInstance.Name + "-" + reconcilers.AuthorinoManagerClusterRoleBindingName}
 
 			// manager cluster role binding should get service account added
 			Eventually(func(g Gomega, ctx context.Context) {
@@ -461,7 +461,7 @@ var _ = Describe("Authorino controller", func() {
 		}
 
 		k8sAuthBindingName := func(namespace, name string) types.NamespacedName {
-			return types.NamespacedName{Name: namespace + "-" + name + "-" + reconcilers.AuthorinoK8sAuthClusterRoleBindingName}
+			return types.NamespacedName{Name: namespace + "." + name + "-" + reconcilers.AuthorinoK8sAuthClusterRoleBindingName}
 		}
 
 		BeforeEach(func(ctx context.Context) {
@@ -494,21 +494,32 @@ var _ = Describe("Authorino controller", func() {
 				g.Expect(bindingB.Subjects).To(ContainElement(subjectB))
 			}).WithContext(ctx).Should(Succeed())
 
-			// Force instance A to reconcile again; instance B's binding must keep its
-			// own ServiceAccount (no cross-instance eviction).
+			// Force instance A to reconcile by mutating a label, which propagates
+			// from the CR to its ClusterRoleBinding.
+			const propagatedLabel = "test.authorino.kuadrant.io/propagated"
 			Eventually(func(g Gomega, ctx context.Context) {
 				g.Expect(k8sClient.Get(ctx, namespacedName(nsA, sharedName), instanceA)).To(Succeed())
-				if instanceA.Annotations == nil {
-					instanceA.Annotations = map[string]string{}
+				if instanceA.Labels == nil {
+					instanceA.Labels = map[string]string{}
 				}
-				instanceA.Annotations["test.authorino.kuadrant.io/trigger"] = "reconcile"
+				instanceA.Labels[propagatedLabel] = "yes"
 				g.Expect(k8sClient.Update(ctx, instanceA)).To(Succeed())
 			}).WithContext(ctx).Should(Succeed())
 
+			// Wait until binding A reflects the change, confirming instance A has
+			// reconciled its permissions.
+			Eventually(func(g Gomega, ctx context.Context) {
+				bindingA := &k8srbac.ClusterRoleBinding{}
+				g.Expect(k8sClient.Get(ctx, k8sAuthBindingName(nsA, sharedName), bindingA)).To(Succeed())
+				g.Expect(bindingA.Labels).To(HaveKeyWithValue(propagatedLabel, "yes"))
+			}).WithContext(ctx).Should(Succeed())
+
+			// Instance B's binding must still contain only its own ServiceAccount
+			// (no cross-instance eviction).
 			Consistently(func(g Gomega, ctx context.Context) {
 				bindingB := &k8srbac.ClusterRoleBinding{}
 				g.Expect(k8sClient.Get(ctx, k8sAuthBindingName(nsB, sharedName), bindingB)).To(Succeed())
-				g.Expect(bindingB.Subjects).To(ContainElement(subjectB))
+				g.Expect(bindingB.Subjects).To(ConsistOf(subjectB))
 			}, "5s", "1s").WithContext(ctx).Should(Succeed())
 		})
 	})
@@ -536,7 +547,7 @@ var _ = Describe("Authorino controller", func() {
 			Expect(k8sClient.Create(ctx, authorinoInstance)).To(Succeed())
 
 			// The namespace-qualified binding is provisioned.
-			newBindingName := types.NamespacedName{Name: testAuthorinoNamespace + "-" + authorinoInstance.Name + "-" + reconcilers.AuthorinoK8sAuthClusterRoleBindingName}
+			newBindingName := types.NamespacedName{Name: testAuthorinoNamespace + "." + authorinoInstance.Name + "-" + reconcilers.AuthorinoK8sAuthClusterRoleBindingName}
 			Eventually(func(g Gomega, ctx context.Context) {
 				g.Expect(k8sClient.Get(ctx, newBindingName, &k8srbac.ClusterRoleBinding{})).To(Succeed())
 			}).WithContext(ctx).Should(Succeed())

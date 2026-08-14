@@ -7,6 +7,20 @@ import (
 	k8srbac "k8s.io/api/rbac/v1"
 )
 
+func TestAuthorinoClusterRoleBindingNameIsUnambiguous(t *testing.T) {
+	const suffix = "authorino-k8s-auth"
+
+	// Namespace "a-b"/name "c" and namespace "a"/name "b-c" must not collide:
+	// a plain "-" join would produce "a-b-c-<suffix>" for both, causing the two
+	// cluster-scoped instances to share a single ClusterRoleBinding.
+	nameOne := authorinoClusterRoleBindingName("a-b", "c", suffix)
+	nameTwo := authorinoClusterRoleBindingName("a", "b-c", suffix)
+
+	if nameOne == nameTwo {
+		t.Errorf("expected distinct ClusterRoleBinding names, both resolved to %q", nameOne)
+	}
+}
+
 func TestMergeBindingSubject(t *testing.T) {
 	subjectFoo := k8srbac.Subject{Kind: "Foo"}
 	subjectBar := k8srbac.Subject{Kind: "Bar"}
