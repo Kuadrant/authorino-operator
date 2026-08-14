@@ -7,6 +7,8 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	k8score "k8s.io/api/core/v1"
+	k8srbac "k8s.io/api/rbac/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/utils/pointer"
@@ -16,6 +18,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	api "github.com/kuadrant/authorino-operator/api/v1beta1"
+	authorinoResources "github.com/kuadrant/authorino-operator/pkg/resources"
 )
 
 var namespace = "test-namespace"
@@ -383,6 +386,65 @@ func TestReconcileDeployment(t *testing.T) {
 
 		if updated.Status.Conditions[0].Type != api.ConditionReady || updated.Status.Conditions[0].Status != k8score.ConditionFalse {
 			t.Errorf("expected condition type to be %s:%s, got %s", api.ConditionReady, k8score.ConditionFalse, updated.Status.Conditions[0])
+		}
+	})
+}
+
+func clusterRoleBindingSubject(namespace, crName string) k8srbac.Subject {
+	sa := authorinoResources.GetAuthorinoServiceAccount(namespace, crName, nil)
+	return authorinoResources.GetSubjectForRoleBinding(sa)
+}
+
+func TestCleanupLegacyClusterRoleBindings(t *testing.T) {
+	const suffix = AuthorinoK8sAuthClusterRoleBindingName
+
+	t.Run("deletes legacy binding owned by this instance", func(t *testing.T) {
+		instance := &api.Authorino{
+			ObjectMeta: metav1.ObjectMeta{Name: "gateway", Namespace: "team-a"},
+		}
+		legacyName := instance.Name + "-" + suffix
+		binding := &k8srbac.ClusterRoleBinding{
+			ObjectMeta: metav1.ObjectMeta{Name: legacyName},
+			RoleRef:    k8srbac.RoleRef{APIGroup: k8srbac.GroupName, Kind: "ClusterRole", Name: AuthorinoK8sAuthClusterRoleName},
+			Subjects:   []k8srbac.Subject{clusterRoleBindingSubject("team-a", "gateway")},
+		}
+		r, ctx := setupTestEnvironment(t, []client.Object{binding})
+
+		r.cleanupLegacyClusterRoleBindings(ctx, instance)
+
+		err := r.Client.Get(ctx, client.ObjectKey{Name: legacyName}, &k8srbac.ClusterRoleBinding{})
+		if !apierrors.IsNotFound(err) {
+			t.Fatalf("expected legacy binding %q to be deleted, got err=%v", legacyName, err)
+		}
+	})
+
+	t.Run("preserves colliding legacy binding owned by another instance", func(t *testing.T) {
+		// A legacy CR named "team-a.gateway" (in namespace "team") produced a
+		// binding named "team-a.gateway-<suffix>", which is byte-identical to the
+		// new canonical name for namespace "team-a" / CR "gateway". Reconciling
+		// the "team-a.gateway" instance must not delete (or alter) a binding that
+		// belongs to the "team-a"/"gateway" instance.
+		instance := &api.Authorino{
+			ObjectMeta: metav1.ObjectMeta{Name: "team-a.gateway", Namespace: "team"},
+		}
+		legacyName := instance.Name + "-" + suffix // "team-a.gateway-<suffix>"
+
+		foreignSubject := clusterRoleBindingSubject("team-a", "gateway")
+		binding := &k8srbac.ClusterRoleBinding{
+			ObjectMeta: metav1.ObjectMeta{Name: legacyName},
+			RoleRef:    k8srbac.RoleRef{APIGroup: k8srbac.GroupName, Kind: "ClusterRole", Name: AuthorinoK8sAuthClusterRoleName},
+			Subjects:   []k8srbac.Subject{foreignSubject},
+		}
+		r, ctx := setupTestEnvironment(t, []client.Object{binding})
+
+		r.cleanupLegacyClusterRoleBindings(ctx, instance)
+
+		got := &k8srbac.ClusterRoleBinding{}
+		if err := r.Client.Get(ctx, client.ObjectKey{Name: legacyName}, got); err != nil {
+			t.Fatalf("expected colliding binding %q to be preserved, got err=%v", legacyName, err)
+		}
+		if len(got.Subjects) != 1 || got.Subjects[0] != foreignSubject {
+			t.Errorf("expected legacy subject to be preserved, got %+v", got.Subjects)
 		}
 	})
 }
