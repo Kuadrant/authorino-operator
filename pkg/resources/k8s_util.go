@@ -30,11 +30,13 @@ func authorinoRoleBindingName(crName, roleBindingNameSuffix string) string {
 // namespace is included in the name to disambiguate Authorino instances that
 // share the same CR name across different namespaces.
 //
-// Note: the name is a plain "-" join of namespace, CR name and suffix and is not
-// strictly collision-proof, since the separator can also appear inside the
-// namespace or CR name (e.g. namespace "a-b"/name "c" and namespace "a"/name
-// "b-c" both yield "a-b-c-<suffix>"). This is sufficient for the common case but
-// not a guarantee of global uniqueness.
+// The namespace and CR name are separated by a "." rather than a "-". A
+// Kubernetes namespace is a DNS-1123 label and cannot contain a ".", so the
+// segment before the first "." is always exactly the namespace. This keeps the
+// name human-readable while staying unambiguous: e.g. namespace "a-b"/name "c"
+// yields "a-b.c-<suffix>" and namespace "a"/name "b-c" yields "a.b-c-<suffix>",
+// which are distinct. ("." is a valid character in a ClusterRoleBinding name,
+// which is an RFC 1123 DNS subdomain.)
 func authorinoClusterRoleBindingName(namespace, crName, clusterRoleBindingNameSuffix string) string {
-	return fmt.Sprintf("%s-%s-%s", namespace, crName, clusterRoleBindingNameSuffix)
+	return fmt.Sprintf("%s.%s-%s", namespace, crName, clusterRoleBindingNameSuffix)
 }
