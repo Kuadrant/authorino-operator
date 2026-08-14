@@ -65,6 +65,12 @@ func subjectIncluded(subjects []k8srbac.Subject, subject k8srbac.Subject) bool {
 	return false
 }
 
+// SubjectIncluded reports whether the given subject is present in the subjects slice,
+// matching on Kind, Name and Namespace.
+func SubjectIncluded(subjects []k8srbac.Subject, subject k8srbac.Subject) bool {
+	return subjectIncluded(subjects, subject)
+}
+
 func GetLeaderElectionRules() []k8srbac.PolicyRule {
 	return []k8srbac.PolicyRule{
 		{

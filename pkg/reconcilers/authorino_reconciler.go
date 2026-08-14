@@ -160,15 +160,47 @@ func (r *AuthorinoReconciler) ReconcileAuthorinoPermissions(ctx context.Context,
 // ClusterRoleBindings (named <crName>-<suffix>) for this instance, if present.
 // It is best-effort: a missing binding is not an error, and other failures are
 // logged rather than surfaced so they don't block reconciliation.
+//
+// The legacy name is <crName>-<suffix>, and crName is fully controlled by
+// whoever creates the Authorino CR. Deleting purely by name would let a tenant
+// name a CR so that the operator deletes a legacy binding owned by an instance
+// in another namespace. To avoid that, each binding is read and only deleted
+// once it is confirmed to belong to this instance: it must reference this
+// instance's ServiceAccount as a subject. Bindings that cannot be confirmed are
+// left in place.
 func (r *AuthorinoReconciler) cleanupLegacyClusterRoleBindings(ctx context.Context, authorinoInstance *api.Authorino) {
 	logger, _ := logr.FromContext(ctx)
 
+	sa := authorinoResources.GetAuthorinoServiceAccount(authorinoInstance.Namespace, authorinoInstance.Name, authorinoInstance.Labels)
+	ownSubject := authorinoResources.GetSubjectForRoleBinding(sa)
+
 	for _, suffix := range []string{AuthorinoManagerClusterRoleBindingName, AuthorinoK8sAuthClusterRoleBindingName} {
 		legacyName := fmt.Sprintf("%s-%s", authorinoInstance.Name, suffix)
-		binding := &k8srbac.ClusterRoleBinding{
-			ObjectMeta: k8smeta.ObjectMeta{Name: legacyName},
+
+		binding := &k8srbac.ClusterRoleBinding{}
+		if err := r.Client.Get(ctx, client.ObjectKey{Name: legacyName}, binding); err != nil {
+			if !errors.IsNotFound(err) {
+				logger.Error(err, "failed to get legacy ClusterRoleBinding", "name", legacyName)
+			}
+			continue
 		}
-		if err := r.Client.Delete(ctx, binding); err != nil && !errors.IsNotFound(err) {
+
+		if !authorinoResources.SubjectIncluded(binding.Subjects, ownSubject) {
+			// The binding does not reference this instance's ServiceAccount, so
+			// it was created for a different Authorino instance (e.g. one sharing
+			// the CR name in another namespace). Leave it untouched.
+			logger.Info("skipping legacy ClusterRoleBinding not owned by this instance", "name", legacyName)
+			continue
+		}
+
+		// Delete only the exact object that was validated: the resourceVersion and
+		// UID preconditions make the delete fail rather than remove a binding that
+		// changed between the Get and the Delete.
+		preconditions := client.Preconditions{
+			UID:             &binding.UID,
+			ResourceVersion: &binding.ResourceVersion,
+		}
+		if err := r.Client.Delete(ctx, binding, preconditions); err != nil && !errors.IsNotFound(err) {
 			logger.Error(err, "failed to delete legacy ClusterRoleBinding", "name", legacyName)
 		}
 	}
