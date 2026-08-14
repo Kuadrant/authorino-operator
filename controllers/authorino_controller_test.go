@@ -558,6 +558,43 @@ var _ = Describe("Authorino controller", func() {
 				g.Expect(apierrors.IsNotFound(err)).To(BeTrue())
 			}).WithContext(ctx).Should(Succeed())
 		})
+
+		It("Should not remove a legacy ClusterRoleBinding owned by an instance in another namespace", func(ctx context.Context) {
+			authorinoInstance := newFullAuthorinoInstance()
+			authorinoInstance.Spec.ClusterWide = true
+
+			// A legacy binding whose name collides with this instance's (same CR
+			// name) but which belongs to an instance in a different namespace:
+			// its subject references a ServiceAccount in that other namespace.
+			foreignSA := authorinoResources.GetAuthorinoServiceAccount("other-namespace", authorinoInstance.Name, nil)
+			legacyName := authorinoInstance.Name + "-" + reconcilers.AuthorinoK8sAuthClusterRoleBindingName
+			foreignBinding := &k8srbac.ClusterRoleBinding{
+				ObjectMeta: v1.ObjectMeta{Name: legacyName},
+				RoleRef: k8srbac.RoleRef{
+					APIGroup: k8srbac.GroupName,
+					Kind:     "ClusterRole",
+					Name:     reconcilers.AuthorinoK8sAuthClusterRoleName,
+				},
+				Subjects: []k8srbac.Subject{authorinoResources.GetSubjectForRoleBinding(foreignSA)},
+			}
+			Expect(k8sClient.Create(ctx, foreignBinding)).To(Succeed())
+			DeferCleanup(func(ctx context.Context) {
+				_ = k8sClient.Delete(ctx, foreignBinding)
+			})
+
+			Expect(k8sClient.Create(ctx, authorinoInstance)).To(Succeed())
+
+			// Once this instance's own namespace-qualified binding exists, the
+			// cleanup has run; the foreign legacy binding must still be present.
+			newBindingName := types.NamespacedName{Name: testAuthorinoNamespace + "." + authorinoInstance.Name + "-" + reconcilers.AuthorinoK8sAuthClusterRoleBindingName}
+			Eventually(func(g Gomega, ctx context.Context) {
+				g.Expect(k8sClient.Get(ctx, newBindingName, &k8srbac.ClusterRoleBinding{})).To(Succeed())
+			}).WithContext(ctx).Should(Succeed())
+
+			Consistently(func(g Gomega, ctx context.Context) {
+				g.Expect(k8sClient.Get(ctx, types.NamespacedName{Name: legacyName}, &k8srbac.ClusterRoleBinding{})).To(Succeed())
+			}, "2s", "500ms").WithContext(ctx).Should(Succeed())
+		})
 	})
 
 	Context("Authorino with part TLS enabled", func() {
