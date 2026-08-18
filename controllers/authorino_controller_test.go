@@ -120,7 +120,7 @@ var _ = Describe("Authorino controller", func() {
 			var bindingNsdName types.NamespacedName
 			if authorinoInstance.Spec.ClusterWide {
 				binding = &k8srbac.ClusterRoleBinding{}
-				bindingNsdName = types.NamespacedName{Name: authorinoInstance.Name + "-" + reconcilers.AuthorinoManagerClusterRoleBindingName}
+				bindingNsdName = types.NamespacedName{Name: authorinoInstance.Namespace + "." + authorinoInstance.Name + "-" + reconcilers.AuthorinoManagerClusterRoleBindingName}
 			} else {
 				binding = &k8srbac.RoleBinding{}
 				bindingNsdName = namespacedName(testAuthorinoNamespace, authorinoInstance.Name+"-authorino")
@@ -132,7 +132,7 @@ var _ = Describe("Authorino controller", func() {
 
 			// Authorino Auth ClusterRoleBinding
 			k8sAuthBinding := &k8srbac.ClusterRoleBinding{}
-			k8sAuthBindingNsdName := types.NamespacedName{Name: authorinoInstance.Name + "-" + reconcilers.AuthorinoK8sAuthClusterRoleBindingName}
+			k8sAuthBindingNsdName := types.NamespacedName{Name: authorinoInstance.Namespace + "." + authorinoInstance.Name + "-" + reconcilers.AuthorinoK8sAuthClusterRoleBindingName}
 
 			Eventually(func(ctx context.Context) error {
 				return k8sClient.Get(ctx, k8sAuthBindingNsdName, k8sAuthBinding)
@@ -378,7 +378,7 @@ var _ = Describe("Authorino controller", func() {
 
 			// Authorino ClusterRoleBinding
 			binding := &k8srbac.ClusterRoleBinding{}
-			bindingNsdName := types.NamespacedName{Name: authorinoInstance.Name + "-" + reconcilers.AuthorinoManagerClusterRoleBindingName}
+			bindingNsdName := types.NamespacedName{Name: authorinoInstance.Namespace + "." + authorinoInstance.Name + "-" + reconcilers.AuthorinoManagerClusterRoleBindingName}
 
 			Eventually(func(g Gomega, ctx context.Context) {
 				g.Expect(k8sClient.Get(ctx, bindingNsdName, binding)).ToNot(HaveOccurred())
@@ -389,7 +389,7 @@ var _ = Describe("Authorino controller", func() {
 
 			// Authorino Auth ClusterRoleBinding
 			k8sAuthBinding := &k8srbac.ClusterRoleBinding{}
-			k8sAuthBindingNsdName := types.NamespacedName{Name: authorinoInstance.Name + "-" + reconcilers.AuthorinoK8sAuthClusterRoleBindingName}
+			k8sAuthBindingNsdName := types.NamespacedName{Name: authorinoInstance.Namespace + "." + authorinoInstance.Name + "-" + reconcilers.AuthorinoK8sAuthClusterRoleBindingName}
 
 			Eventually(func(g Gomega, ctx context.Context) {
 				g.Expect(k8sClient.Get(ctx, k8sAuthBindingNsdName, k8sAuthBinding)).ToNot(HaveOccurred())
@@ -417,7 +417,7 @@ var _ = Describe("Authorino controller", func() {
 			Expect(k8sClient.Create(ctx, authorinoInstance)).Should(Succeed())
 
 			// Update binding name for the new instance
-			bindingNsdName = types.NamespacedName{Name: authorinoInstance.Name + "-" + reconcilers.AuthorinoManagerClusterRoleBindingName}
+			bindingNsdName = types.NamespacedName{Name: authorinoInstance.Namespace + "." + authorinoInstance.Name + "-" + reconcilers.AuthorinoManagerClusterRoleBindingName}
 
 			// manager cluster role binding should get service account added
 			Eventually(func(g Gomega, ctx context.Context) {
@@ -427,6 +427,173 @@ var _ = Describe("Authorino controller", func() {
 					authorinoResources.GetSubjectForRoleBinding(sa),
 				))
 			}).WithContext(ctx).Should(Succeed())
+		})
+	})
+
+	// Regression coverage for
+	// https://github.com/Kuadrant/authorino-operator/issues/348: two cluster-wide
+	// Authorino instances that share the same CR name in different namespaces must
+	// each own a distinct, namespace-qualified k8s-auth ClusterRoleBinding and must
+	// not evict each other's ServiceAccount.
+	Context("Same-named cluster-wide instances across namespaces", func() {
+		const sharedName = "authorino"
+		const nsA = "authorino-ns-a"
+		const nsB = "authorino-ns-b"
+
+		newClusterWideInstance := func(name, namespace string) *api.Authorino {
+			return &api.Authorino{
+				TypeMeta: v1.TypeMeta{
+					APIVersion: api.GroupVersion.String(),
+					Kind:       "Authorino",
+				},
+				ObjectMeta: v1.ObjectMeta{
+					Name:      name,
+					Namespace: namespace,
+				},
+				Spec: api.AuthorinoSpec{
+					Image:       "example.com/authorino:latest",
+					Replicas:    pointer.Int32(1),
+					ClusterWide: true,
+					Listener:    api.Listener{Tls: api.Tls{Enabled: pointer.Bool(false)}},
+					OIDCServer:  api.OIDCServer{Tls: api.Tls{Enabled: pointer.Bool(false)}},
+				},
+			}
+		}
+
+		k8sAuthBindingName := func(namespace, name string) types.NamespacedName {
+			return types.NamespacedName{Name: namespace + "." + name + "-" + reconcilers.AuthorinoK8sAuthClusterRoleBindingName}
+		}
+
+		BeforeEach(func(ctx context.Context) {
+			for _, ns := range []string{nsA, nsB} {
+				namespace := &k8score.Namespace{ObjectMeta: v1.ObjectMeta{Name: ns}}
+				if err := k8sClient.Create(ctx, namespace); err != nil && !apierrors.IsAlreadyExists(err) {
+					Expect(err).ToNot(HaveOccurred())
+				}
+			}
+		})
+
+		It("Should give each instance its own binding without evicting the other", func(ctx context.Context) {
+			instanceA := newClusterWideInstance(sharedName, nsA)
+			instanceB := newClusterWideInstance(sharedName, nsB)
+			Expect(k8sClient.Create(ctx, instanceA)).To(Succeed())
+			Expect(k8sClient.Create(ctx, instanceB)).To(Succeed())
+
+			subjectA := authorinoResources.GetSubjectForRoleBinding(authorinoResources.GetAuthorinoServiceAccount(nsA, sharedName, nil))
+			subjectB := authorinoResources.GetSubjectForRoleBinding(authorinoResources.GetAuthorinoServiceAccount(nsB, sharedName, nil))
+
+			// Each instance provisions its own namespace-qualified binding pointing
+			// at its own ServiceAccount.
+			Eventually(func(g Gomega, ctx context.Context) {
+				bindingA := &k8srbac.ClusterRoleBinding{}
+				g.Expect(k8sClient.Get(ctx, k8sAuthBindingName(nsA, sharedName), bindingA)).To(Succeed())
+				g.Expect(bindingA.Subjects).To(ContainElement(subjectA))
+
+				bindingB := &k8srbac.ClusterRoleBinding{}
+				g.Expect(k8sClient.Get(ctx, k8sAuthBindingName(nsB, sharedName), bindingB)).To(Succeed())
+				g.Expect(bindingB.Subjects).To(ContainElement(subjectB))
+			}).WithContext(ctx).Should(Succeed())
+
+			// Force instance A to reconcile by mutating a label, which propagates
+			// from the CR to its ClusterRoleBinding.
+			const propagatedLabel = "test.authorino.kuadrant.io/propagated"
+			Eventually(func(g Gomega, ctx context.Context) {
+				g.Expect(k8sClient.Get(ctx, namespacedName(nsA, sharedName), instanceA)).To(Succeed())
+				if instanceA.Labels == nil {
+					instanceA.Labels = map[string]string{}
+				}
+				instanceA.Labels[propagatedLabel] = "yes"
+				g.Expect(k8sClient.Update(ctx, instanceA)).To(Succeed())
+			}).WithContext(ctx).Should(Succeed())
+
+			// Wait until binding A reflects the change, confirming instance A has
+			// reconciled its permissions.
+			Eventually(func(g Gomega, ctx context.Context) {
+				bindingA := &k8srbac.ClusterRoleBinding{}
+				g.Expect(k8sClient.Get(ctx, k8sAuthBindingName(nsA, sharedName), bindingA)).To(Succeed())
+				g.Expect(bindingA.Labels).To(HaveKeyWithValue(propagatedLabel, "yes"))
+			}).WithContext(ctx).Should(Succeed())
+
+			// Instance B's binding must still contain only its own ServiceAccount
+			// (no cross-instance eviction).
+			Consistently(func(g Gomega, ctx context.Context) {
+				bindingB := &k8srbac.ClusterRoleBinding{}
+				g.Expect(k8sClient.Get(ctx, k8sAuthBindingName(nsB, sharedName), bindingB)).To(Succeed())
+				g.Expect(bindingB.Subjects).To(ConsistOf(subjectB))
+			}, "5s", "1s").WithContext(ctx).Should(Succeed())
+		})
+	})
+
+	Context("Legacy ClusterRoleBinding migration", func() {
+		It("Should remove the pre-namespace-qualified ClusterRoleBinding after reconcile", func(ctx context.Context) {
+			authorinoInstance := newFullAuthorinoInstance()
+			authorinoInstance.Spec.ClusterWide = true
+
+			// Simulate a binding created by an older operator version, whose name
+			// omits the namespace, owned by this instance's ServiceAccount.
+			sa := authorinoResources.GetAuthorinoServiceAccount(testAuthorinoNamespace, authorinoInstance.Name, nil)
+			legacyName := authorinoInstance.Name + "-" + reconcilers.AuthorinoK8sAuthClusterRoleBindingName
+			legacyBinding := &k8srbac.ClusterRoleBinding{
+				ObjectMeta: v1.ObjectMeta{Name: legacyName},
+				RoleRef: k8srbac.RoleRef{
+					APIGroup: k8srbac.GroupName,
+					Kind:     "ClusterRole",
+					Name:     reconcilers.AuthorinoK8sAuthClusterRoleName,
+				},
+				Subjects: []k8srbac.Subject{authorinoResources.GetSubjectForRoleBinding(sa)},
+			}
+			Expect(k8sClient.Create(ctx, legacyBinding)).To(Succeed())
+
+			Expect(k8sClient.Create(ctx, authorinoInstance)).To(Succeed())
+
+			// The namespace-qualified binding is provisioned.
+			newBindingName := types.NamespacedName{Name: testAuthorinoNamespace + "." + authorinoInstance.Name + "-" + reconcilers.AuthorinoK8sAuthClusterRoleBindingName}
+			Eventually(func(g Gomega, ctx context.Context) {
+				g.Expect(k8sClient.Get(ctx, newBindingName, &k8srbac.ClusterRoleBinding{})).To(Succeed())
+			}).WithContext(ctx).Should(Succeed())
+
+			// The legacy binding is cleaned up.
+			Eventually(func(g Gomega, ctx context.Context) {
+				err := k8sClient.Get(ctx, types.NamespacedName{Name: legacyName}, &k8srbac.ClusterRoleBinding{})
+				g.Expect(apierrors.IsNotFound(err)).To(BeTrue())
+			}).WithContext(ctx).Should(Succeed())
+		})
+
+		It("Should not remove a legacy ClusterRoleBinding owned by an instance in another namespace", func(ctx context.Context) {
+			authorinoInstance := newFullAuthorinoInstance()
+			authorinoInstance.Spec.ClusterWide = true
+
+			// A legacy binding whose name collides with this instance's (same CR
+			// name) but which belongs to an instance in a different namespace:
+			// its subject references a ServiceAccount in that other namespace.
+			foreignSA := authorinoResources.GetAuthorinoServiceAccount("other-namespace", authorinoInstance.Name, nil)
+			legacyName := authorinoInstance.Name + "-" + reconcilers.AuthorinoK8sAuthClusterRoleBindingName
+			foreignBinding := &k8srbac.ClusterRoleBinding{
+				ObjectMeta: v1.ObjectMeta{Name: legacyName},
+				RoleRef: k8srbac.RoleRef{
+					APIGroup: k8srbac.GroupName,
+					Kind:     "ClusterRole",
+					Name:     reconcilers.AuthorinoK8sAuthClusterRoleName,
+				},
+				Subjects: []k8srbac.Subject{authorinoResources.GetSubjectForRoleBinding(foreignSA)},
+			}
+			Expect(k8sClient.Create(ctx, foreignBinding)).To(Succeed())
+			DeferCleanup(func(ctx context.Context) {
+				_ = k8sClient.Delete(ctx, foreignBinding)
+			})
+
+			Expect(k8sClient.Create(ctx, authorinoInstance)).To(Succeed())
+
+			// Once this instance's own namespace-qualified binding exists, the
+			// cleanup has run; the foreign legacy binding must still be present.
+			newBindingName := types.NamespacedName{Name: testAuthorinoNamespace + "." + authorinoInstance.Name + "-" + reconcilers.AuthorinoK8sAuthClusterRoleBindingName}
+			Eventually(func(g Gomega, ctx context.Context) {
+				g.Expect(k8sClient.Get(ctx, newBindingName, &k8srbac.ClusterRoleBinding{})).To(Succeed())
+			}).WithContext(ctx).Should(Succeed())
+
+			Consistently(func(g Gomega, ctx context.Context) {
+				g.Expect(k8sClient.Get(ctx, types.NamespacedName{Name: legacyName}, &k8srbac.ClusterRoleBinding{})).To(Succeed())
+			}, "2s", "500ms").WithContext(ctx).Should(Succeed())
 		})
 	})
 

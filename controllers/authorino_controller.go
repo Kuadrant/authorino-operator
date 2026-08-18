@@ -151,12 +151,12 @@ func (r *AuthorinoReconciler) cleanupClusterScopedPermissions(ctx context.Contex
 	// namespaced ones are garbage collected automatically by k8s because of the owner reference
 
 	// Delete instance-specific ClusterRoleBindings
-	managerBinding := authorinoResources.GetAuthorinoClusterRoleBinding(crName, reconcilers.AuthorinoManagerClusterRoleBindingName, reconcilers.AuthorinoManagerClusterRoleName, sa, labels)
+	managerBinding := authorinoResources.GetAuthorinoClusterRoleBinding(crNamespacedName.Namespace, crName, reconcilers.AuthorinoManagerClusterRoleBindingName, reconcilers.AuthorinoManagerClusterRoleName, sa, labels)
 	if err := r.Client.Delete(ctx, managerBinding); err != nil && !errors.IsNotFound(err) {
 		r.Log.Error(err, "failed to delete ClusterRoleBinding", "name", managerBinding.Name)
 	}
 
-	k8sAuthBinding := authorinoResources.GetAuthorinoClusterRoleBinding(crName, reconcilers.AuthorinoK8sAuthClusterRoleBindingName, reconcilers.AuthorinoK8sAuthClusterRoleName, sa, labels)
+	k8sAuthBinding := authorinoResources.GetAuthorinoClusterRoleBinding(crNamespacedName.Namespace, crName, reconcilers.AuthorinoK8sAuthClusterRoleBindingName, reconcilers.AuthorinoK8sAuthClusterRoleName, sa, labels)
 	if err := r.Client.Delete(ctx, k8sAuthBinding); err != nil && !errors.IsNotFound(err) {
 		r.Log.Error(err, "failed to delete ClusterRoleBinding", "name", k8sAuthBinding.Name)
 	}
