@@ -1,0 +1,34 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: authorino-restrict-spec-fields
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: ["operator.authorino.kuadrant.io"]
+        apiVersions: ["v1beta1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["authorinos"]
+  variables:
+    - name: isKuadrantOperator
+      expression: "request.userInfo.username == 'system:serviceaccount:kuadrant-system:kuadrant-operator-controller-manager'"
+    - name: wantsClusterWide
+      expression: "has(object.spec.clusterWide) && object.spec.clusterWide"
+    - name: wasClusterWide
+      expression: "request.operation == 'UPDATE' && has(oldObject.spec.clusterWide) && oldObject.spec.clusterWide"
+  validations:
+    - expression: "!has(object.spec.image) || object.spec.image == ''"
+      message: "spec.image is not allowed; the Authorino image is controlled by the operator"
+      reason: Invalid
+    - expression: "!variables.wantsClusterWide || variables.wasClusterWide || variables.isKuadrantOperator"
+      message: "spec.clusterWide: true can only be set by the Kuadrant operator"
+      reason: Invalid
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: authorino-restrict-spec-fields-binding
+spec:
+  policyName: authorino-restrict-spec-fields
+  validationActions: ["Deny"]

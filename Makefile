@@ -219,6 +219,10 @@ CERT_MANAGER_VERSION ?= 1.12.1
 
 manifests: controller-gen kustomize authorino-manifests ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
 	$(CONTROLLER_GEN) crd rbac:roleName=authorino-operator-manager webhook paths="./..." output:crd:artifacts:config=config/crd/bases && $(KUSTOMIZE) build config/install > $(OPERATOR_MANIFESTS)
+	# ValidatingAdmissionPolicy/Binding are cluster-scoped. Build them on their own (no namespace
+	# overlay) and append, so this kustomize version does not stamp a namespace on them.
+	printf '%s\n' '---' >> $(OPERATOR_MANIFESTS)
+	$(KUSTOMIZE) build config/vap >> $(OPERATOR_MANIFESTS)
 	$(MAKE) deploy-manifest OPERATOR_IMAGE=$(OPERATOR_IMAGE)
 
 .PHONY: authorino-manifests
@@ -314,6 +318,9 @@ deploy-manifest: kustomize
 	mkdir -p $(DEPLOYMENT_DIR)
 	cd $(PROJECT_DIR)/config/manager && $(KUSTOMIZE) edit set image controller=$(OPERATOR_IMAGE) ;\
 	cd $(PROJECT_DIR) && $(KUSTOMIZE) build config/deploy > $(DEPLOYMENT_FILE)
+	# ValidatingAdmissionPolicy/Binding are cluster-scoped; build separately (no namespace) and append.
+	printf '%s\n' '---' >> $(DEPLOYMENT_FILE)
+	$(KUSTOMIZE) build config/vap >> $(DEPLOYMENT_FILE)
 	# clean up
 	cd $(PROJECT_DIR)/config/manager && $(KUSTOMIZE) edit set image controller=${DEFAULT_OPERATOR_IMAGE}
 
