@@ -1,0 +1,31 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: authconfig-restrict-all-namespaces
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: ["authorino.kuadrant.io"]
+        apiVersions: ["v1beta3"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["authconfigs"]
+  variables:
+    - name: isKuadrantOperator
+      expression: "request.userInfo.username == 'system:serviceaccount:kuadrant-system:kuadrant-operator-controller-manager'"
+    - name: wantsAllNamespaces
+      expression: "has(object.spec.authentication) && object.spec.authentication.exists(k, (has(object.spec.authentication[k].apiKey) && has(object.spec.authentication[k].apiKey.allNamespaces) && object.spec.authentication[k].apiKey.allNamespaces) || (has(object.spec.authentication[k].x509) && has(object.spec.authentication[k].x509.allNamespaces) && object.spec.authentication[k].x509.allNamespaces))"
+    - name: wasAllNamespaces
+      expression: "request.operation == 'UPDATE' && has(oldObject.spec.authentication) && oldObject.spec.authentication.exists(k, (has(oldObject.spec.authentication[k].apiKey) && has(oldObject.spec.authentication[k].apiKey.allNamespaces) && oldObject.spec.authentication[k].apiKey.allNamespaces) || (has(oldObject.spec.authentication[k].x509) && has(oldObject.spec.authentication[k].x509.allNamespaces) && oldObject.spec.authentication[k].x509.allNamespaces))"
+  validations:
+    - expression: "!variables.wantsAllNamespaces || variables.wasAllNamespaces || variables.isKuadrantOperator"
+      message: "allNamespaces: true (cluster-wide secret lookup) can only be set by the Kuadrant operator"
+      reason: Forbidden
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: authconfig-restrict-all-namespaces-binding
+spec:
+  policyName: authconfig-restrict-all-namespaces
+  validationActions: ["Deny"]

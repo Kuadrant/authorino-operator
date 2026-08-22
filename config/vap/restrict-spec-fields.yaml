@@ -24,3 +24,11 @@ spec:
     - expression: "!variables.wantsClusterWide || variables.wasClusterWide || variables.isKuadrantOperator"
       message: "spec.clusterWide: true can only be set by the Kuadrant operator"
       reason: Invalid
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: authorino-restrict-spec-fields-binding
+spec:
+  policyName: authorino-restrict-spec-fields
+  validationActions: ["Deny"]
