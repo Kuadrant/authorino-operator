@@ -3862,6 +3862,43 @@ spec:
 apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingAdmissionPolicy
 metadata:
+  name: authconfig-restrict-allnamespaces
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+    - apiGroups:
+      - authorino.kuadrant.io
+      apiVersions:
+      - v1beta3
+      operations:
+      - CREATE
+      - UPDATE
+      resources:
+      - authconfigs
+  validations:
+  - expression: '!variables.wantsAllNamespaces || variables.wasAllNamespaces || variables.isKuadrantOperator'
+    message: 'allNamespaces: true (cluster-wide secret lookup) can only be set by
+      the Kuadrant operator'
+    reason: Forbidden
+  variables:
+  - expression: request.userInfo.username == 'system:serviceaccount:kuadrant-system:kuadrant-operator-controller-manager'
+    name: isKuadrantOperator
+  - expression: has(object.spec.authentication) && object.spec.authentication.exists(k,
+      (has(object.spec.authentication[k].apiKey) && has(object.spec.authentication[k].apiKey.allNamespaces)
+      && object.spec.authentication[k].apiKey.allNamespaces) || (has(object.spec.authentication[k].x509)
+      && has(object.spec.authentication[k].x509.allNamespaces) && object.spec.authentication[k].x509.allNamespaces))
+    name: wantsAllNamespaces
+  - expression: request.operation == 'UPDATE' && has(oldObject.spec.authentication)
+      && oldObject.spec.authentication.exists(k, (has(oldObject.spec.authentication[k].apiKey)
+      && has(oldObject.spec.authentication[k].apiKey.allNamespaces) && oldObject.spec.authentication[k].apiKey.allNamespaces)
+      || (has(oldObject.spec.authentication[k].x509) && has(oldObject.spec.authentication[k].x509.allNamespaces)
+      && oldObject.spec.authentication[k].x509.allNamespaces))
+    name: wasAllNamespaces
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
   name: authorino-restrict-spec-fields
 spec:
   failurePolicy: Fail
@@ -3891,6 +3928,15 @@ spec:
   - expression: request.operation == 'UPDATE' && has(oldObject.spec.clusterWide) &&
       oldObject.spec.clusterWide
     name: wasClusterWide
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: authconfig-restrict-allnamespaces-binding
+spec:
+  policyName: authconfig-restrict-allnamespaces
+  validationActions:
+  - Deny
 ---
 apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingAdmissionPolicyBinding
