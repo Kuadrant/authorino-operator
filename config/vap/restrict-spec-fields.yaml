@@ -11,8 +11,8 @@ spec:
         operations: ["CREATE", "UPDATE"]
         resources: ["authorinos"]
   variables:
-    - name: isKuadrantOperator
-      expression: "request.userInfo.username == 'system:serviceaccount:kuadrant-system:kuadrant-operator-controller-manager'"
+    - name: isExempt
+      expression: "authorizer.requestResource.check('set-cluster-wide').allowed()"
     - name: wantsClusterWide
       expression: "has(object.spec.clusterWide) && object.spec.clusterWide"
     - name: wasClusterWide
@@ -21,8 +21,8 @@ spec:
     - expression: "!has(object.spec.image) || object.spec.image == ''"
       message: "spec.image is not allowed; the Authorino image is controlled by the operator"
       reason: Invalid
-    - expression: "!variables.wantsClusterWide || variables.wasClusterWide || variables.isKuadrantOperator"
-      message: "spec.clusterWide: true can only be set by the Kuadrant operator"
+    - expression: "!variables.wantsClusterWide || variables.wasClusterWide || variables.isExempt"
+      message: "spec.clusterWide: true can only be set by a subject granted the 'set-cluster-wide' permission on authorinos"
       reason: Invalid
 ---
 apiVersion: admissionregistration.k8s.io/v1

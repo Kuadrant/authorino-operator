@@ -1,0 +1,8 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: authorino-set-privileged-fields
+rules:
+  - apiGroups: ["authorino.kuadrant.io"]
+    resources: ["authconfigs"]
+    verbs: ["set-privileged-fields"]
