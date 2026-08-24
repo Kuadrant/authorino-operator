@@ -545,10 +545,34 @@ subjects:
   name: authorino-operator
   namespace: authorino-operator
 ---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: authorino-set-cluster-wide
+rules:
+- apiGroups:
+  - operator.authorino.kuadrant.io
+  resources:
+  - authorinos
+  verbs:
+  - set-cluster-wide
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: authorino-set-privileged-fields
+rules:
+- apiGroups:
+  - authorino.kuadrant.io
+  resources:
+  - authconfigs
+  verbs:
+  - set-privileged-fields
+---
 apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingAdmissionPolicy
 metadata:
-  name: authconfig-restrict-allnamespaces
+  name: authconfig-restrict-all-namespaces
 spec:
   failurePolicy: Fail
   matchConstraints:
@@ -563,13 +587,13 @@ spec:
       resources:
       - authconfigs
   validations:
-  - expression: '!variables.wantsAllNamespaces || variables.wasAllNamespaces || variables.isKuadrantOperator'
+  - expression: '!variables.wantsAllNamespaces || variables.wasAllNamespaces || variables.isExempt'
     message: 'allNamespaces: true (cluster-wide secret lookup) can only be set by
-      the Kuadrant operator'
+      a subject granted the ''set-privileged-fields'' permission on authconfigs'
     reason: Forbidden
   variables:
-  - expression: request.userInfo.username == 'system:serviceaccount:kuadrant-system:kuadrant-operator-controller-manager'
-    name: isKuadrantOperator
+  - expression: authorizer.requestResource.check('set-privileged-fields').allowed()
+    name: isExempt
   - expression: has(object.spec.authentication) && object.spec.authentication.exists(k,
       (has(object.spec.authentication[k].apiKey) && has(object.spec.authentication[k].apiKey.allNamespaces)
       && object.spec.authentication[k].apiKey.allNamespaces) || (has(object.spec.authentication[k].x509)
@@ -603,12 +627,13 @@ spec:
   - expression: '!has(object.spec.image) || object.spec.image == '''''
     message: spec.image is not allowed; the Authorino image is controlled by the operator
     reason: Invalid
-  - expression: '!variables.wantsClusterWide || variables.wasClusterWide || variables.isKuadrantOperator'
-    message: 'spec.clusterWide: true can only be set by the Kuadrant operator'
+  - expression: '!variables.wantsClusterWide || variables.wasClusterWide || variables.isExempt'
+    message: 'spec.clusterWide: true can only be set by a subject granted the ''set-cluster-wide''
+      permission on authorinos'
     reason: Invalid
   variables:
-  - expression: request.userInfo.username == 'system:serviceaccount:kuadrant-system:kuadrant-operator-controller-manager'
-    name: isKuadrantOperator
+  - expression: authorizer.requestResource.check('set-cluster-wide').allowed()
+    name: isExempt
   - expression: has(object.spec.clusterWide) && object.spec.clusterWide
     name: wantsClusterWide
   - expression: request.operation == 'UPDATE' && has(oldObject.spec.clusterWide) &&
@@ -618,9 +643,9 @@ spec:
 apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingAdmissionPolicyBinding
 metadata:
-  name: authconfig-restrict-allnamespaces-binding
+  name: authconfig-restrict-all-namespaces-binding
 spec:
-  policyName: authconfig-restrict-allnamespaces
+  policyName: authconfig-restrict-all-namespaces
   validationActions:
   - Deny
 ---

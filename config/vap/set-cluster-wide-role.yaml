@@ -1,0 +1,8 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: authorino-set-cluster-wide
+rules:
+  - apiGroups: ["operator.authorino.kuadrant.io"]
+    resources: ["authorinos"]
+    verbs: ["set-cluster-wide"]
