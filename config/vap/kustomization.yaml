@@ -3,5 +3,7 @@ kind: Kustomization
 resources:
   - restrict-spec-fields.yaml
   - restrict-all-namespaces.yaml
-  - set-privileged-fields-role.yaml
   - set-cluster-wide-role.yaml
+  - set-image-role.yaml
+  - set-apikey-all-namespaces-role.yaml
+  - set-x509-all-namespaces-role.yaml
