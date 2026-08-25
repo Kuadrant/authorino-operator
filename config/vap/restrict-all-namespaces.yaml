@@ -11,15 +11,20 @@ spec:
         operations: ["CREATE", "UPDATE"]
         resources: ["authconfigs"]
   variables:
-    - name: isExempt
-      expression: "authorizer.requestResource.check('set-privileged-fields').allowed()"
-    - name: wantsAllNamespaces
-      expression: "has(object.spec.authentication) && object.spec.authentication.exists(k, (has(object.spec.authentication[k].apiKey) && has(object.spec.authentication[k].apiKey.allNamespaces) && object.spec.authentication[k].apiKey.allNamespaces) || (has(object.spec.authentication[k].x509) && has(object.spec.authentication[k].x509.allNamespaces) && object.spec.authentication[k].x509.allNamespaces))"
-    - name: wasAllNamespaces
-      expression: "request.operation == 'UPDATE' && has(oldObject.spec.authentication) && oldObject.spec.authentication.exists(k, (has(oldObject.spec.authentication[k].apiKey) && has(oldObject.spec.authentication[k].apiKey.allNamespaces) && oldObject.spec.authentication[k].apiKey.allNamespaces) || (has(oldObject.spec.authentication[k].x509) && has(oldObject.spec.authentication[k].x509.allNamespaces) && oldObject.spec.authentication[k].x509.allNamespaces))"
+    - name: isExemptApiKey
+      expression: "authorizer.requestResource.check('set-apikey-all-namespaces').allowed()"
+    - name: isExemptX509
+      expression: "authorizer.requestResource.check('set-x509-all-namespaces').allowed()"
+    - name: wantsApiKeyAllNamespaces
+      expression: "has(object.spec.authentication) && object.spec.authentication.exists(k, has(object.spec.authentication[k].apiKey) && has(object.spec.authentication[k].apiKey.allNamespaces) && object.spec.authentication[k].apiKey.allNamespaces)"
+    - name: wantsX509AllNamespaces
+      expression: "has(object.spec.authentication) && object.spec.authentication.exists(k, has(object.spec.authentication[k].x509) && has(object.spec.authentication[k].x509.allNamespaces) && object.spec.authentication[k].x509.allNamespaces)"
   validations:
-    - expression: "!variables.wantsAllNamespaces || variables.wasAllNamespaces || variables.isExempt"
-      message: "allNamespaces: true (cluster-wide secret lookup) can only be set by a subject granted the 'set-privileged-fields' permission on authconfigs"
+    - expression: "!variables.wantsApiKeyAllNamespaces || variables.isExemptApiKey"
+      message: "apiKey allNamespaces: true (cluster-wide secret lookup) can only be set by a subject granted the 'set-apikey-all-namespaces' permission on authconfigs"
+      reason: Forbidden
+    - expression: "!variables.wantsX509AllNamespaces || variables.isExemptX509"
+      message: "x509 allNamespaces: true (cluster-wide secret lookup) can only be set by a subject granted the 'set-x509-all-namespaces' permission on authconfigs"
       reason: Forbidden
 ---
 apiVersion: admissionregistration.k8s.io/v1

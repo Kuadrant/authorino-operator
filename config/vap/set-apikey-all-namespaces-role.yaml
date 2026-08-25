@@ -1,0 +1,8 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: authorino-set-apikey-all-namespaces
+rules:
+  - apiGroups: ["authorino.kuadrant.io"]
+    resources: ["authconfigs"]
+    verbs: ["set-apikey-all-namespaces"]

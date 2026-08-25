@@ -11,17 +11,19 @@ spec:
         operations: ["CREATE", "UPDATE"]
         resources: ["authorinos"]
   variables:
-    - name: isExempt
+    - name: isExemptClusterWide
       expression: "authorizer.requestResource.check('set-cluster-wide').allowed()"
+    - name: isExemptImage
+      expression: "authorizer.requestResource.check('set-image').allowed()"
     - name: wantsClusterWide
       expression: "has(object.spec.clusterWide) && object.spec.clusterWide"
-    - name: wasClusterWide
-      expression: "request.operation == 'UPDATE' && has(oldObject.spec.clusterWide) && oldObject.spec.clusterWide"
+    - name: wantsImage
+      expression: "has(object.spec.image) && object.spec.image != ''"
   validations:
-    - expression: "!has(object.spec.image) || object.spec.image == ''"
-      message: "spec.image is not allowed; the Authorino image is controlled by the operator"
+    - expression: "!variables.wantsImage || variables.isExemptImage"
+      message: "spec.image can only be set by a subject granted the 'set-image' permission on authorinos"
       reason: Invalid
-    - expression: "!variables.wantsClusterWide || variables.wasClusterWide || variables.isExempt"
+    - expression: "!variables.wantsClusterWide || variables.isExemptClusterWide"
       message: "spec.clusterWide: true can only be set by a subject granted the 'set-cluster-wide' permission on authorinos"
       reason: Invalid
 ---
