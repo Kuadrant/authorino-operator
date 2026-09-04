@@ -1,8 +1,0 @@
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: authorino-set-x509-all-namespaces
-rules:
-  - apiGroups: ["authorino.kuadrant.io"]
-    resources: ["authconfigs"]
-    verbs: ["set-x509-all-namespaces"]
