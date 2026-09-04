@@ -19,13 +19,21 @@ spec:
       expression: "has(object.spec.clusterWide) && object.spec.clusterWide"
     - name: wantsImage
       expression: "has(object.spec.image) && object.spec.image != ''"
+    # subjects without the permission can still edit unrelated fields of an object that
+    # already has it enabled.
+    - name: hadClusterWide
+      expression: "oldObject != null && has(oldObject.spec.clusterWide) && oldObject.spec.clusterWide"
+    # spec.image is a free-form string, so grandfather by exact value: a subject without the
+    # permission may keep an already-set image while editing other fields, but may not change it.
+    - name: imageUnchanged
+      expression: "oldObject != null && (has(oldObject.spec.image) ? oldObject.spec.image : '') == (has(object.spec.image) ? object.spec.image : '')"
   validations:
-    - expression: "!variables.wantsImage || variables.isExemptImage"
+    - expression: "!variables.wantsImage || variables.imageUnchanged || variables.isExemptImage"
       message: "spec.image can only be set by a subject granted the 'set-image' permission on authorinos"
-      reason: Invalid
-    - expression: "!variables.wantsClusterWide || variables.isExemptClusterWide"
-      message: "spec.clusterWide: true can only be set by a subject granted the 'set-cluster-wide' permission on authorinos"
-      reason: Invalid
+      reason: Forbidden
+    - expression: "!variables.wantsClusterWide || variables.hadClusterWide || variables.isExemptClusterWide"
+      message: "spec.clusterWide: true (cluster-wide secret lookup) can only be enabled by a subject granted the 'set-cluster-wide' permission on authorinos"
+      reason: Forbidden
 ---
 apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingAdmissionPolicyBinding
