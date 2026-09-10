@@ -1,6 +1,6 @@
 # User guide: Preventing namespace to cluster privilege escalation (Authorino CRs)
 
-Two fields on `Authorino` resources reach beyond the namespace they live in: `spec.clusterWide` and `spec.image`. The operator applies these fields without checking whether the person setting them should really have that much access, so anyone allowed to create `Authorino` resources in a single namespace can quietly gain cluster-wide access.
+Three fields on `Authorino` resources reach beyond the namespace they live in: `spec.clusterWide`, `spec.image` and `spec.supersedingHostSubsets`. The operator applies these fields without checking whether the person setting them should really have that much access, so anyone allowed to create `Authorino` resources in a single namespace can quietly gain cluster-wide access. `spec.supersedingHostSubsets: true` lets AuthConfigs reconciled by that instance take over strict subsets of hosts already claimed elsewhere, which is a way to hijack traffic from another tenant's AuthConfigs.
 
 The [ValidatingAdmissionPolicy](https://kubernetes.io/docs/reference/access-authn-authz/validating-admission-policy/) below closes that gap. It blocks those fields unless the user has been given a special permission for them, and you hand that permission only to the subjects that need it to do their job.
 
@@ -17,14 +17,18 @@ The policy:
   </thead>
   <tbody>
     <tr>
-      <td rowspan="2"><code>authorino-restrict-spec-fields</code></td>
-      <td rowspan="2"><code>authorinos</code></td>
+      <td rowspan="3"><code>authorino-restrict-spec-fields</code></td>
+      <td rowspan="3"><code>authorinos</code></td>
       <td><code>spec.image</code> (any non-empty value)</td>
       <td><code>set-image</code> on <code>authorinos</code></td>
     </tr>
     <tr>
       <td><code>spec.clusterWide: true</code></td>
       <td><code>set-cluster-wide</code> on <code>authorinos</code></td>
+    </tr>
+    <tr>
+      <td><code>spec.supersedingHostSubsets: true</code></td>
+      <td><code>set-superseding-host-subsets</code> on <code>authorinos</code></td>
     </tr>
   </tbody>
 </table>
@@ -52,13 +56,22 @@ rules:
   - apiGroups: ["operator.authorino.kuadrant.io"]
     resources: ["authorinos"]
     verbs: ["set-image"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: authorino-set-superseding-host-subsets
+rules:
+  - apiGroups: ["operator.authorino.kuadrant.io"]
+    resources: ["authorinos"]
+    verbs: ["set-superseding-host-subsets"]
 EOF
 ```
 
 ## 2. Grant the access to the restricted fields
 
 > [!IMPORTANT]
-> Before granting anyone else, grant the **operator's own ServiceAccount** the `set-cluster-wide` and `set-image` permissions, otherwise it cannot manage `Authorino` CRs once the policy is active. In order to bind both ClusterRoles to the operator's ServiceAccount, replace `<operator-sa>` with the operator's ServiceAccount name (the standard deployment uses `authorino-operator`) and `<operator-namespace>` with the namespace where the operator is running:
+> Before granting anyone else, grant the **operator's own ServiceAccount** the `set-cluster-wide`, `set-image` and `set-superseding-host-subsets` permissions, otherwise it cannot manage `Authorino` CRs once the policy is active. In order to bind all three ClusterRoles to the operator's ServiceAccount, replace `<operator-sa>` with the operator's ServiceAccount name (the standard deployment uses `authorino-operator`) and `<operator-namespace>` with the namespace where the operator is running:
 
 ```sh
 kubectl apply -f - <<'EOF'
@@ -83,6 +96,19 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
   name: authorino-set-image
+subjects:
+  - kind: ServiceAccount
+    name: <operator-sa>
+    namespace: <operator-namespace>
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: authorino-set-superseding-host-subsets
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: authorino-set-superseding-host-subsets
 subjects:
   - kind: ServiceAccount
     name: <operator-sa>
@@ -121,6 +147,20 @@ subjects:
   - kind: ServiceAccount
     name: <sa-name>
     namespace: <namespace-of-sa>
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: rb-set-superseding-host-subsets
+  namespace: <authorino-namespace>
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: authorino-set-superseding-host-subsets
+subjects:
+  - kind: ServiceAccount
+    name: <sa-name>
+    namespace: <namespace-of-sa>
 EOF
 ```
 
@@ -145,16 +185,23 @@ spec:
       expression: "authorizer.requestResource.check('set-cluster-wide').allowed()"
     - name: isExemptImage
       expression: "authorizer.requestResource.check('set-image').allowed()"
+    - name: isExemptSupersedingHostSubsets
+      expression: "authorizer.requestResource.check('set-superseding-host-subsets').allowed()"
     - name: wantsClusterWide
       expression: "has(object.spec.clusterWide) && object.spec.clusterWide"
     - name: wantsImage
       expression: "has(object.spec.image) && object.spec.image != ''"
+    - name: wantsSupersedingHostSubsets
+      expression: "has(object.spec.supersedingHostSubsets) && object.spec.supersedingHostSubsets"
   validations:
     - expression: "!variables.wantsImage || variables.isExemptImage"
       message: "spec.image can only be set by a subject granted the 'set-image' permission on authorinos"
       reason: Forbidden
     - expression: "!variables.wantsClusterWide || variables.isExemptClusterWide"
       message: "spec.clusterWide: true can only be set by a subject granted the 'set-cluster-wide' permission on authorinos"
+      reason: Forbidden
+    - expression: "!variables.wantsSupersedingHostSubsets || variables.isExemptSupersedingHostSubsets"
+      message: "spec.supersedingHostSubsets: true can only be set by a subject granted the 'set-superseding-host-subsets' permission on authorinos"
       reason: Forbidden
 ---
 apiVersion: admissionregistration.k8s.io/v1
@@ -168,16 +215,16 @@ EOF
 ```
 
 > [!WARNING]
-> Enforcement is strict, there is no grandfathering. On **every** create and update, any resource that enables a restricted field (a non-empty `spec.image` or `spec.clusterWide: true`) is **rejected** unless the requesting subject holds the matching permission. This includes updates to resources that already exist: once the policy is active, a subject without the permission cannot update such a resource, or even change unrelated fields, until it either **drops the restricted field** (removes it, or sets `spec.image` to an empty string and `spec.clusterWide` to `false`) or is **granted the corresponding ClusterRole** (steps 1–2). To avoid breaking existing workloads, grant the required Roles and RoleBindings **before** applying the policy.
+> Enforcement is strict, there is no grandfathering. On **every** create and update, any resource that enables a restricted field (a non-empty `spec.image`, `spec.clusterWide: true` or `spec.supersedingHostSubsets: true`) is **rejected** unless the requesting subject holds the matching permission. This includes updates to resources that already exist: once the policy is active, a subject without the permission cannot update such a resource, or even change unrelated fields, until it either **drops the restricted field** (removes it, or sets `spec.image` to an empty string and `spec.clusterWide` / `spec.supersedingHostSubsets` to `false`) or is **granted the corresponding ClusterRole** (steps 1–2). To avoid breaking existing workloads, grant the required Roles and RoleBindings **before** applying the policy.
 
 ## 4. Verifying the VAP
 
 ### A normal user is blocked
 
-Try to create resources that break the rules. Run these as a regular user (one *without* the permissions) and both should be **rejected**:
+Try to create resources that break the rules. Run these as a regular user (one *without* the permissions) and all of them should be **rejected**:
 
 > [!NOTE]
-> Don't run these as a cluster admin. Anything with wildcard access (`verbs: ["*"]`) — which cluster admins have — satisfies the `set-cluster-wide` / `set-image` checks and is treated as exempt, so the request would be **allowed** and a real cluster-wide instance created. Use an ordinary user (or `--as=<unauthorized-subject>`) to see the policy block.
+> Don't run these as a cluster admin. Anything with wildcard access (`verbs: ["*"]`) — which cluster admins have — satisfies the `set-cluster-wide` / `set-image` / `set-superseding-host-subsets` checks and is treated as exempt, so the request would be **allowed** and a real cluster-wide instance created. Use an ordinary user (or `--as=<unauthorized-subject>`) to see the policy block.
 
 ```sh
 # Authorino with clusterWide: true — should be DENIED
@@ -217,6 +264,25 @@ spec:
 EOF
 ```
 
+```sh
+# Authorino with supersedingHostSubsets: true — should be DENIED
+kubectl apply --as=<unauthorized-subject> -f - <<'EOF'
+apiVersion: operator.authorino.kuadrant.io/v1beta1
+kind: Authorino
+metadata:
+  name: authorino-superseding-host-subsets-1
+  namespace: <namespace>
+spec:
+  supersedingHostSubsets: true
+  listener:
+    tls:
+      enabled: false
+  oidcServer:
+    tls:
+      enabled: false
+EOF
+```
+
 You should get an error like this instead of the resource being created:
 
 ```text
@@ -225,7 +291,7 @@ You should get an error like this instead of the resource being created:
 
 ### An authorized subject is allowed
 
-Now run the same requests as a subject that holds the matching permission (granted in steps 1–2). Both should be **admitted**. Replace `<authorized-subject>` with the subject you granted the permission to (e.g. `system:serviceaccount:<namespace>:<sa>`):
+Now run the same requests as a subject that holds the matching permission (granted in steps 1–2). All of them should be **admitted**. Replace `<authorized-subject>` with the subject you granted the permission to (e.g. `system:serviceaccount:<namespace>:<sa>`):
 
 ```sh
 # Authorino with clusterWide: true, as a subject granted 'set-cluster-wide' — should be ALLOWED
@@ -265,12 +331,31 @@ spec:
 EOF
 ```
 
+```sh
+# Authorino with supersedingHostSubsets: true, as a subject granted 'set-superseding-host-subsets' — should be ALLOWED
+kubectl apply --as=<authorized-subject> -f - <<'EOF'
+apiVersion: operator.authorino.kuadrant.io/v1beta1
+kind: Authorino
+metadata:
+  name: authorino-superseding-host-subsets-2
+  namespace: <namespace>
+spec:
+  supersedingHostSubsets: true
+  listener:
+    tls:
+      enabled: false
+  oidcServer:
+    tls:
+      enabled: false
+EOF
+```
+
 ### Resources without the restricted fields are always allowed
 
 The policy only looks at the restricted fields. A resource that leaves them unset (or `false`) is admitted for **any** subject, whether or not it holds a permission:
 
 ```sh
-# Namespaced Authorino (clusterWide omitted, no custom image) — should be ALLOWED even for an unauthorized subject
+# Namespaced Authorino (clusterWide and supersedingHostSubsets omitted, no custom image) — should be ALLOWED even for an unauthorized subject
 kubectl apply --as=<unauthorized-subject> -f - <<'EOF'
 apiVersion: operator.authorino.kuadrant.io/v1beta1
 kind: Authorino
