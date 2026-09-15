@@ -4,6 +4,10 @@ Three fields on `Authorino` resources reach beyond the namespace they live in: `
 
 The [ValidatingAdmissionPolicy](https://kubernetes.io/docs/reference/access-authn-authz/validating-admission-policy/) below closes that gap. It blocks those fields unless the user has been given a special permission for them, and you hand that permission only to the subjects that need it to do their job.
 
+## Prerequisites
+
+**Kubernetes 1.30 or newer.** ValidatingAdmissionPolicy reached GA in Kubernetes 1.30, which is where the `admissionregistration.k8s.io/v1` API used throughout this guide is served. On older clusters the manifests in step 3 will be rejected.
+
 The policy:
 
 <table>
@@ -71,7 +75,7 @@ EOF
 ## 2. Grant the access to the restricted fields
 
 > [!IMPORTANT]
-> Before granting anyone else, grant the **operator's own ServiceAccount** the `set-cluster-wide`, `set-image` and `set-superseding-host-subsets` permissions, otherwise it cannot manage `Authorino` CRs once the policy is active. In order to bind all three ClusterRoles to the operator's ServiceAccount, replace `<operator-sa>` with the operator's ServiceAccount name (the standard deployment uses `authorino-operator`) and `<operator-namespace>` with the namespace where the operator is running:
+> Before granting anyone else, grant the **controllers and GitOps agents that write `Authorino` CRs** the `set-cluster-wide`, `set-image` and `set-superseding-host-subsets` permissions, otherwise they cannot manage `Authorino` CRs once the policy is active. This includes the operator's own ServiceAccount, and any CI or GitOps ServiceAccount reconciling a manifest that pins a restricted field. A pipeline that sets `spec.image` is blocked unless it holds `set-image`, just like a user would be. In order to bind all three ClusterRoles to the operator's ServiceAccount, replace `<operator-sa>` with the operator's ServiceAccount name (the standard deployment uses `authorino-operator`) and `<operator-namespace>` with the namespace where the operator is running:
 
 ```sh
 kubectl apply -f - <<'EOF'
@@ -165,6 +169,16 @@ EOF
 ```
 
 ## 3. Create the ValidatingAdmissionPolicy
+
+First list the existing `Authorino` CRs that already enable a restricted field. Every resource printed here becomes unwritable, even for unrelated changes, for any subject that does not hold the matching permission, so make sure whoever manages them was covered in step 2:
+
+```sh
+kubectl get authorinos -A -o json | jq -r '.items[]
+  | select((.spec.clusterWide // false) or (.spec.supersedingHostSubsets // false) or ((.spec.image // "") != ""))
+  | "\(.metadata.namespace)/\(.metadata.name)"'
+```
+
+Then apply the policy:
 
 ```sh
 kubectl apply -f - <<'EOF'
