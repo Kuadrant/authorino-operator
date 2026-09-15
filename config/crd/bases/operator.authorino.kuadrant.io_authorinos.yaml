@@ -43,6 +43,10 @@ spec:
                 type: string
               clusterWide:
                 type: boolean
+              enableLoggingFields:
+                description: EnableLoggingFields enables user-defined fields in authorization
+                  decision logs.
+                type: boolean
               evaluatorCacheSize:
                 type: integer
               healthz:
@@ -137,6 +141,11 @@ spec:
                 type: string
               logMode:
                 type: string
+              loggingFieldsMaxValueBytes:
+                description: LoggingFieldsMaxValueBytes limits the size of each user-defined
+                  logging field value. Zero disables truncation.
+                minimum: 0
+                type: integer
               metrics:
                 properties:
                   deep:

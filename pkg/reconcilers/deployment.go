@@ -188,6 +188,14 @@ func buildAuthorinoArgs(authorino *api.Authorino) []string {
 		args = append(args, fmt.Sprintf("--%s=%s", FlagLogMode, logMode))
 	}
 
+	// configurable logging fields
+	if authorino.Spec.EnableLoggingFields {
+		args = append(args, fmt.Sprintf("--%s", FlagEnableLoggingFields))
+	}
+	if maxValueBytes := authorino.Spec.LoggingFieldsMaxValueBytes; maxValueBytes != nil {
+		args = append(args, fmt.Sprintf("--%s=%d", FlagLoggingFieldsMaxValueBytes, *maxValueBytes))
+	}
+
 	// timeout
 	if timeout := authorino.Spec.Listener.Timeout; timeout != nil {
 		args = append(args, fmt.Sprintf("--%s=%d", FlagTimeout, *timeout))
@@ -337,6 +345,20 @@ func buildAuthorinoEnv(authorino *api.Authorino) []k8score.EnvVar {
 		envVar = append(envVar, k8score.EnvVar{
 			Name:  EnvLogMode,
 			Value: v,
+		})
+	}
+
+	if authorino.Spec.EnableLoggingFields {
+		envVar = append(envVar, k8score.EnvVar{
+			Name:  EnvEnableLoggingFields,
+			Value: strconv.FormatBool(true),
+		})
+	}
+
+	if v := authorino.Spec.LoggingFieldsMaxValueBytes; v != nil {
+		envVar = append(envVar, k8score.EnvVar{
+			Name:  EnvLoggingFieldsMaxValueBytes,
+			Value: strconv.Itoa(*v),
 		})
 	}
 

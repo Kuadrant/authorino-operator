@@ -88,6 +88,40 @@ func getArgValue(args []string, flag string) string {
 }
 
 func TestBuildAuthorinoArgs(t *testing.T) {
+	t.Run("configurable logging fields are opt-in", func(t *testing.T) {
+		a := &api.Authorino{}
+		args := buildAuthorinoArgs(a)
+		if hasArg(args, FlagEnableLoggingFields) {
+			t.Errorf("expected --%s to be absent by default", FlagEnableLoggingFields)
+		}
+		if hasArg(args, FlagLoggingFieldsMaxValueBytes) {
+			t.Errorf("expected --%s to be absent by default", FlagLoggingFieldsMaxValueBytes)
+		}
+
+		maxValueBytes := 2048
+		a.Spec.EnableLoggingFields = true
+		a.Spec.LoggingFieldsMaxValueBytes = &maxValueBytes
+		args = buildAuthorinoArgs(a)
+		if !hasArg(args, FlagEnableLoggingFields) {
+			t.Errorf("expected --%s when enabled", FlagEnableLoggingFields)
+		}
+		if value := getArgValue(args, FlagLoggingFieldsMaxValueBytes); value != "2048" {
+			t.Errorf("expected --%s=2048, got %q", FlagLoggingFieldsMaxValueBytes, value)
+		}
+
+		envs := buildAuthorinoEnv(a)
+		envValues := make(map[string]string, len(envs))
+		for _, env := range envs {
+			envValues[env.Name] = env.Value
+		}
+		if value := envValues[EnvEnableLoggingFields]; value != "true" {
+			t.Errorf("expected %s=true, got %q", EnvEnableLoggingFields, value)
+		}
+		if value := envValues[EnvLoggingFieldsMaxValueBytes]; value != "2048" {
+			t.Errorf("expected %s=2048, got %q", EnvLoggingFieldsMaxValueBytes, value)
+		}
+	})
+
 	t.Run("TLS disabled omits all TLS flags", func(t *testing.T) {
 		a := &api.Authorino{
 			Spec: api.AuthorinoSpec{
