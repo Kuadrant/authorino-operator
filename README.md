@@ -289,7 +289,9 @@ spec:
 
 ## Profiling
 
-The operator supports runtime profiling via Go's built-in [pprof](https://pkg.go.dev/net/http/pprof) tooling. Enabled by default on `:8084`.
+The operator supports runtime profiling via Go's built-in [pprof](https://pkg.go.dev/net/http/pprof) tooling. Profiling is disabled by default. To enable it, add `--pprof-bind-address=:8084` to the args of the `manager` container in the `authorino-operator-controller-manager` Deployment. Set the flag to `""` or `"0"` to disable it again.
+
+Profiling endpoints are unauthenticated and profiles may contain sensitive data. Restrict access to the port with a [NetworkPolicy](https://kubernetes.io/docs/concepts/services-networking/network-policies/) and disable profiling after diagnostics.
 
 Connect to a running instance:
 
