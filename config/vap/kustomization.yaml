@@ -2,5 +2,3 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   - restrict_spec_fields_vap.yaml
-  - authorino_cluster_wide_role.yaml
-  - authorino_image_role.yaml
