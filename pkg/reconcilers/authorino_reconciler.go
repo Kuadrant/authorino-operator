@@ -359,7 +359,9 @@ func (r *AuthorinoReconciler) reconcileResource(ctx context.Context, obj, desire
 
 	// Apply the desired state using Server-Side Apply
 	if err := r.ApplyResource(ctx, desired); err != nil {
-		return "update", desired, err
+		// Return obj (populated by Get above) so callers have the existing object's
+		// UID and ResourceVersion for preconditioned operations such as delete+recreate.
+		return "update", obj, err
 	}
 
 	return "", obj, nil
@@ -458,7 +460,8 @@ func (r *AuthorinoReconciler) reconcileService(ctx context.Context, desired *k8s
 		return err
 	}
 
-	crud, _, err := r.reconcileResource(ctx, &k8score.Service{}, desired)
+	existingSvc := &k8score.Service{}
+	crud, existingObj, err := r.reconcileResource(ctx, existingSvc, desired)
 
 	if crud == "read" && err != nil {
 		return r.WrapErrorWithStatusUpdate(
@@ -474,9 +477,13 @@ func (r *AuthorinoReconciler) reconcileService(ctx context.Context, desired *k8s
 
 	// ClusterIP is immutable in Kubernetes; SSA returns 422 Invalid when the desired
 	// spec changes it (e.g. migrating from ClusterIP to headless). Delete and recreate.
+	// Use the existing object (with its UID and ResourceVersion) as deletion preconditions
+	// to avoid accidentally removing a concurrently-recreated service.
 	if crud == "update" && err != nil && isClusterIPImmutableError(err) {
 		logger.Info("re-creating service to apply headless migration", "name", desired.Name)
-		if delErr := r.Client.Delete(ctx, desired); delErr != nil && !k8serrors.IsNotFound(delErr) {
+		existing := existingObj.(*k8score.Service)
+		preconditions := client.Preconditions{UID: &existing.UID, ResourceVersion: &existing.ResourceVersion}
+		if delErr := r.Client.Delete(ctx, existing, preconditions); delErr != nil && !k8serrors.IsNotFound(delErr) {
 			return r.WrapErrorWithStatusUpdate(logger, authorino, r.SetStatusFailed(statusUnableToCreateServices),
 				fmt.Errorf("failed to delete service %s for recreation: %v", desired.Name, delErr))
 		}
