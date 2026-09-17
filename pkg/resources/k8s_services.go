@@ -17,7 +17,12 @@ func NewAuthService(authorinoName, serviceNamespace string, grpcPort, httpPort i
 	if httpPort != 0 {
 		ports = append(ports, newServicePort("http", httpPort))
 	}
-	return newService("authorino-authorization", serviceNamespace, authorinoName, labels, ports...)
+	svc := newService("authorino-authorization", serviceNamespace, authorinoName, labels, ports...)
+	// Headless service: DNS returns individual pod IPs rather than a single ClusterIP VIP.
+	// This gives Envoy's STRICT_DNS cluster one upstream host per replica, allowing
+	// ROUND_ROBIN to distribute gRPC ext_authz streams across all Authorino pods.
+	svc.Spec.ClusterIP = "None"
+	return svc
 }
 
 func NewOIDCService(authorinoName, authorinoNamespace string, port int32, labels map[string]string) *k8score.Service {
