@@ -47,8 +47,8 @@ jobs:
         with:
           token: ${{ secrets.KUADRANT_DEV_PAT }}
           commit-message: Update Authorino manifests
-          committer: github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>
-          author: ${{ github.actor }} <${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com>
+          committer: kuadrant-dev <kuadrant-dev@redhat.com>
+          author: kuadrant-dev <kuadrant-dev@redhat.com>
           signoff: true
           sign-commits: true
           base: main
