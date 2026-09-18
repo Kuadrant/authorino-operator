@@ -1,0 +1,24 @@
+# Notifies the kuadrant-operator repo when this component's Helm chart changes.
+# Uses the reusable workflow from kuadrant-operator.
+
+name: Dispatch chart sync
+
+on:
+  push:
+    branches:
+      - main
+      - 'release-*'
+    paths:
+      - 'charts/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  dispatch:
+    uses: Kuadrant/kuadrant-operator/.github/workflows/reusable-dispatch-chart-sync.yml@main # ratchet:exclude
+    with:
+      component: authorino-operator
+    secrets:
+      KUADRANT_DEV_PAT: ${{ secrets.KUADRANT_DEV_PAT }}
