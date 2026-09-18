@@ -14,6 +14,7 @@ import (
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
@@ -298,6 +299,87 @@ func TestReconcileService(t *testing.T) {
 
 		if updated.Labels["new-label"] != "new-value" {
 			t.Errorf("expected label 'new-label' to be 'new-value', got %s", updated.Labels["new-label"])
+		}
+	})
+}
+
+func TestReconcileServiceClusterIPMigration(t *testing.T) {
+	t.Run("migrates ClusterIP service to headless via delete+recreate", func(t *testing.T) {
+		// Existing service has a concrete ClusterIP (simulating a pre-headless install).
+		existingService := &k8score.Service{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-authorino-authorization",
+				Namespace: namespace,
+				UID:       "existing-uid",
+			},
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "Service",
+				APIVersion: k8score.SchemeGroupVersion.String(),
+			},
+			Spec: k8score.ServiceSpec{
+				ClusterIP: "10.0.0.1",
+				Selector:  map[string]string{"app": "authorino"},
+			},
+		}
+
+		logger := zap.New(zap.UseDevMode(true))
+		ctx := log.IntoContext(context.Background(), logger)
+		s := scheme.Scheme
+		if err := api.AddToScheme(s); err != nil {
+			t.Fatal(err)
+		}
+		if err := appsv1.AddToScheme(s); err != nil {
+			t.Fatal(err)
+		}
+
+		// Intercept Patch (SSA) to simulate the 422 Invalid returned by the API server
+		// when ClusterIP is mutated, which is immutable after Service creation.
+		patchCallCount := 0
+		cl := fake.NewClientBuilder().
+			WithScheme(s).
+			WithStatusSubresource(&api.Authorino{}).
+			WithObjects(authorinoInstance, existingService).
+			WithInterceptorFuncs(interceptor.Funcs{
+				Patch: func(ctx context.Context, c client.WithWatch, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
+					svc, ok := obj.(*k8score.Service)
+					if ok && svc.Name == existingService.Name && patchCallCount == 0 {
+						patchCallCount++
+						return &apierrors.StatusError{
+							ErrStatus: metav1.Status{
+								Code:   422,
+								Reason: metav1.StatusReasonInvalid,
+								Details: &metav1.StatusDetails{
+									Causes: []metav1.StatusCause{
+										{Field: "spec.clusterIP", Message: "field is immutable"},
+									},
+								},
+							},
+						}
+					}
+					return c.Patch(ctx, obj, patch, opts...)
+				},
+			}).
+			Build()
+
+		r := &AuthorinoReconciler{Client: cl, Scheme: s}
+
+		// Desired service is headless.
+		headlessSvc := existingService.DeepCopy()
+		headlessSvc.Spec.ClusterIP = "None"
+		headlessSvc.ResourceVersion = ""
+
+		err := r.reconcileService(ctx, headlessSvc, authorinoInstance)
+		if err != nil {
+			t.Fatalf("unexpected error during ClusterIP migration: %v", err)
+		}
+
+		// Service should now exist and be headless.
+		recreated := &k8score.Service{}
+		if err := cl.Get(ctx, client.ObjectKeyFromObject(headlessSvc), recreated); err != nil {
+			t.Fatalf("expected service to exist after recreation: %v", err)
+		}
+		if recreated.Spec.ClusterIP != "None" {
+			t.Errorf("expected ClusterIP to be 'None', got %q", recreated.Spec.ClusterIP)
 		}
 	})
 }

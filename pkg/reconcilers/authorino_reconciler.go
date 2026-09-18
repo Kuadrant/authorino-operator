@@ -9,7 +9,7 @@ import (
 	k8sapps "k8s.io/api/apps/v1"
 	k8score "k8s.io/api/core/v1"
 	k8srbac "k8s.io/api/rbac/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	k8smeta "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -179,7 +179,7 @@ func (r *AuthorinoReconciler) cleanupLegacyClusterRoleBindings(ctx context.Conte
 
 		binding := &k8srbac.ClusterRoleBinding{}
 		if err := r.Client.Get(ctx, client.ObjectKey{Name: legacyName}, binding); err != nil {
-			if !errors.IsNotFound(err) {
+			if !k8serrors.IsNotFound(err) {
 				logger.Error(err, "failed to get legacy ClusterRoleBinding", "name", legacyName)
 			}
 			continue
@@ -200,7 +200,7 @@ func (r *AuthorinoReconciler) cleanupLegacyClusterRoleBindings(ctx context.Conte
 			UID:             &binding.UID,
 			ResourceVersion: &binding.ResourceVersion,
 		}
-		if err := r.Client.Delete(ctx, binding, preconditions); err != nil && !errors.IsNotFound(err) {
+		if err := r.Client.Delete(ctx, binding, preconditions); err != nil && !k8serrors.IsNotFound(err) {
 			logger.Error(err, "failed to delete legacy ClusterRoleBinding", "name", legacyName)
 		}
 	}
@@ -320,7 +320,7 @@ func (r *AuthorinoReconciler) checkClusterRoleExists(ctx context.Context, key cl
 
 	clusterRole := &k8srbac.ClusterRole{}
 	if err := r.Client.Get(ctx, key, clusterRole); err != nil {
-		if errors.IsNotFound(err) {
+		if k8serrors.IsNotFound(err) {
 			return r.WrapErrorWithStatusUpdate(logger, authorino, r.SetStatusFailed(statusClusterRoleNotFound), fmt.Errorf("failed to find authorino ClusterRole %s: %v", key, err))
 		} else {
 			return r.WrapErrorWithStatusUpdate(logger, authorino, r.SetStatusFailed(statusUnableToGetClusterRole), fmt.Errorf("failed to get authorino ClusterRole %s: %v", key, err))
@@ -334,7 +334,7 @@ func (r *AuthorinoReconciler) reconcileResource(ctx context.Context, obj, desire
 	key := client.ObjectKeyFromObject(desired)
 
 	if err := r.Client.Get(ctx, key, obj); err != nil {
-		if !errors.IsNotFound(err) {
+		if !k8serrors.IsNotFound(err) {
 			return "read", nil, err
 		}
 
@@ -359,7 +359,9 @@ func (r *AuthorinoReconciler) reconcileResource(ctx context.Context, obj, desire
 
 	// Apply the desired state using Server-Side Apply
 	if err := r.ApplyResource(ctx, desired); err != nil {
-		return "update", desired, err
+		// Return obj (populated by Get above) so callers have the existing object's
+		// UID and ResourceVersion for preconditioned operations such as delete+recreate.
+		return "update", obj, err
 	}
 
 	return "", obj, nil
@@ -458,7 +460,8 @@ func (r *AuthorinoReconciler) reconcileService(ctx context.Context, desired *k8s
 		return err
 	}
 
-	crud, _, err := r.reconcileResource(ctx, &k8score.Service{}, desired)
+	existingSvc := &k8score.Service{}
+	crud, existingObj, err := r.reconcileResource(ctx, existingSvc, desired)
 
 	if crud == "read" && err != nil {
 		return r.WrapErrorWithStatusUpdate(
@@ -472,6 +475,25 @@ func (r *AuthorinoReconciler) reconcileService(ctx context.Context, desired *k8s
 		)
 	}
 
+	// ClusterIP is immutable in Kubernetes; SSA returns 422 Invalid when the desired
+	// spec changes it (e.g. migrating from ClusterIP to headless). Delete and recreate.
+	// Use the existing object (with its UID and ResourceVersion) as deletion preconditions
+	// to avoid accidentally removing a concurrently-recreated service.
+	if crud == "update" && err != nil && isClusterIPImmutableError(err) {
+		logger.Info("re-creating service to apply headless migration", "name", desired.Name)
+		existing := existingObj.(*k8score.Service)
+		preconditions := client.Preconditions{UID: &existing.UID, ResourceVersion: &existing.ResourceVersion}
+		if delErr := r.Client.Delete(ctx, existing, preconditions); delErr != nil && !k8serrors.IsNotFound(delErr) {
+			return r.WrapErrorWithStatusUpdate(logger, authorino, r.SetStatusFailed(statusUnableToCreateServices),
+				fmt.Errorf("failed to delete service %s for recreation: %v", desired.Name, delErr))
+		}
+		if createErr := r.CreateResource(ctx, desired); createErr != nil {
+			return r.WrapErrorWithStatusUpdate(logger, authorino, r.SetStatusFailed(statusUnableToCreateServices),
+				fmt.Errorf("failed to recreate service %s: %v", desired.Name, createErr))
+		}
+		return nil
+	}
+
 	if crud == "update" && err != nil {
 		return r.WrapErrorWithStatusUpdate(
 			logger, authorino, r.SetStatusFailed(statusUnableToGetServices),
@@ -480,6 +502,24 @@ func (r *AuthorinoReconciler) reconcileService(ctx context.Context, desired *k8s
 	}
 
 	return nil
+}
+
+// isClusterIPImmutableError reports whether err is a Kubernetes API validation error
+// for the spec.clusterIP field, which is immutable after service creation.
+func isClusterIPImmutableError(err error) bool {
+	statusErr, ok := err.(*k8serrors.StatusError)
+	if !ok {
+		return false
+	}
+	if statusErr.ErrStatus.Details == nil {
+		return false
+	}
+	for _, cause := range statusErr.ErrStatus.Details.Causes {
+		if cause.Field == "spec.clusterIP" {
+			return true
+		}
+	}
+	return false
 }
 
 func (r *AuthorinoReconciler) reconcileRoleBinding(ctx context.Context, desired *k8srbac.RoleBinding, authorino *api.Authorino) error {
