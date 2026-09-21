@@ -315,7 +315,9 @@ func TestReconcileServiceClusterIPMigration(t *testing.T) {
 								Reason: metav1.StatusReasonInvalid,
 								Details: &metav1.StatusDetails{
 									Causes: []metav1.StatusCause{
-										{Field: "spec.clusterIP", Message: "field is immutable"},
+										// API server reports "spec.clusterIPs[0]" (plural, indexed),
+						// not "spec.clusterIP" — the HasPrefix check must handle both.
+						{Field: "spec.clusterIPs[0]", Message: "may not change once set"},
 									},
 								},
 							},

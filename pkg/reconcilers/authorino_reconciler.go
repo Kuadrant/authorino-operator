@@ -505,7 +505,9 @@ func (r *AuthorinoReconciler) reconcileService(ctx context.Context, desired *k8s
 }
 
 // isClusterIPImmutableError reports whether err is a Kubernetes API validation error
-// for the spec.clusterIP field, which is immutable after service creation.
+// for the spec.clusterIP / spec.clusterIPs field, which is immutable after service
+// creation. The API server may report the field as "spec.clusterIP" or as
+// "spec.clusterIPs[0]" depending on version, so we match by prefix.
 func isClusterIPImmutableError(err error) bool {
 	statusErr, ok := err.(*k8serrors.StatusError)
 	if !ok {
@@ -515,7 +517,7 @@ func isClusterIPImmutableError(err error) bool {
 		return false
 	}
 	for _, cause := range statusErr.ErrStatus.Details.Causes {
-		if cause.Field == "spec.clusterIP" {
+		if strings.HasPrefix(cause.Field, "spec.clusterIP") {
 			return true
 		}
 	}
