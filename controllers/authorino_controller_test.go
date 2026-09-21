@@ -692,6 +692,65 @@ var _ = Describe("Authorino controller", func() {
 			Expect(containerNames).To(ContainElement("envoy-sidecar"))
 		})
 	})
+
+	// This Context exercises the real kube-apiserver (via envtest) to verify that
+	// isClusterIPImmutableError correctly detects the 422 the API server emits when
+	// a pre-existing ClusterIP service is reconciled to headless, and that the
+	// delete+recreate migration path runs to completion.
+	Context("Migrating auth service from ClusterIP to headless", func() {
+		var authorinoInstance *api.Authorino
+
+		BeforeEach(func(ctx context.Context) {
+			authorinoInstance = newFullAuthorinoInstance()
+
+			// Simulate a pre-upgrade installation by creating the authorization
+			// service with a concrete ClusterIP before the Authorino CR exists.
+			// The envtest kube-apiserver assigns a real VIP just like production.
+			legacySvc := &k8score.Service{
+				ObjectMeta: v1.ObjectMeta{
+					Name:      authorinoInstance.Name + "-authorino-authorization",
+					Namespace: testAuthorinoNamespace,
+				},
+				Spec: k8score.ServiceSpec{
+					Ports: []k8score.ServicePort{
+						{Name: "grpc", Port: 50051, Protocol: k8score.ProtocolTCP},
+					},
+					Selector: map[string]string{"placeholder": "true"},
+					// ClusterIP intentionally omitted — Kubernetes assigns a VIP
+				},
+			}
+			Expect(k8sClient.Create(ctx, legacySvc)).To(Succeed())
+
+			DeferCleanup(func(ctx context.Context) {
+				// Authorino CR deletion cascades to owned resources; the legacy
+				// service (no owner ref) must be cleaned up separately if still present.
+				_ = k8sClient.Delete(ctx, authorinoInstance)
+				svc := &k8score.Service{}
+				if err := k8sClient.Get(ctx, namespacedName(testAuthorinoNamespace, legacySvc.Name), svc); err == nil {
+					_ = k8sClient.Delete(ctx, svc)
+				}
+			})
+
+			// Now create the Authorino CR. The controller reconciles and attempts
+			// to SSA the service with ClusterIP: None. The real API server returns
+			// a 422 with spec.clusterIPs[0] in the cause field. The reconciler
+			// detects it via isClusterIPImmutableError and runs delete+recreate.
+			Expect(k8sClient.Create(ctx, authorinoInstance)).To(Succeed())
+		})
+
+		It("recreates the auth service as headless after detecting ClusterIP immutability", func(ctx context.Context) {
+			svcName := namespacedName(testAuthorinoNamespace, authorinoInstance.Name+"-authorino-authorization")
+			svc := &k8score.Service{}
+
+			Eventually(func(ctx context.Context) string {
+				if err := k8sClient.Get(ctx, svcName, svc); err != nil {
+					return ""
+				}
+				return svc.Spec.ClusterIP
+			}).WithContext(ctx).Should(Equal("None"),
+				"auth service should be recreated as headless after ClusterIP immutability migration")
+		})
+	})
 })
 
 func newExtServerConfigMap() *k8score.ConfigMap {
