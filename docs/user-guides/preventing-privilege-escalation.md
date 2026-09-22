@@ -75,7 +75,9 @@ EOF
 ## 2. Grant the access to the restricted fields
 
 > [!IMPORTANT]
-> Before granting anyone else, grant the **controllers and GitOps agents that write `Authorino` CRs** the `set-cluster-wide`, `set-image` and `set-superseding-host-subsets` permissions, otherwise they cannot manage `Authorino` CRs once the policy is active. This includes the operator's own ServiceAccount, and any CI or GitOps ServiceAccount reconciling a manifest that pins a restricted field. A pipeline that sets `spec.image` is blocked unless it holds `set-image`, just like a user would be. In order to bind all three ClusterRoles to the operator's ServiceAccount, replace `<operator-sa>` with the operator's ServiceAccount name (the standard deployment uses `authorino-operator`) and `<operator-namespace>` with the namespace where the operator is running:
+> Before granting anyone else, grant the **controllers and GitOps agents that write `Authorino` CRs** the permissions matching the restricted fields their manifests set, otherwise they cannot manage `Authorino` CRs once the policy is active. This includes any CI or GitOps ServiceAccount reconciling a manifest that pins a restricted field: a pipeline that sets `spec.image` is blocked unless it holds `set-image`, just like a user would be. Grant only the permissions actually needed, not all three.
+
+On a Kuadrant installation the writer is the **kuadrant-operator** ServiceAccount (the standard deployment uses `kuadrant-operator-controller-manager` in `kuadrant-system`), which creates the `Authorino` CR with `spec.clusterWide: true`. It never sets `spec.image`, so `set-cluster-wide` is the only permission it always needs. Replace `<writer-sa>` and `<writer-namespace>` with the ServiceAccount writing the `Authorino` CRs:
 
 ```sh
 kubectl apply -f - <<'EOF'
@@ -89,38 +91,40 @@ roleRef:
   name: authorino-set-cluster-wide
 subjects:
   - kind: ServiceAccount
-    name: <operator-sa>
-    namespace: <operator-namespace>
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: authorino-set-image
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: authorino-set-image
-subjects:
-  - kind: ServiceAccount
-    name: <operator-sa>
-    namespace: <operator-namespace>
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: authorino-set-superseding-host-subsets
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: authorino-set-superseding-host-subsets
-subjects:
-  - kind: ServiceAccount
-    name: <operator-sa>
-    namespace: <operator-namespace>
+    name: <writer-sa>
+    namespace: <writer-namespace>
 EOF
 ```
 
-Then grant access to your own ServiceAccounts and Users. Use the RoleBindings below as a template. Replace the placeholders (`<sa-name>`, `<namespace-of-sa>`, `<authorino-namespace>`) with the appropriate values.
+Older Kuadrant versions also set `spec.supersedingHostSubsets: true` on the `Authorino` CR. To check whether you also need this role, try this command:
+
+```sh
+kubectl get authorinos -A -o json | jq -r '.items[]
+  | select(.spec.supersedingHostSubsets // false)
+  | "\(.metadata.namespace)/\(.metadata.name)"'
+```
+
+If that prints anything, also bind:
+
+```sh
+kubectl apply -f - <<'EOF'
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: authorino-set-superseding-host-subsets
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: authorino-set-superseding-host-subsets
+subjects:
+  - kind: ServiceAccount
+    name: <writer-sa>
+    namespace: <writer-namespace>
+EOF
+```
+
+Then grant access to your own ServiceAccounts and Users. Use the RoleBindings below as a template. Replace the placeholders (`<sa-name>`, `<namespace-of-sa>`, `<authorino-namespace>`) with the appropriate values, and keep only the bindings for the fields that subject actually needs to set.
+
 
 ```sh
 kubectl apply -f - <<'EOF'
