@@ -79,7 +79,7 @@ func main() {
 
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
-	flag.StringVar(&pprofAddr, "pprof-bind-address", ":8084", "The address the pprof endpoint binds to.")
+	flag.StringVar(&pprofAddr, "pprof-bind-address", "", "The address the pprof endpoint binds to (disabled by default; set to an address such as :8084 to enable).")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
 		"Enable leader election for controller manager. "+
 			"Enabling this will ensure there is only one active controller manager.")
