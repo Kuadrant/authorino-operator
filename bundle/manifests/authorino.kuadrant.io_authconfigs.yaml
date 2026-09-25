@@ -2690,13 +2690,11 @@ spec:
                                     items:
                                       type: string
                                     type: array
-                                    x-kubernetes-list-type: atomic
                                 required:
                                 - key
                                 - operator
                                 type: object
                               type: array
-                              x-kubernetes-list-type: atomic
                             matchLabels:
                               additionalProperties:
                                 type: string
@@ -2813,13 +2811,6 @@ spec:
                     jwt:
                       description: Authentication based on JWT tokens.
                       properties:
-                        issuer:
-                          description: |-
-                            The expected value of the "iss" (issuer) claim of the JWT.
-                            If set, Authorino rejects, at the authentication phase, any token whose "iss" claim does not equal this value.
-                            If omitted, the issuer claim is not verified — it can still be checked via an authorization rule (CEL, pattern-matching or OPA).
-                            Applies to both issuerUrl and jwksUrl.
-                          type: string
                         issuerUrl:
                           description: |-
                             URL of the OpenID Connect (OIDC) token issuer endpoint.
@@ -2870,12 +2861,8 @@ spec:
                             server.
                           properties:
                             name:
-                              default: ""
                               description: |-
                                 Name of the referent.
-                                This field is effectively required, but due to backwards compatibility is
-                                allowed to be empty. Instances of this type with an empty value here are
-                                almost certainly wrong.
                                 More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
                               type: string
                           type: object
@@ -3063,13 +3050,11 @@ spec:
                                     items:
                                       type: string
                                     type: array
-                                    x-kubernetes-list-type: atomic
                                 required:
                                 - key
                                 - operator
                                 type: object
                               type: array
-                              x-kubernetes-list-type: atomic
                             matchLabels:
                               additionalProperties:
                                 type: string
@@ -4537,12 +4522,8 @@ spec:
                             registration API of the UMA server.
                           properties:
                             name:
-                              default: ""
                               description: |-
                                 Name of the referent.
-                                This field is effectively required, but due to backwards compatibility is
-                                allowed to be empty. Instances of this type with an empty value here are
-                                almost certainly wrong.
                                 More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
                               type: string
                           type: object
