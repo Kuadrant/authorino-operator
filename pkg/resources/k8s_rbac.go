@@ -13,11 +13,11 @@ func GetAuthorinoServiceAccount(namespace, crName string, labels map[string]stri
 	}
 }
 
-func GetAuthorinoClusterRoleBinding(crName, clusterRoleBindingNameSuffix, clusterRoleName string, serviceAccount *k8score.ServiceAccount, labels map[string]string) *k8srbac.ClusterRoleBinding {
+func GetAuthorinoClusterRoleBinding(namespace, crName, clusterRoleBindingNameSuffix, clusterRoleName string, serviceAccount *k8score.ServiceAccount, labels map[string]string) *k8srbac.ClusterRoleBinding {
 	roleRef, roleSubject := getRoleRefAndSubject(clusterRoleName, "ClusterRole", serviceAccount)
 	return &k8srbac.ClusterRoleBinding{
 		TypeMeta:   k8smeta.TypeMeta{APIVersion: k8srbac.SchemeGroupVersion.String(), Kind: "ClusterRoleBinding"},
-		ObjectMeta: k8smeta.ObjectMeta{Name: authorinoClusterRoleBindingName(crName, clusterRoleBindingNameSuffix), Labels: labels},
+		ObjectMeta: k8smeta.ObjectMeta{Name: authorinoClusterRoleBindingName(namespace, crName, clusterRoleBindingNameSuffix), Labels: labels},
 		RoleRef:    roleRef,
 		Subjects:   []k8srbac.Subject{roleSubject},
 	}
@@ -56,7 +56,9 @@ func GetSubjectForRoleBinding(serviceAccount *k8score.ServiceAccount) k8srbac.Su
 	}
 }
 
-func subjectIncluded(subjects []k8srbac.Subject, subject k8srbac.Subject) bool {
+// SubjectIncluded reports whether the given subject is present in the subjects slice,
+// matching on Kind, Name and Namespace.
+func SubjectIncluded(subjects []k8srbac.Subject, subject k8srbac.Subject) bool {
 	for _, s := range subjects {
 		if s.Kind == subject.Kind && s.Name == subject.Name && s.Namespace == subject.Namespace {
 			return true
@@ -88,26 +90,4 @@ func GetLeaderElectionRules() []k8srbac.PolicyRule {
 			Verbs:     []string{"get", "list", "create", "update"},
 		},
 	}
-}
-
-// MergeBindingSubject merges desired subject slice into the existing slice.
-//
-// The subject entries included in "existing" slice that are not included in the "desired" slice are preserved.
-//
-// It returns true if the existing slice was modified (i.e., at least one subject was added),
-// and false otherwise.
-func MergeBindingSubject(desired []k8srbac.Subject, existing *[]k8srbac.Subject) bool {
-	if existing == nil {
-		return false
-	}
-
-	update := false
-	for idx := range desired {
-		if !subjectIncluded(*existing, desired[idx]) {
-			*existing = append(*existing, desired[idx])
-			update = true
-		}
-	}
-
-	return update
 }

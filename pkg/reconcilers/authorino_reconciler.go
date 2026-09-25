@@ -9,10 +9,9 @@ import (
 	k8sapps "k8s.io/api/apps/v1"
 	k8score "k8s.io/api/core/v1"
 	k8srbac "k8s.io/api/rbac/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	k8smeta "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -143,7 +142,68 @@ func (r *AuthorinoReconciler) ReconcileAuthorinoPermissions(ctx context.Context,
 		return err
 	}
 
+	// Best-effort migration: remove ClusterRoleBindings created with the legacy
+	// name scheme (<crName>-<suffix>). Those names omit the namespace, so
+	// instances sharing a CR name in different namespaces collided on a single
+	// cluster-scoped binding. This runs after the namespace-qualified bindings
+	// are reconciled, so this instance's own permissions are never dropped
+	// mid-reconcile. Note that when several instances shared a single legacy
+	// binding, deleting it here can briefly remove another instance's permissions
+	// until that instance reconciles and provisions its own namespace-qualified
+	// binding.
+	r.cleanupLegacyClusterRoleBindings(ctx, authorinoInstance)
+
 	return nil
+}
+
+// cleanupLegacyClusterRoleBindings deletes the pre-namespace-qualified
+// ClusterRoleBindings (named <crName>-<suffix>) for this instance, if present.
+// It is best-effort: a missing binding is not an error, and other failures are
+// logged rather than surfaced so they don't block reconciliation.
+//
+// The legacy name is <crName>-<suffix>, and crName is fully controlled by
+// whoever creates the Authorino CR. Deleting purely by name would let a tenant
+// name a CR so that the operator deletes a legacy binding owned by an instance
+// in another namespace. To avoid that, each binding is read and only deleted
+// once it is confirmed to belong to this instance: it must reference this
+// instance's ServiceAccount as a subject. Bindings that cannot be confirmed are
+// left in place.
+func (r *AuthorinoReconciler) cleanupLegacyClusterRoleBindings(ctx context.Context, authorinoInstance *api.Authorino) {
+	logger, _ := logr.FromContext(ctx)
+
+	sa := authorinoResources.GetAuthorinoServiceAccount(authorinoInstance.Namespace, authorinoInstance.Name, authorinoInstance.Labels)
+	ownSubject := authorinoResources.GetSubjectForRoleBinding(sa)
+
+	for _, suffix := range []string{AuthorinoManagerClusterRoleBindingName, AuthorinoK8sAuthClusterRoleBindingName} {
+		legacyName := fmt.Sprintf("%s-%s", authorinoInstance.Name, suffix)
+
+		binding := &k8srbac.ClusterRoleBinding{}
+		if err := r.Client.Get(ctx, client.ObjectKey{Name: legacyName}, binding); err != nil {
+			if !k8serrors.IsNotFound(err) {
+				logger.Error(err, "failed to get legacy ClusterRoleBinding", "name", legacyName)
+			}
+			continue
+		}
+
+		if !authorinoResources.SubjectIncluded(binding.Subjects, ownSubject) {
+			// The binding does not reference this instance's ServiceAccount, so
+			// it was created for a different Authorino instance (e.g. one sharing
+			// the CR name in another namespace). Leave it untouched.
+			logger.Info("skipping legacy ClusterRoleBinding not owned by this instance", "name", legacyName)
+			continue
+		}
+
+		// Delete only the exact object that was validated: the resourceVersion and
+		// UID preconditions make the delete fail rather than remove a binding that
+		// changed between the Get and the Delete.
+		preconditions := client.Preconditions{
+			UID:             &binding.UID,
+			ResourceVersion: &binding.ResourceVersion,
+		}
+		if err := r.Client.Delete(ctx, binding, preconditions); err != nil && !k8serrors.IsNotFound(err) {
+			logger.Error(err, "failed to delete legacy ClusterRoleBinding", "name", legacyName)
+		}
+	}
 }
 
 func (r *AuthorinoReconciler) reconcileManagerClusterRoleBinding(ctx context.Context, authorinoInstance *api.Authorino) error {
@@ -156,13 +216,13 @@ func (r *AuthorinoReconciler) reconcileManagerClusterRoleBinding(ctx context.Con
 
 	// if cluster scoped, ensure service account is in the binding
 	if authorinoInstance.Spec.ClusterWide {
-		binding := authorinoResources.GetAuthorinoClusterRoleBinding(authorinoInstance.Name, AuthorinoManagerClusterRoleBindingName, AuthorinoManagerClusterRoleName, sa, authorinoInstance.Labels)
+		binding := authorinoResources.GetAuthorinoClusterRoleBinding(authorinoInstance.Namespace, authorinoInstance.Name, AuthorinoManagerClusterRoleBindingName, AuthorinoManagerClusterRoleName, sa, authorinoInstance.Labels)
 		return r.reconcileClusterRoleBinding(ctx, binding, authorinoInstance)
 	}
 
 	// local namespace scope
 	// if switching from cluster-wide to namespaced, delete the ClusterRoleBinding
-	binding := authorinoResources.GetAuthorinoClusterRoleBinding(authorinoInstance.Name, AuthorinoManagerClusterRoleBindingName, AuthorinoManagerClusterRoleName, sa, authorinoInstance.Labels)
+	binding := authorinoResources.GetAuthorinoClusterRoleBinding(authorinoInstance.Namespace, authorinoInstance.Name, AuthorinoManagerClusterRoleBindingName, AuthorinoManagerClusterRoleName, sa, authorinoInstance.Labels)
 	TagObjectToDelete(binding)
 	r.reconcileClusterRoleBinding(ctx, binding, authorinoInstance)
 
@@ -194,7 +254,7 @@ func (r *AuthorinoReconciler) reconcileManagerAuthClusterRoleBinding(ctx context
 
 	sa := authorinoResources.GetAuthorinoServiceAccount(authorinoInstance.Namespace, authorinoInstance.Name, authorinoInstance.Labels)
 
-	binding := authorinoResources.GetAuthorinoClusterRoleBinding(authorinoInstance.Name, AuthorinoK8sAuthClusterRoleBindingName, AuthorinoK8sAuthClusterRoleName, sa, authorinoInstance.Labels)
+	binding := authorinoResources.GetAuthorinoClusterRoleBinding(authorinoInstance.Namespace, authorinoInstance.Name, AuthorinoK8sAuthClusterRoleBindingName, AuthorinoK8sAuthClusterRoleName, sa, authorinoInstance.Labels)
 	return r.reconcileClusterRoleBinding(ctx, binding, authorinoInstance)
 }
 
@@ -260,7 +320,7 @@ func (r *AuthorinoReconciler) checkClusterRoleExists(ctx context.Context, key cl
 
 	clusterRole := &k8srbac.ClusterRole{}
 	if err := r.Client.Get(ctx, key, clusterRole); err != nil {
-		if errors.IsNotFound(err) {
+		if k8serrors.IsNotFound(err) {
 			return r.WrapErrorWithStatusUpdate(logger, authorino, r.SetStatusFailed(statusClusterRoleNotFound), fmt.Errorf("failed to find authorino ClusterRole %s: %v", key, err))
 		} else {
 			return r.WrapErrorWithStatusUpdate(logger, authorino, r.SetStatusFailed(statusUnableToGetClusterRole), fmt.Errorf("failed to get authorino ClusterRole %s: %v", key, err))
@@ -274,7 +334,7 @@ func (r *AuthorinoReconciler) reconcileResource(ctx context.Context, obj, desire
 	key := client.ObjectKeyFromObject(desired)
 
 	if err := r.Client.Get(ctx, key, obj); err != nil {
-		if !errors.IsNotFound(err) {
+		if !k8serrors.IsNotFound(err) {
 			return "read", nil, err
 		}
 
@@ -299,7 +359,9 @@ func (r *AuthorinoReconciler) reconcileResource(ctx context.Context, obj, desire
 
 	// Apply the desired state using Server-Side Apply
 	if err := r.ApplyResource(ctx, desired); err != nil {
-		return "update", desired, err
+		// Return obj (populated by Get above) so callers have the existing object's
+		// UID and ResourceVersion for preconditioned operations such as delete+recreate.
+		return "update", obj, err
 	}
 
 	return "", obj, nil
@@ -398,7 +460,8 @@ func (r *AuthorinoReconciler) reconcileService(ctx context.Context, desired *k8s
 		return err
 	}
 
-	crud, _, err := r.reconcileResource(ctx, &k8score.Service{}, desired)
+	existingSvc := &k8score.Service{}
+	crud, existingObj, err := r.reconcileResource(ctx, existingSvc, desired)
 
 	if crud == "read" && err != nil {
 		return r.WrapErrorWithStatusUpdate(
@@ -412,6 +475,25 @@ func (r *AuthorinoReconciler) reconcileService(ctx context.Context, desired *k8s
 		)
 	}
 
+	// ClusterIP is immutable in Kubernetes; SSA returns 422 Invalid when the desired
+	// spec changes it (e.g. migrating from ClusterIP to headless). Delete and recreate.
+	// Use the existing object (with its UID and ResourceVersion) as deletion preconditions
+	// to avoid accidentally removing a concurrently-recreated service.
+	if crud == "update" && err != nil && isClusterIPImmutableError(err) {
+		logger.Info("re-creating service to apply headless migration", "name", desired.Name)
+		existing := existingObj.(*k8score.Service)
+		preconditions := client.Preconditions{UID: &existing.UID, ResourceVersion: &existing.ResourceVersion}
+		if delErr := r.Client.Delete(ctx, existing, preconditions); delErr != nil && !k8serrors.IsNotFound(delErr) {
+			return r.WrapErrorWithStatusUpdate(logger, authorino, r.SetStatusFailed(statusUnableToCreateServices),
+				fmt.Errorf("failed to delete service %s for recreation: %v", desired.Name, delErr))
+		}
+		if createErr := r.CreateResource(ctx, desired); createErr != nil {
+			return r.WrapErrorWithStatusUpdate(logger, authorino, r.SetStatusFailed(statusUnableToCreateServices),
+				fmt.Errorf("failed to recreate service %s: %v", desired.Name, createErr))
+		}
+		return nil
+	}
+
 	if crud == "update" && err != nil {
 		return r.WrapErrorWithStatusUpdate(
 			logger, authorino, r.SetStatusFailed(statusUnableToGetServices),
@@ -420,6 +502,26 @@ func (r *AuthorinoReconciler) reconcileService(ctx context.Context, desired *k8s
 	}
 
 	return nil
+}
+
+// isClusterIPImmutableError reports whether err is a Kubernetes API validation error
+// for the spec.clusterIP / spec.clusterIPs field, which is immutable after service
+// creation. The API server may report the field as "spec.clusterIP" or as
+// "spec.clusterIPs[0]" depending on version, so we match by prefix.
+func isClusterIPImmutableError(err error) bool {
+	statusErr, ok := err.(*k8serrors.StatusError)
+	if !ok {
+		return false
+	}
+	if statusErr.ErrStatus.Details == nil {
+		return false
+	}
+	for _, cause := range statusErr.ErrStatus.Details.Causes {
+		if strings.HasPrefix(cause.Field, "spec.clusterIP") {
+			return true
+		}
+	}
+	return false
 }
 
 func (r *AuthorinoReconciler) reconcileRoleBinding(ctx context.Context, desired *k8srbac.RoleBinding, authorino *api.Authorino) error {
@@ -516,32 +618,4 @@ func (r *AuthorinoReconciler) ReconcileAuthorinoServiceAccount(ctx context.Conte
 	}
 
 	return nil
-}
-
-// remove SA from list of subjects of the clusterrolebinding
-func (r *AuthorinoReconciler) UnboundAuthorinoServiceAccountFromClusterRole(ctx context.Context, roleBindingName string, sa *k8score.ServiceAccount) {
-	// TODO: should return error for error handling
-	logger, _ := logr.FromContext(ctx)
-	roleBinding := &k8srbac.ClusterRoleBinding{}
-	if err := r.Client.Get(ctx, types.NamespacedName{Name: roleBindingName}, roleBinding); err == nil {
-		staleSubject := authorinoResources.GetSubjectForRoleBinding(sa)
-		var subjects []k8srbac.Subject
-		for _, subject := range roleBinding.Subjects {
-			if subject.Kind != staleSubject.Kind || subject.Name != staleSubject.Name || subject.Namespace != staleSubject.Namespace {
-				subjects = append(subjects, subject)
-			}
-		}
-
-		if len(subjects) == 0 {
-			if err = r.DeleteResource(ctx, roleBinding); err != nil {
-				logger.Error(err, "failed to delete authorino role binding", "roleBinding", roleBinding, "subject", staleSubject)
-			}
-		} else {
-			// FIXME: This is subject to race condition. The list of subjects may be outdated under concurrent updates
-			roleBinding.Subjects = subjects
-			if err = r.Client.Update(ctx, roleBinding); err != nil {
-				logger.Error(err, "failed to cleanup subject from authorino role binding", "roleBinding", roleBinding, "subject", staleSubject)
-			}
-		}
-	}
 }
