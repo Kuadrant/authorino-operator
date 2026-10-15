@@ -7,13 +7,72 @@ on:
       - "!main"
   workflow_dispatch: {}
 
+permissions:
+  contents: read
+
 jobs:
+  detect-config:
+    name: Detect build configuration
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      operatorVersion: ${{ steps.config.outputs.operatorVersion }}
+      authorinoVersion: ${{ steps.config.outputs.authorinoVersion }}
+      authorinoImage: ${{ steps.config.outputs.authorinoImage }}
+      channels: ${{ steps.config.outputs.channels }}
+      defaultChannel: ${{ steps.config.outputs.defaultChannel }}
+    steps:
+      - name: Check out code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Read configuration from build.yaml
+        id: config
+        run: |
+          BUILD_FILE="build.yaml"
+          if [ -f "$BUILD_FILE" ]; then
+            echo "build.yaml found, extracting configuration"
+            # Read values using grep/sed (same approach as Makefile, with trimming)
+            # Use parameter expansion for fallback when fields are missing
+            OPERATOR_VERSION=$(grep -E '^\s+version:' "$BUILD_FILE" 2>/dev/null | sed -E 's/.*version:\s*//;s/^[[:space:]]+//;s/[[:space:]]+$//')
+            AUTHORINO_VERSION=$(grep -E '^\s+authorinoVersion:' "$BUILD_FILE" 2>/dev/null | sed -E 's/.*authorinoVersion:\s*//;s/^[[:space:]]+//;s/[[:space:]]+$//')
+            AUTHORINO_IMAGE=$(grep -E '^\s+authorinoImage:' "$BUILD_FILE" 2>/dev/null | sed -E 's/.*authorinoImage:\s*//;s/^[[:space:]]+//;s/[[:space:]]+$//')
+            CHANNELS=$(grep -E '^\s+channels:' "$BUILD_FILE" 2>/dev/null | sed -E 's/.*channels:\s*//;s/^[[:space:]]+//;s/[[:space:]]+$//')
+            DEFAULT_CHANNEL=$(grep -E '^\s+defaultChannel:' "$BUILD_FILE" 2>/dev/null | sed -E 's/.*defaultChannel:\s*//;s/^[[:space:]]+//;s/[[:space:]]+$//')
+            # Apply fallbacks for empty values
+            OPERATOR_VERSION=${OPERATOR_VERSION:-0.0.0}
+            AUTHORINO_VERSION=${AUTHORINO_VERSION:-latest}
+            AUTHORINO_IMAGE=${AUTHORINO_IMAGE:-quay.io/kuadrant/authorino:latest}
+            CHANNELS=${CHANNELS:-stable}
+            DEFAULT_CHANNEL=${DEFAULT_CHANNEL:-stable}
+          else
+            echo "build.yaml not found, using default values"
+            OPERATOR_VERSION="0.0.0"
+            AUTHORINO_VERSION="latest"
+            AUTHORINO_IMAGE="quay.io/kuadrant/authorino:latest"
+            CHANNELS=""
+            DEFAULT_CHANNEL=""
+          fi
+          echo "operatorVersion=${OPERATOR_VERSION}" >> $GITHUB_OUTPUT
+          echo "authorinoVersion=${AUTHORINO_VERSION}" >> $GITHUB_OUTPUT
+          echo "authorinoImage=${AUTHORINO_IMAGE}" >> $GITHUB_OUTPUT
+          echo "channels=${CHANNELS}" >> $GITHUB_OUTPUT
+          echo "defaultChannel=${DEFAULT_CHANNEL}" >> $GITHUB_OUTPUT
+
   build-branches:
     name: Calls build-images-base workflow
+    needs: detect-config
     uses: ./.github/workflows/build-images-base.yaml
-    secrets: inherit
+    # Only pass secrets actually required by build-images-base.yaml (principle of least privilege)
+    # These are used for docker login to push images to the container registry
+    secrets:
+      IMG_REGISTRY_USERNAME: ${{ secrets.IMG_REGISTRY_USERNAME }}
+      IMG_REGISTRY_TOKEN: ${{ secrets.IMG_REGISTRY_TOKEN }}
     with:
-      operatorVersion: 0.0.0
+      operatorVersion: ${{ needs.detect-config.outputs.operatorVersion }}
       operatorTag: ${{ github.ref_name }}
-      authorinoVersion: latest
-      relatedImageAuthorino: quay.io/kuadrant/authorino:latest
+      authorinoVersion: ${{ needs.detect-config.outputs.authorinoVersion }}
+      relatedImageAuthorino: ${{ needs.detect-config.outputs.authorinoImage }}
+      channels: ${{ needs.detect-config.outputs.channels }}
+      defaultChannel: ${{ needs.detect-config.outputs.defaultChannel }}
