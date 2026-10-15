@@ -139,6 +139,7 @@ HELM ?= $(LOCALBIN)/helm
 KIND ?= $(LOCALBIN)/kind
 ENVTEST ?= $(LOCALBIN)/setup-envtest
 RATCHET ?= $(LOCALBIN)/ratchet
+ENVSUBST ?= $(LOCALBIN)/envsubst
 
 ## Tool Versions
 OPERATOR_SDK_VERSION ?= v1.32.0
@@ -151,6 +152,7 @@ KIND_VERSION ?= v0.23.0
 RATCHET_VERSION ?= v0.11.4
 # ENVTEST_VERSION is the version of controller-runtime release branch to fetch the envtest setup script (i.e. release-0.16)
 ENVTEST_VERSION ?= $(shell go list -m -f "{{ .Version }}" sigs.k8s.io/controller-runtime 2>/dev/null | awk -F'[v.]' '{printf "release-%d.%d", $$2, $$3}')
+ENVSUBST_VERSION ?= v1.4.3
 
 ## Versioned Binaries (the actual files that 'make' will check for)
 OPERATOR_SDK_V_BINARY := $(LOCALBIN)/operator-sdk-$(OPERATOR_SDK_VERSION)
@@ -162,6 +164,7 @@ HELM_V_BINARY := $(LOCALBIN)/helm-$(HELM_VERSION)
 KIND_V_BINARY := $(LOCALBIN)/kind-$(KIND_VERSION)
 ENVTEST_V_BINARY := $(LOCALBIN)/setup-envtest-$(ENVTEST_VERSION)
 RATCHET_V_BINARY := $(LOCALBIN)/ratchet-$(RATCHET_VERSION)
+ENVSUBST_V_BINARY := $(LOCALBIN)/envsubst-$(ENVSUBST_VERSION)
 
 .PHONY: operator-sdk
 operator-sdk: $(OPERATOR_SDK_V_BINARY) ## Download operator-sdk locally if necessary.
@@ -209,6 +212,12 @@ ratchet: $(RATCHET_V_BINARY) ## Download ratchet locally if necessary.
 $(RATCHET_V_BINARY): $(LOCALBIN)
 	$(call go-install-tool,$(RATCHET),github.com/sethvargo/ratchet,$(RATCHET_VERSION))
 
+.PHONY: envsubst
+envsubst: $(ENVSUBST_V_BINARY) ## Download envsubst locally if necessary.
+$(ENVSUBST_V_BINARY): $(LOCALBIN)
+	$(call go-install-tool,$(ENVSUBST),github.com/a8m/envsubst/cmd/envsubst,$(ENVSUBST_VERSION))
+
+
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.29.0
 
@@ -224,8 +233,8 @@ manifests: controller-gen kustomize authorino-manifests ## Generate WebhookConfi
 .PHONY: authorino-manifests
 authorino-manifests: export AUTHORINO_GITREF := $(AUTHORINO_GITREF)
 authorino-manifests: export AUTHORINO_IMAGE_TAG := $(AUTHORINO_IMAGE_TAG)
-authorino-manifests: ## Update authorino manifests.
-	envsubst \
+authorino-manifests: envsubst ## Update authorino manifests.
+	$(ENVSUBST) \
         < config/authorino/kustomization.template.yaml \
         > config/authorino/kustomization.yaml
 
@@ -330,11 +339,11 @@ bundle: export IMAGE_TAG := $(IMAGE_TAG)
 bundle: export BUNDLE_VERSION := $(BUNDLE_VERSION)
 bundle: export REGISTRY := $(REGISTRY)
 bundle: export ORG := $(ORG)
-bundle: manifests kustomize operator-sdk yq ## Generate bundle manifests and metadata, then validate generated files.
+bundle: manifests kustomize operator-sdk yq envsubst ## Generate bundle manifests and metadata, then validate generated files.
 	$(OPERATOR_SDK) generate kustomize manifests -q
 	V="$(ACTUAL_DEFAULT_AUTHORINO_IMAGE)" $(YQ) eval '(select(.kind == "Deployment").spec.template.spec.containers[].env[] | select(.name == "RELATED_IMAGE_AUTHORINO").value) = strenv(V)' -i config/manager/manager.yaml
 	cd config/manager && $(KUSTOMIZE) edit set image controller=$(OPERATOR_IMAGE)
-	envsubst \
+	$(ENVSUBST) \
         < config/manifests/bases/authorino-operator.clusterserviceversion.template.yaml \
         > config/manifests/bases/authorino-operator.clusterserviceversion.yaml
 	$(KUSTOMIZE) build config/manifests | $(OPERATOR_SDK) generate bundle $(BUNDLE_GEN_FLAGS)
