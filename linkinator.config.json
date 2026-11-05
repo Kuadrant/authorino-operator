@@ -1,5 +1,9 @@
 {
+	"skip": [
+		"http://jaeger:14268/api/traces",
+		"https://docs.google.com/document/d/1tLveyv8Zwe0wKyfUTWOlEnFeMB5aVGqIVDUjVYWax0U/edit#heading=h.b5tapxn4sbk5"
+	],
 	"recurse": true,
 	"directoryListing": true,
 	"markdown": true
-} 
+}
