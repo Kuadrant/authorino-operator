@@ -20,7 +20,7 @@ sure to fill all the fields:
 ### Publishing the Operator in OpenShift Community Operators
 Open a PR in the [OpenShift Community Operators repo](http://github.com/redhat-openshift-ecosystem/community-operators-prod)
 ([example](https://github.com/redhat-openshift-ecosystem/community-operators-prod/pull/1595) |
-[docs](https://redhat-openshift-ecosystem.github.io/community-operators-prod/operator-release-process/)).
+[docs](https://redhat-openshift-ecosystem.github.io/operator-pipelines/users/contributing-via-pr/)).
 
 The usual steps are:
 
