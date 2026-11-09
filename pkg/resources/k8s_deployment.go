@@ -1,13 +1,12 @@
 package resources
 
 import (
-	api "github.com/kuadrant/authorino-operator/api/v1beta1"
 	k8sapps "k8s.io/api/apps/v1"
 	k8score "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func GetDeployment(name, namespace, saName string, replicas *int32, containers []k8score.Container, vol []k8score.Volume, labels map[string]string, spec *api.AuthorinoSpec) *k8sapps.Deployment {
+func GetDeployment(name, namespace, saName string, replicas *int32, containers []k8score.Container, vol []k8score.Volume, labels map[string]string, affinity *k8score.Affinity, topologySpreadConstraints []k8score.TopologySpreadConstraint, tolerations []k8score.Toleration, nodeSelector map[string]string) *k8sapps.Deployment {
 	objMeta := getObjectMeta(namespace, name, labels)
 
 	return &k8sapps.Deployment{
@@ -29,10 +28,10 @@ func GetDeployment(name, namespace, saName string, replicas *int32, containers [
 					ServiceAccountName:        saName,
 					Containers:                containers,
 					Volumes:                   vol,
-					Affinity:                  spec.Affinity,
-					TopologySpreadConstraints: spec.TopologySpreadConstraints,
-					Tolerations:               spec.Tolerations,
-					NodeSelector:              spec.NodeSelector,
+					Affinity:                  affinity,
+					TopologySpreadConstraints: topologySpreadConstraints,
+					Tolerations:               tolerations,
+					NodeSelector:              nodeSelector,
 				},
 			},
 		},
