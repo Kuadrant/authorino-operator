@@ -468,6 +468,67 @@ func TestReconcileDeployment(t *testing.T) {
 		}
 	})
 
+	t.Run("remove stale scheduling settings left by deployment created before server-side apply", func(t *testing.T) {
+		authorino := authorinoInstance.DeepCopy()
+		existingDeployment := AuthorinoDeployment(authorino)
+		stalePodSpec := &existingDeployment.Spec.Template.Spec
+		stalePodSpec.Affinity = &k8score.Affinity{
+			NodeAffinity: &k8score.NodeAffinity{
+				RequiredDuringSchedulingIgnoredDuringExecution: &k8score.NodeSelector{
+					NodeSelectorTerms: []k8score.NodeSelectorTerm{{
+						MatchExpressions: []k8score.NodeSelectorRequirement{{
+							Key:      "repro.example.com/keep-this",
+							Operator: k8score.NodeSelectorOpIn,
+							Values:   []string{"true"},
+						}},
+					}},
+				},
+			},
+		}
+		stalePodSpec.TopologySpreadConstraints = []k8score.TopologySpreadConstraint{{
+			MaxSkew:           1,
+			TopologyKey:       "kubernetes.io/hostname",
+			WhenUnsatisfiable: k8score.DoNotSchedule,
+			LabelSelector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{"authorino-resource": "test-authorino"},
+			},
+		}}
+		stalePodSpec.Tolerations = []k8score.Toleration{{
+			Key:      "repro.example.com/dedicated",
+			Operator: k8score.TolerationOpEqual,
+			Value:    "authorino",
+			Effect:   k8score.TaintEffectNoSchedule,
+		}}
+		stalePodSpec.NodeSelector = map[string]string{
+			"repro.example.com/keep-this": "true",
+		}
+
+		r, ctx := setupTestEnvironment(t, []client.Object{authorino, existingDeployment})
+		logger := log.FromContext(ctx)
+		desiredDeployment := AuthorinoDeployment(authorino)
+		if err := r.reconcileDeployment(ctx, logger, desiredDeployment, authorino); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		updated := &appsv1.Deployment{}
+		if err := r.Client.Get(ctx, client.ObjectKeyFromObject(desiredDeployment), updated); err != nil {
+			t.Fatalf("expected deployment to exist: %v", err)
+		}
+		updatedPodSpec := updated.Spec.Template.Spec
+		if updatedPodSpec.Affinity != nil {
+			t.Errorf("expected stale affinity to be removed, got %+v", updatedPodSpec.Affinity)
+		}
+		if len(updatedPodSpec.TopologySpreadConstraints) != 0 {
+			t.Errorf("expected stale topology spread constraints to be removed, got %+v", updatedPodSpec.TopologySpreadConstraints)
+		}
+		if len(updatedPodSpec.Tolerations) != 0 {
+			t.Errorf("expected stale tolerations to be removed, got %+v", updatedPodSpec.Tolerations)
+		}
+		if len(updatedPodSpec.NodeSelector) != 0 {
+			t.Errorf("expected stale node selector to be removed, got %+v", updatedPodSpec.NodeSelector)
+		}
+	})
+
 	t.Run("update existing deployment", func(t *testing.T) {
 		existingDeployment := &appsv1.Deployment{
 			ObjectMeta: metav1.ObjectMeta{

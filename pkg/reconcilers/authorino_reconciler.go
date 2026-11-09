@@ -408,7 +408,7 @@ func (r *AuthorinoReconciler) DeleteResource(ctx context.Context, obj client.Obj
 }
 
 func (r *AuthorinoReconciler) reconcileDeployment(ctx context.Context, logger logr.Logger, desired *k8sapps.Deployment, authorino *api.Authorino) error {
-	crud, obj, err := r.reconcileResource(ctx, &k8sapps.Deployment{}, desired)
+	crud, obj, err := r.reconcileDeploymentResource(ctx, desired)
 
 	if crud == "read" && err != nil {
 		return r.WrapErrorWithStatusUpdate(logger, authorino, r.SetStatusFailed(statusUnableToGetDeployment),
@@ -452,6 +452,40 @@ func (r *AuthorinoReconciler) reconcileDeployment(ctx context.Context, logger lo
 		return err
 	}
 	return nil
+}
+
+// Similar to reconcileResource but uses Server-Side Apply for creation
+// The operator declares ownership only over the fields it explicitly sets,
+// allowing external controllers to manage additional fields without conflicts.
+func (r *AuthorinoReconciler) reconcileDeploymentResource(ctx context.Context, desired *k8sapps.Deployment) (string, client.Object, error) {
+	obj := &k8sapps.Deployment{}
+	key := client.ObjectKeyFromObject(desired)
+	if err := r.Client.Get(ctx, key, obj); err != nil {
+		if !k8serrors.IsNotFound(err) {
+			return "read", nil, err
+		}
+
+		if !IsObjectTaggedToDelete(desired) {
+			if err := r.ApplyResource(ctx, desired); err != nil {
+				return "create", desired, err
+			}
+			return "create", desired, nil
+		}
+		return "read", nil, nil
+	}
+
+	if IsObjectTaggedToDelete(desired) {
+		if err := r.DeleteResource(ctx, desired); err != nil {
+			return "delete", desired, err
+		}
+		return "delete", desired, nil
+	}
+
+	if err := r.ApplyResource(ctx, desired); err != nil {
+		return "update", obj, err
+	}
+
+	return "", obj, nil
 }
 
 func (r *AuthorinoReconciler) reconcileService(ctx context.Context, desired *k8score.Service, authorino *api.Authorino) error {
