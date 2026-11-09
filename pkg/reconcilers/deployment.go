@@ -150,6 +150,7 @@ func AuthorinoDeployment(authorino *api.Authorino) *k8sapps.Deployment {
 		containers,
 		volumes,
 		authorino.Labels,
+		&authorino.Spec,
 	)
 
 	return deployment

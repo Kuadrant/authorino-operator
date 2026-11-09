@@ -2,6 +2,7 @@ package reconcilers
 
 import (
 	"context"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -351,8 +352,8 @@ func TestReconcileServiceClusterIPMigration(t *testing.T) {
 								Details: &metav1.StatusDetails{
 									Causes: []metav1.StatusCause{
 										// API server reports "spec.clusterIPs[0]" (plural, indexed),
-						// not "spec.clusterIP" — the HasPrefix check must handle both.
-						{Field: "spec.clusterIPs[0]", Message: "may not change once set"},
+										// not "spec.clusterIP" — the HasPrefix check must handle both.
+										{Field: "spec.clusterIPs[0]", Message: "may not change once set"},
 									},
 								},
 							},
@@ -401,6 +402,69 @@ func TestReconcileDeployment(t *testing.T) {
 		err = r.Client.Get(ctx, client.ObjectKeyFromObject(deployment), created)
 		if err != nil {
 			t.Fatalf("expected deployment to exist: %v", err)
+		}
+	})
+
+	t.Run("create deployment with affinity, topology spread constraints, tolerations, and node selector", func(t *testing.T) {
+		authorino := authorinoInstance.DeepCopy()
+		affinity := &k8score.Affinity{
+			NodeAffinity: &k8score.NodeAffinity{
+				RequiredDuringSchedulingIgnoredDuringExecution: &k8score.NodeSelector{
+					NodeSelectorTerms: []k8score.NodeSelectorTerm{{
+						MatchExpressions: []k8score.NodeSelectorRequirement{{
+							Key:      "kubernetes.io/arch",
+							Operator: k8score.NodeSelectorOpIn,
+							Values:   []string{"arm64"},
+						}},
+					}},
+				},
+			},
+		}
+		topologySpreadConstraints := []k8score.TopologySpreadConstraint{{
+			MaxSkew:           1,
+			TopologyKey:       "topology.kubernetes.io/zone",
+			WhenUnsatisfiable: k8score.DoNotSchedule,
+			LabelSelector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{"authorino-resource": "authorino"},
+			},
+			MatchLabelKeys: []string{"pod-template-hash"},
+		}}
+		tolerations := []k8score.Toleration{{
+			Key:      "dedicated",
+			Operator: k8score.TolerationOpEqual,
+			Value:    "authorino",
+			Effect:   k8score.TaintEffectNoSchedule,
+		}}
+		nodeSelector := map[string]string{"kubernetes.io/arch": "arm64"}
+		authorino.Spec.Affinity = affinity
+		authorino.Spec.TopologySpreadConstraints = topologySpreadConstraints
+		authorino.Spec.Tolerations = tolerations
+		authorino.Spec.NodeSelector = nodeSelector
+
+		r, ctx := setupTestEnvironment(t, []client.Object{authorino})
+		logger := log.FromContext(ctx)
+		deployment := AuthorinoDeployment(authorino)
+		if err := r.reconcileDeployment(ctx, logger, deployment, authorino); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		created := &appsv1.Deployment{}
+		if err := r.Client.Get(ctx, client.ObjectKeyFromObject(deployment), created); err != nil {
+			t.Fatalf("expected deployment to exist: %v", err)
+		}
+
+		podSpec := created.Spec.Template.Spec
+		if !reflect.DeepEqual(created.Spec.Template.Spec.Affinity, affinity) {
+			t.Errorf("expected pod affinity to be preserved, got %+v", created.Spec.Template.Spec.Affinity)
+		}
+		if !reflect.DeepEqual(podSpec.TopologySpreadConstraints, topologySpreadConstraints) {
+			t.Errorf("expected topology spread constraints to be preserved, got %+v", podSpec.TopologySpreadConstraints)
+		}
+		if !reflect.DeepEqual(podSpec.Tolerations, tolerations) {
+			t.Errorf("expected tolerations to be preserved, got %+v", podSpec.Tolerations)
+		}
+		if !reflect.DeepEqual(podSpec.NodeSelector, nodeSelector) {
+			t.Errorf("expected node selector to be preserved, got %+v", podSpec.NodeSelector)
 		}
 	})
 
