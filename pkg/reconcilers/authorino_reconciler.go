@@ -19,6 +19,18 @@ import (
 	authorinoResources "github.com/kuadrant/authorino-operator/pkg/resources"
 )
 
+type reconcileOptions struct {
+	ssaCreate bool
+}
+
+type reconcileOption func(*reconcileOptions)
+
+func withSSACreate() reconcileOption {
+	return func(options *reconcileOptions) {
+		options.ssaCreate = true
+	}
+}
+
 type AuthorinoReconciler struct {
 	client.Client
 	Log    logr.Logger
@@ -330,7 +342,12 @@ func (r *AuthorinoReconciler) checkClusterRoleExists(ctx context.Context, key cl
 	return nil
 }
 
-func (r *AuthorinoReconciler) reconcileResource(ctx context.Context, obj, desired client.Object) (string, client.Object, error) {
+func (r *AuthorinoReconciler) reconcileResource(ctx context.Context, obj, desired client.Object, opts ...reconcileOption) (string, client.Object, error) {
+	options := reconcileOptions{}
+	for _, opt := range opts {
+		opt(&options)
+	}
+
 	key := client.ObjectKeyFromObject(desired)
 
 	if err := r.Client.Get(ctx, key, obj); err != nil {
@@ -340,7 +357,12 @@ func (r *AuthorinoReconciler) reconcileResource(ctx context.Context, obj, desire
 
 		// Not found
 		if !IsObjectTaggedToDelete(desired) {
-			if err = r.CreateResource(ctx, desired); err != nil {
+			if options.ssaCreate {
+				err = r.ApplyResource(ctx, desired)
+			} else {
+				err = r.CreateResource(ctx, desired)
+			}
+			if err != nil {
 				return "create", nil, err
 			}
 			return "create", desired, nil
@@ -408,7 +430,7 @@ func (r *AuthorinoReconciler) DeleteResource(ctx context.Context, obj client.Obj
 }
 
 func (r *AuthorinoReconciler) reconcileDeployment(ctx context.Context, logger logr.Logger, desired *k8sapps.Deployment, authorino *api.Authorino) error {
-	crud, obj, err := r.reconcileResource(ctx, &k8sapps.Deployment{}, desired)
+	crud, obj, err := r.reconcileResource(ctx, &k8sapps.Deployment{}, desired, withSSACreate())
 
 	if crud == "read" && err != nil {
 		return r.WrapErrorWithStatusUpdate(logger, authorino, r.SetStatusFailed(statusUnableToGetDeployment),

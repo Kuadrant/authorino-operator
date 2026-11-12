@@ -150,6 +150,10 @@ func AuthorinoDeployment(authorino *api.Authorino) *k8sapps.Deployment {
 		containers,
 		volumes,
 		authorino.Labels,
+		authorino.Spec.Affinity,
+		authorino.Spec.TopologySpreadConstraints,
+		authorino.Spec.Tolerations,
+		authorino.Spec.NodeSelector,
 	)
 
 	return deployment
