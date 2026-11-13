@@ -84,7 +84,8 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # ratchet:actions/setup-go@v6
         with:
-          go-version-file: go.mod
+          go-version: '1.26'
+          check-latest: true
         id: go
       - name: Install yq
         run: make yq
@@ -134,7 +135,8 @@ jobs:
         id: go
         uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # ratchet:actions/setup-go@v5
         with:
-          go-version-file: go.mod
+          go-version: '1.26'
+          check-latest: true
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # ratchet:docker/setup-buildx-action@v3
       - name: Run make bundle
@@ -209,7 +211,8 @@ jobs:
         id: go
         uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # ratchet:actions/setup-go@v5
         with:
-          go-version-file: go.mod
+          go-version: '1.26'
+          check-latest: true
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # ratchet:docker/setup-buildx-action@v3
       - name: Run make catalog
