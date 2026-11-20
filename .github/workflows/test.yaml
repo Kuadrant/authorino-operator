@@ -15,7 +15,7 @@ jobs:
     name: Verify manifests
     runs-on: ubuntu-latest
     env:
-      GOTOOLCHAIN: go1.27.3
+      GOTOOLCHAIN: go1.27.3+auto
     steps:
       - name: Check out code
         uses: actions/checkout@v4
@@ -32,7 +32,7 @@ jobs:
     name: Verify bundle
     runs-on: ubuntu-latest
     env:
-      GOTOOLCHAIN: go1.27.3
+      GOTOOLCHAIN: go1.27.3+auto
     steps:
       - name: Check out code
         uses: actions/checkout@v4
