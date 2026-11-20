@@ -14,6 +14,8 @@ jobs:
   verify-manifests:
     name: Verify manifests
     runs-on: ubuntu-latest
+    env:
+      GOTOOLCHAIN: go1.27.3
     steps:
       - name: Check out code
         uses: actions/checkout@v4
@@ -29,6 +31,8 @@ jobs:
   verify-bundle:
     name: Verify bundle
     runs-on: ubuntu-latest
+    env:
+      GOTOOLCHAIN: go1.27.3
     steps:
       - name: Check out code
         uses: actions/checkout@v4
@@ -44,6 +48,8 @@ jobs:
   verify-fmt:
     name: Verify fmt
     runs-on: ubuntu-latest
+    env:
+      GOTOOLCHAIN: go1.27.3
     steps:
       - name: Check out code
         uses: actions/checkout@v4
@@ -62,6 +68,8 @@ jobs:
       matrix:
         platform: [ ubuntu-latest, macos-latest ]
     runs-on: ${{ matrix.platform }}
+    env:
+      GOTOOLCHAIN: go1.27.3
     defaults:
       run:
         shell: bash
@@ -83,6 +91,8 @@ jobs:
       matrix:
         platform: [ ubuntu-latest, macos-latest ]
     runs-on: ${{ matrix.platform }}
+    env:
+      GOTOOLCHAIN: go1.27.3
     defaults:
       run:
         shell: bash
