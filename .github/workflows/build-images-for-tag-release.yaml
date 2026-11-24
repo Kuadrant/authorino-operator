@@ -38,6 +38,9 @@ jobs:
   build-release:
     name: Calls build-images-base workflow
     needs: set-vars
+    permissions:
+      contents: read
+      id-token: write
     uses: ./.github/workflows/build-images-base.yaml
     secrets: inherit
     with:
