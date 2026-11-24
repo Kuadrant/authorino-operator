@@ -19,6 +19,18 @@ func defaultAuthorinoLabels(name string) map[string]string {
 	}
 }
 
+func authorinoDeploymentLabels(name string) map[string]string {
+	return map[string]string{
+		"app":                          "authorino",
+		"authorino-resource":           name,
+		"app.kubernetes.io/name":       "authorino",
+		"app.kubernetes.io/instance":   name,
+		"app.kubernetes.io/component":  "authorino",
+		"app.kubernetes.io/managed-by": "authorino-operator",
+		"app.kubernetes.io/part-of":    "kuadrant",
+	}
+}
+
 func authorinoServiceAccountName(crName string) string {
 	return fmt.Sprintf("%s-authorino", crName)
 }

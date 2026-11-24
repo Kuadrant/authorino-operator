@@ -6,8 +6,10 @@ import (
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func GetDeployment(name, namespace, saName string, replicas *int32, containers []k8score.Container, vol []k8score.Volume, labels map[string]string) *k8sapps.Deployment {
-	objMeta := getObjectMeta(namespace, name, labels)
+func GetDeployment(name, namespace, saName string, replicas *int32, containers []k8score.Container, vol []k8score.Volume, authorinoLabels map[string]string) *k8sapps.Deployment {
+	deploymentLabels := CopyMap(authorinoLabels)
+	MergeMapStringString(&deploymentLabels, authorinoDeploymentLabels(name))
+	objMeta := getObjectMeta(namespace, name, deploymentLabels)
 
 	return &k8sapps.Deployment{
 		TypeMeta: v1.TypeMeta{

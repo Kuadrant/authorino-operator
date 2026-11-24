@@ -161,7 +161,16 @@ var _ = Describe("Authorino controller", func() {
 
 			Expect(deployment.Spec.Replicas).To(Equal(&replicas))
 
-			Expect(deployment.Labels).Should(Equal(map[string]string{"thisLabel": "willPropagate"}))
+			Expect(deployment.Labels).Should(Equal(map[string]string{
+				"thisLabel":                    "willPropagate",
+				"app":                          "authorino",
+				"authorino-resource":           authorinoInstance.Name,
+				"app.kubernetes.io/name":       "authorino",
+				"app.kubernetes.io/instance":   authorinoInstance.Name,
+				"app.kubernetes.io/component":  "authorino",
+				"app.kubernetes.io/managed-by": "authorino-operator",
+				"app.kubernetes.io/part-of":    "kuadrant",
+			}))
 			Expect(deployment.Spec.Selector.MatchLabels).ShouldNot(HaveKeyWithValue("thisLabel", "willPropagate"))
 			Expect(deployment.Spec.Template.Labels).ShouldNot(HaveKeyWithValue("thisLabel", "willPropagate"))
 
@@ -169,7 +178,7 @@ var _ = Describe("Authorino controller", func() {
 			Expect(deployment.Spec.Selector.MatchLabels).Should(HaveKeyWithValue("control-plane", "controller-manager"))
 			Expect(deployment.Spec.Template.Labels).Should(HaveKeyWithValue("control-plane", "controller-manager"))
 
-			Expect(deployment.Labels).ShouldNot(HaveKeyWithValue("authorino-resource", authorinoInstance.Name))
+			Expect(deployment.Labels).Should(HaveKeyWithValue("authorino-resource", authorinoInstance.Name))
 			Expect(deployment.Spec.Selector.MatchLabels).Should(HaveKeyWithValue("authorino-resource", authorinoInstance.Name))
 			Expect(deployment.Spec.Template.Labels).Should(HaveKeyWithValue("authorino-resource", authorinoInstance.Name))
 			for _, container := range deployment.Spec.Template.Spec.Containers {
@@ -285,7 +294,8 @@ var _ = Describe("Authorino controller", func() {
 			Expect(desiredDeployment.Spec.Selector.MatchLabels).Should(HaveKeyWithValue("control-plane", "controller-manager"))
 			Expect(desiredDeployment.Spec.Template.Labels).Should(HaveKeyWithValue("control-plane", "controller-manager"))
 
-			Expect(desiredDeployment.Labels).ShouldNot(HaveKeyWithValue("authorino-resource", authorinoInstance.Name))
+			Expect(desiredDeployment.Labels).Should(HaveKeyWithValue("app", "authorino"))
+			Expect(desiredDeployment.Labels).Should(HaveKeyWithValue("authorino-resource", authorinoInstance.Name))
 			Expect(desiredDeployment.Spec.Selector.MatchLabels).Should(HaveKeyWithValue("authorino-resource", authorinoInstance.Name))
 			Expect(desiredDeployment.Spec.Template.Labels).Should(HaveKeyWithValue("authorino-resource", authorinoInstance.Name))
 
@@ -316,7 +326,8 @@ var _ = Describe("Authorino controller", func() {
 			Expect(updatedDeployment.Spec.Selector.MatchLabels).Should(HaveKeyWithValue("control-plane", "controller-manager"))
 			Expect(updatedDeployment.Spec.Template.Labels).Should(HaveKeyWithValue("control-plane", "controller-manager"))
 
-			Expect(updatedDeployment.Labels).ShouldNot(HaveKeyWithValue("authorino-resource", authorinoInstance.Name))
+			Expect(updatedDeployment.Labels).Should(HaveKeyWithValue("app", "authorino"))
+			Expect(updatedDeployment.Labels).Should(HaveKeyWithValue("authorino-resource", authorinoInstance.Name))
 			Expect(updatedDeployment.Spec.Selector.MatchLabels).Should(HaveKeyWithValue("authorino-resource", authorinoInstance.Name))
 			Expect(updatedDeployment.Spec.Template.Labels).Should(HaveKeyWithValue("authorino-resource", authorinoInstance.Name))
 
