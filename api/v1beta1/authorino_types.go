@@ -81,6 +81,18 @@ type AuthorinoSpec struct {
 	Tracing                    Tracing    `json:"tracing,omitempty"`
 	Metrics                    Metrics    `json:"metrics,omitempty"`
 	Healthz                    Healthz    `json:"healthz,omitempty"`
+	// Tolerations to apply to the pods
+	// +optional
+	Tolerations []k8score.Toleration `json:"tolerations,omitempty"`
+	// NodeSelector to apply to the pods
+	// +optional
+	NodeSelector map[string]string `json:"nodeSelector,omitempty"`
+	// Affinity is a group of affinity scheduling rules for the Authorino pods.
+	// +optional
+	Affinity *k8score.Affinity `json:"affinity,omitempty"`
+	// TopologySpreadConstraints to apply to the pods
+	// +optional
+	TopologySpreadConstraints []k8score.TopologySpreadConstraint `json:"topologySpreadConstraints,omitempty"`
 }
 
 type Listener struct {
